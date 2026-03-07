@@ -1,0 +1,8 @@
+{
+  "name": "五色教师心理健康支持系统",
+  "description": "基于“五色”模型的教师心理健康一体化支持与管理平台，提供动态测评、智能预警、心理调适、协同干预与数据决策功能。",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

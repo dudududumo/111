@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores teacher profile and settings.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["teacher", "admin", "psychologist", "dept_head"] },
+        "school": { "type": "string" },
+        "department": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Assessment": {
+      "title": "Psychological Assessment",
+      "description": "Stores results of psychological scales (SCL-90, SAS, etc.).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "type": { "type": "string" },
+        "scores": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "riskLevel": { "type": "string", "enum": ["green", "blue", "yellow", "orange", "red"] }
+      },
+      "required": ["uid", "type", "scores", "timestamp"]
+    },
+    "Warning": {
+      "title": "Intelligent Warning",
+      "description": "Stores system-generated warnings based on data analysis.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "level": { "type": "string", "enum": ["attention", "intervention", "emergency"] },
+        "riskScore": { "type": "number" },
+        "factors": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "active", "resolved"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "assignedTo": { "type": "string" },
+        "responseLog": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["uid", "level", "reason", "status", "timestamp"]
+    },
+    "RiskAssessment": {
+      "title": "LSTM Risk Assessment",
+      "description": "Stores the output of the risk algorithm engine.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "depressionIndex": { "type": "number" },
+        "anxietyIndex": { "type": "number" },
+        "lstmRiskScore": { "type": "number" },
+        "patterns": { "type": "array", "items": { "type": "string" } },
+        "trend": { "type": "string", "enum": ["improving", "stable", "declining"] },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "lstmRiskScore", "lastUpdated"]
+    },
+    "Intervention": {
+      "title": "Intervention Task",
+      "description": "Stores intervention actions and tracking.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "warningId": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "actions": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string", "enum": ["open", "in-progress", "closed"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "status"]
+    },
+    "CommunityPost": {
+      "title": "Community Post",
+      "description": "Anonymous posts in the support community.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "topic": { "type": "string" },
+        "likes": { "type": "number" },
+        "likedBy": { "type": "array", "items": { "type": "string" } },
+        "isFlagged": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content", "topic", "timestamp", "authorId"]
+    },
+    "ToolUsage": {
+      "title": "Tool Usage",
+      "description": "Anonymous usage data for psychological tools.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "toolId": { "type": "string" },
+        "duration": { "type": "number" },
+        "feeling": { "type": "string", "enum": ["better", "same", "worse"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "toolId", "timestamp"]
+    },
+    "DiaryEntry": {
+      "title": "Diary Entry",
+      "description": "Personal emotional diary entries.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "content": { "type": "string" },
+        "mood": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "content", "mood", "timestamp"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Four-quadrant tasks.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "title": { "type": "string" },
+        "quadrant": { "type": "integer", "enum": [1, 2, 3, 4] },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "title", "quadrant", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": "Assessment",
+      "description": "Psychological assessment records."
+    },
+    "/warnings/{warningId}": {
+      "schema": "Warning",
+      "description": "System warnings."
+    },
+    "/risk_assessments/{uid}": {
+      "schema": "RiskAssessment",
+      "description": "LSTM risk assessment results."
+    },
+    "/interventions/{interventionId}": {
+      "schema": "Intervention",
+      "description": "Intervention tracking."
+    },
+    "/posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Anonymous community posts."
+    },
+    "/tool_usage/{usageId}": {
+      "schema": "ToolUsage",
+      "description": "Anonymous usage logs for psychological tools."
+    },
+    "/diaries/{diaryId}": {
+      "schema": "DiaryEntry",
+      "description": "Personal emotional diary entries."
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Four-quadrant tasks for users."
+    }
+  }
+}
