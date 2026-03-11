@@ -33,6 +33,7 @@ import {
 
 import { db } from "../firebase";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 
 interface DashboardProps {
   profile: UserProfile | null;
@@ -63,25 +64,33 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
       workload: {
         classHours: 18,
         meetingHours: 6,
-        nonTeachingTasks: 4
+        nonTeachingTasks: 4,
+        totalWorkloadIndex: 72
       }
     };
     setBehavioralData(mockBehavioral);
 
     // Fetch latest assessment
-    if (profile) {
-      const q = query(
-        collection(db, "assessments"),
-        where("uid", "==", profile.uid),
-        orderBy("timestamp", "desc"),
-        limit(1)
-      );
-      getDocs(q).then(snap => {
-        if (!snap.empty) {
-          setLatestAssessment(snap.docs[0].data());
+    const fetchLatest = async () => {
+      if (profile) {
+        try {
+          const q = query(
+            collection(db, "assessments"),
+            where("uid", "==", profile.uid),
+            orderBy("timestamp", "desc"),
+            limit(1)
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            setLatestAssessment(snap.docs[0].data());
+          }
+        } catch (e) {
+          handleFirestoreError(e, OperationType.LIST, "assessments");
         }
-      });
-    }
+      }
+    };
+    
+    fetchLatest();
   }, [profile]);
 
   const hrvData = physioData?.hrv.map((val, i) => ({ name: physioData.timestamps[i], value: val })) || [];

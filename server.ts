@@ -23,10 +23,11 @@ async function startServer() {
   // Mock endpoint for physiological data (simulating IoT device)
   app.get("/api/physiological/:uid", (req, res) => {
     const { uid } = req.params;
+    // Simulate real-world data with slight variations
     res.json({
       uid,
-      hrv: [62, 65, 58, 70, 68, 72, 64],
-      restingHR: [72, 70, 75, 68, 69, 67, 71],
+      hrv: [62, 65, 58, 70, 68, 72, 64].map(v => v + Math.floor(Math.random() * 10 - 5)),
+      restingHR: [72, 70, 75, 68, 69, 67, 71].map(v => v + Math.floor(Math.random() * 6 - 3)),
       sleepDuration: [7.2, 6.5, 5.8, 7.5, 8.0, 7.2, 6.8],
       deepSleepRatio: [25, 22, 18, 28, 30, 26, 24],
       activityLevel: [8000, 6500, 4000, 9000, 11000, 7500, 8200],
@@ -37,10 +38,21 @@ async function startServer() {
   // Mock workload data endpoint (simulating teaching system integration)
   app.get("/api/workload/:uid", (req, res) => {
     res.json({
-      classHours: 18,
-      meetingHours: 6,
-      nonTeachingTasks: 4,
-      totalWorkloadIndex: 72
+      classHours: 16 + Math.floor(Math.random() * 6),
+      meetingHours: 4 + Math.floor(Math.random() * 4),
+      nonTeachingTasks: 3 + Math.floor(Math.random() * 5),
+      totalWorkloadIndex: 65 + Math.floor(Math.random() * 20)
+    });
+  });
+
+  // IRT-based question selection mock
+  app.post("/api/assessment/next-questions", (req, res) => {
+    const { type, history } = req.body;
+    // In a real IRT system, this would analyze 'history' to pick the most informative next questions
+    // Here we just return a subset
+    res.json({
+      nextBatch: [1, 5, 12, 18, 25], // Mock IDs
+      isComplete: history.length > 20 // Stop after 20 questions for demo
     });
   });
 

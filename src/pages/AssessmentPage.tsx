@@ -10,13 +10,18 @@ import {
   Info,
   AlertCircle,
   Save,
-  Zap
+  Zap,
+  LogOut,
+  X
 } from "lucide-react";
 import { db } from "../firebase";
-import { collection, addDoc, doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, getDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 import { SCALES, Scale, Question } from "../data/scales";
 import ConsentModal from "../components/ConsentModal";
 import WearableSync from "../components/WearableSync";
+
+import PsychologicalProfile from "../components/PsychologicalProfile";
 
 interface AssessmentPageProps {
   profile: UserProfile | null;
@@ -30,13 +35,47 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{ score: number; level: string; color: string; advice: string } | null>(null);
   const [showConsent, setShowConsent] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [viewMode, setViewMode] = useState<"scales" | "profile">("scales");
+  const [lastResults, setLastResults] = useState<Record<string, { level: string; timestamp: string; color: string }>>({});
 
   useEffect(() => {
     if (profile && !profile.consentAccepted) {
       setShowConsent(true);
     }
+    if (profile) {
+      fetchLastResults();
+    }
   }, [profile]);
+
+  const fetchLastResults = async () => {
+    if (!profile) return;
+    try {
+      const results: Record<string, any> = {};
+      
+      for (const scale of SCALES) {
+        const q = query(
+          collection(db, "assessments"),
+          where("uid", "==", profile.uid),
+          where("type", "==", scale.id),
+          orderBy("timestamp", "desc"),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const data = querySnapshot.docs[0].data();
+          results[scale.id] = {
+            level: data.level,
+            timestamp: data.timestamp,
+            color: data.riskLevel
+          };
+        }
+      }
+      setLastResults(results);
+    } catch (err) {
+      console.error("Error fetching last results:", err);
+    }
+  };
 
   const handleAcceptConsent = async () => {
     if (!profile) return;
@@ -46,7 +85,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
       });
       setShowConsent(false);
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
@@ -57,43 +96,15 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
         wearableBrand: brand
       });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
     }
   };
 
-  const startScale = async (scale: Scale) => {
+  const startScale = (scale: Scale) => {
     setSelectedScale(scale);
-    
-    // Check for saved progress (Fragmented Filling)
-    if (profile) {
-      const progressDoc = await getDoc(doc(db, "progress", `${profile.uid}_${scale.id}`));
-      if (progressDoc.exists()) {
-        const data = progressDoc.data();
-        setAnswers(data.answers || []);
-        setCurrentQuestionIndex(data.currentIndex || 0);
-      } else {
-        setAnswers([]);
-        setCurrentQuestionIndex(0);
-      }
-    }
-    
+    setAnswers([]);
+    setCurrentQuestionIndex(0);
     setStep(1);
-  };
-
-  const saveProgress = async () => {
-    if (!profile || !selectedScale) return;
-    setIsSaving(true);
-    try {
-      await setDoc(doc(db, "progress", `${profile.uid}_${selectedScale.id}`), {
-        answers,
-        currentIndex: currentQuestionIndex,
-        timestamp: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTimeout(() => setIsSaving(false), 1000);
-    }
   };
 
   const handleAnswer = (value: number) => {
@@ -102,21 +113,11 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
     setAnswers(newAnswers);
 
     if (selectedScale) {
-      // IRT-based dynamic question skipping (Simulated)
-      // If the user answers "Never" (1) to multiple early items in a symptom scale, 
-      // we might skip some related items to save time.
-      let nextIndex = currentQuestionIndex + 1;
-      
-      // Example IRT Logic: If first 3 items are "Never", skip the next 2 related items
-      if (currentQuestionIndex === 2 && newAnswers.slice(0, 3).every(a => a === 1)) {
-        nextIndex = Math.min(currentQuestionIndex + 3, selectedScale.questions.length);
-      }
-
+      const nextIndex = currentQuestionIndex + 1;
       if (nextIndex < selectedScale.questions.length) {
         setCurrentQuestionIndex(nextIndex);
-      } else {
-        submitAssessment(newAnswers);
       }
+      // Removed auto-submit to allow manual submission via button
     }
   };
 
@@ -134,17 +135,20 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
         scores: { total: calcResult.score, answers: finalAnswers },
         timestamp: new Date().toISOString(),
         riskLevel: calcResult.color,
-        level: calcResult.level,
-        isIrtOptimized: true // Flag for IRT optimization
+        level: calcResult.level
       };
       
       await addDoc(collection(db, "assessments"), assessmentData);
+      
+      // Refresh last results
+      fetchLastResults();
 
-      // Clear progress
-      await setDoc(doc(db, "progress", `${profile.uid}_${selectedScale.id}`), {
-        answers: [],
-        currentIndex: 0
-      });
+      // Delete any existing progress for this scale if it existed
+      try {
+        await deleteDoc(doc(db, "progress", `${profile.uid}_${selectedScale.id}`));
+      } catch (e) {
+        // Ignore if progress didn't exist
+      }
 
       if (calcResult.color === "red" || calcResult.color === "orange") {
         await addDoc(collection(db, "warnings"), {
@@ -158,7 +162,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
 
       setStep(3);
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, "assessments/warnings");
     } finally {
       setIsSubmitting(false);
     }
@@ -167,6 +171,21 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
   const currentQuestion = selectedScale?.questions[currentQuestionIndex];
   const progress = selectedScale ? ((currentQuestionIndex + 1) / selectedScale.questions.length) * 100 : 0;
 
+  const handleExit = () => {
+    setShowExitConfirm(false);
+    setStep(0);
+    setSelectedScale(null);
+    setAnswers([]);
+    setCurrentQuestionIndex(0);
+  };
+
+  const getTimeEstimate = (scale: Scale) => {
+    if (scale.id === "scl90") return "15-20 分钟";
+    if (scale.questions.length <= 10) return "1-3 分钟";
+    if (scale.questions.length <= 30) return "3-5 分钟";
+    return "5-10 分钟";
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -174,6 +193,43 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
       className="max-w-4xl mx-auto space-y-8"
     >
       <ConsentModal isOpen={showConsent} onAccept={handleAcceptConsent} />
+
+      <AnimatePresence>
+        {showExitConfirm && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white p-8 rounded-[32px] shadow-2xl max-w-sm w-full text-center space-y-6"
+            >
+              <div className="mx-auto h-16 w-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+                <AlertCircle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-stone-900">确认退出？</h3>
+                <p className="text-stone-500 text-sm leading-relaxed">
+                  当前测评进度将不会被保存。如果您现在退出，下次需要从头开始作答。
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 py-3 bg-stone-100 text-stone-600 font-bold rounded-xl hover:bg-stone-200 transition-all"
+                >
+                  继续作答
+                </button>
+                <button 
+                  onClick={handleExit}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-100"
+                >
+                  确认退出
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {step === 0 && (
@@ -184,48 +240,81 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
-            <header>
-              <h1 className="text-2xl font-bold text-stone-900">心理数据中心 (绿色测评)</h1>
-              <p className="text-stone-500">多模态数据采集与动态心理档案系统</p>
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-stone-900">心理数据中心 (绿色测评)</h1>
+                <p className="text-stone-500">多模态数据采集与动态心理档案系统</p>
+              </div>
+              <div className="flex bg-stone-100 p-1 rounded-2xl self-start">
+                <button 
+                  onClick={() => setViewMode("scales")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === "scales" ? "bg-white text-emerald-600 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
+                >
+                  专业量表
+                </button>
+                <button 
+                  onClick={() => setViewMode("profile")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === "profile" ? "bg-white text-emerald-600 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
+                >
+                  动态档案
+                </button>
+              </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest">专业心理量表</h3>
-                <div className="grid grid-cols-1 gap-4">
-                  {SCALES.map((scale) => (
-                    <div 
-                      key={scale.id}
-                      onClick={() => startScale(scale)}
-                      className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                          <ClipboardCheck size={24} />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-stone-900 group-hover:text-emerald-600 transition-colors">{scale.name}</h3>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="flex items-center gap-1 text-[10px] font-medium text-stone-400">
-                              <Zap size={12} className="text-amber-500" /> IRT 提速 40%
-                            </span>
+            {viewMode === "scales" ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest">专业心理量表</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {SCALES.map((scale) => (
+                      <div 
+                        key={scale.id}
+                        onClick={() => startScale(scale)}
+                        className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <ClipboardCheck size={24} />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-stone-900 group-hover:text-emerald-600 transition-colors">{scale.name}</h3>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-stone-400">
+                                <Clock size={12} className="text-stone-300" /> 约 {getTimeEstimate(scale)}
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-stone-400">
+                                <Info size={12} className="text-stone-300" /> {scale.questions.length} 题
+                              </span>
+                              {lastResults[scale.id] && (
+                                <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  lastResults[scale.id].color === 'green' ? 'bg-emerald-50 text-emerald-600' :
+                                  lastResults[scale.id].color === 'yellow' ? 'bg-amber-50 text-amber-600' :
+                                  lastResults[scale.id].color === 'orange' ? 'bg-orange-50 text-orange-600' :
+                                  'bg-red-50 text-red-600'
+                                }`}>
+                                  上次结果: {lastResults[scale.id].level} ({new Date(lastResults[scale.id].timestamp).toLocaleDateString()})
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+                        <ChevronRight size={20} className="text-stone-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
                       </div>
-                      <ChevronRight size={20} className="text-stone-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest">生理数据接入</h3>
+                  <WearableSync 
+                    currentBrand={profile?.wearableBrand || null} 
+                    onSync={handleWearableSync} 
+                  />
                 </div>
               </div>
-
-              <div className="space-y-6">
-                <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest">生理数据接入</h3>
-                <WearableSync 
-                  currentBrand={profile?.wearableBrand || null} 
-                  onSync={handleWearableSync} 
-                />
-              </div>
-            </div>
+            ) : (
+              <PsychologicalProfile profile={profile} />
+            )}
           </motion.div>
         )}
 
@@ -244,13 +333,26 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
               <ClipboardCheck size={40} />
             </div>
             <h2 className="text-2xl font-bold text-stone-900">{selectedScale.name}</h2>
+            <p className="text-stone-500 mt-2 max-w-md mx-auto">{selectedScale.description}</p>
             
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <div className="px-4 py-2 bg-amber-50 rounded-xl flex items-center gap-2 text-xs font-bold text-amber-700">
-                <Zap size={16} /> IRT 动态出题已开启
+            <div className="mt-8 flex items-center justify-center gap-6">
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-12 w-12 rounded-2xl bg-stone-50 text-stone-600 flex items-center justify-center">
+                  <Info size={24} />
+                </div>
+                <span className="text-xs font-bold text-stone-400 mt-1">{selectedScale.questions.length} 道题目</span>
               </div>
-              <div className="px-4 py-2 bg-blue-50 rounded-xl flex items-center gap-2 text-xs font-bold text-blue-700">
-                <Save size={16} /> 支持碎片化填写
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-12 w-12 rounded-2xl bg-stone-50 text-stone-600 flex items-center justify-center">
+                  <Clock size={24} />
+                </div>
+                <span className="text-xs font-bold text-stone-400 mt-1">预计 {getTimeEstimate(selectedScale)}</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="h-12 w-12 rounded-2xl bg-stone-50 text-stone-600 flex items-center justify-center">
+                  <Zap size={24} />
+                </div>
+                <span className="text-xs font-bold text-stone-400 mt-1">专业算法评估</span>
               </div>
             </div>
 
@@ -259,9 +361,9 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
                 <AlertCircle size={18} /> 测评须知
               </h4>
               <ul className="text-sm text-stone-500 space-y-2 list-disc list-inside">
-                <li>系统将根据您的历史作答智能筛选题目，缩短答题时间。</li>
-                <li>您可以随时退出，系统将自动保存您的答题进度。</li>
-                <li>测评结果将同步至您的“动态心理档案”。</li>
+                <li>请根据您最近一周的真实感受进行作答。</li>
+                <li className="text-red-500 font-medium">本次测评不支持保存进度，退出将需要重新开始。</li>
+                <li>测评结果仅供参考，不作为医学诊断依据。</li>
               </ul>
             </div>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -287,11 +389,13 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
                 <h3 className="text-lg font-bold text-stone-900">{selectedScale.name}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-stone-400">第 {currentQuestionIndex + 1} / {selectedScale.questions.length} 题</span>
-                  {isSaving && <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1"><Save size={10} /> 进度已保存</span>}
                 </div>
               </div>
-              <button onClick={saveProgress} className="p-3 bg-stone-50 rounded-2xl text-stone-400 hover:text-emerald-600 transition-all">
-                <Save size={20} />
+              <button 
+                onClick={() => setShowExitConfirm(true)} 
+                className="p-3 bg-stone-50 rounded-2xl text-stone-400 hover:text-red-600 transition-all flex items-center gap-2 text-xs font-bold"
+              >
+                <X size={20} /> 退出
               </button>
             </div>
             
@@ -306,19 +410,47 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
               </motion.p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-12 max-w-2xl mx-auto">
-                {currentQuestion.options.map((option, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => handleAnswer(option.value)}
-                    className="px-6 py-5 rounded-3xl border-2 border-stone-50 text-stone-600 font-bold hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all text-left flex items-center justify-between group"
-                  >
-                    <span>{option.label}</span>
-                    <div className="h-6 w-6 rounded-full border-2 border-stone-100 group-hover:border-emerald-500 flex items-center justify-center">
-                      <div className="h-3 w-3 rounded-full bg-emerald-500 scale-0 group-hover:scale-100 transition-transform" />
-                    </div>
-                  </button>
-                ))}
+                {currentQuestion.options.map((option, i) => {
+                  const isSelected = answers[currentQuestionIndex] === option.value;
+                  return (
+                    <button 
+                      key={i}
+                      onClick={() => handleAnswer(option.value)}
+                      className={`px-6 py-5 rounded-3xl border-2 transition-all text-left flex items-center justify-between group ${
+                        isSelected 
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-600 shadow-sm" 
+                          : "border-stone-50 text-stone-600 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-600"
+                      }`}
+                    >
+                      <span>{option.label}</span>
+                      <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? "border-emerald-500" : "border-stone-100 group-hover:border-emerald-500"
+                      }`}>
+                        <div className={`h-3 w-3 rounded-full bg-emerald-500 transition-transform ${
+                          isSelected ? "scale-100" : "scale-0 group-hover:scale-100"
+                        }`} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+
+              {currentQuestionIndex === selectedScale.questions.length - 1 && answers[currentQuestionIndex] !== undefined && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-12"
+                >
+                  <button 
+                    onClick={() => submitAssessment(answers)}
+                    disabled={isSubmitting}
+                    className="w-full max-w-xs px-10 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mx-auto"
+                  >
+                    {isSubmitting ? "正在提交..." : "完成并提交测评"}
+                    {!isSubmitting && <ChevronRight size={20} />}
+                  </button>
+                </motion.div>
+              )}
             </div>
 
             <div className="mt-12 pt-8 border-t border-stone-50">

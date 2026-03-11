@@ -19,6 +19,8 @@ import {
 import { UserProfile, CommunityPost } from "../types";
 import { db } from "../firebase";
 import { collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { handleFirestoreError } from "../utils/firestoreErrorHandler";
+import { OperationType } from "../utils/firestoreErrorHandler";
 
 interface CommunityProps {
   profile: UserProfile | null;
@@ -45,6 +47,8 @@ const Community: React.FC<CommunityProps> = ({ profile }) => {
     const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityPost)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "posts");
     });
     return () => unsubscribe();
   }, []);

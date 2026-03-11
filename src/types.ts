@@ -21,10 +21,18 @@ export interface UserProfile {
 export interface Assessment {
   id?: string;
   uid: string;
-  type: string;
+  type: "SCL-90" | "SAS" | "MBI" | "PHQ-9" | "GAD-7";
   scores: Record<string, number>;
+  rawAnswers: Record<number, number>;
   timestamp: string;
   riskLevel: "green" | "blue" | "yellow" | "orange" | "red";
+}
+
+export interface ScaleQuestion {
+  id: number;
+  text: string;
+  options: { value: number; label: string }[];
+  dimension?: string;
 }
 
 export interface Warning {
@@ -118,5 +126,6 @@ export interface BehavioralData {
     classHours: number;
     meetingHours: number;
     nonTeachingTasks: number;
+    totalWorkloadIndex: number;
   };
 }

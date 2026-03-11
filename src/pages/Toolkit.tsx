@@ -26,6 +26,7 @@ import {
 import { UserProfile, ToolUsage, DiaryEntry, Task } from "../types";
 import { db } from "../firebase";
 import { collection, addDoc, query, where, orderBy, onSnapshot, updateDoc, deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
+import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 
 interface ToolkitProps {
   profile: UserProfile | null;
@@ -71,10 +72,21 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (selectedAudio && isPlaying) {
-      audioRef.current?.play().catch(err => console.error("Audio play failed:", err));
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          if (err.name !== 'AbortError') {
+            console.error("Audio play failed:", err.message);
+            setIsPlaying(false);
+          }
+        });
+      }
     } else {
-      audioRef.current?.pause();
+      audio.pause();
     }
   }, [selectedAudio, isPlaying]);
 
@@ -87,11 +99,22 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const mindfulnessTracks = [
-    { id: 'm1', title: '5分钟晨间唤醒', duration: '5:00', category: '能量', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-    { id: 'm2', title: '10分钟深度放松', duration: '10:00', category: '减压', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
-    { id: 'm3', title: '3分钟呼吸锚点', duration: '3:00', category: '专注', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-    { id: 'm4', title: '15分钟慈悲冥想', duration: '15:00', category: '情绪', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
+    { id: 'm1', title: '5分钟晨间唤醒：森林晨曦', duration: '5:00', category: '能量', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' },
+    { id: 'm2', title: '10分钟深度放松：海浪冥想', duration: '10:00', category: '减压', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3' },
+    { id: 'm3', title: '3分钟呼吸锚点：雨夜宁静', duration: '3:00', category: '专注', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3' },
+    { id: 'm4', title: '15分钟慈悲冥想：星空入眠', duration: '15:00', category: '情绪', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3' },
+    { id: 'm5', title: '阿尔法波：深度专注', duration: '20:00', category: '学习', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
+    { id: 'm6', title: '自然之声：夏日蝉鸣', duration: '10:00', category: '放松', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3' },
   ];
+
+  const musicLibraries = [
+    { name: "Pixabay Music", url: "https://pixabay.com/music/", desc: "高品质免版税音乐库" },
+    { name: "Bensound", url: "https://www.bensound.com", desc: "专业的背景音乐资源" },
+    { name: "Free Music Archive", url: "https://freemusicarchive.org", desc: "独立音乐人的共享社区" },
+  ];
+
+  const [customUrl, setCustomUrl] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const boundaryScenarios = [
     {
@@ -128,6 +151,42 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
         { text: "附和家长的观点", feedback: "这违反了职业道德，且容易卷入不必要的职场纷争。", type: 'weak' },
         { text: "礼貌引导家长通过正式渠道或直接与该老师沟通", feedback: "明智的选择。维护了同事关系，也划清了沟通的专业边界。", type: 'strong' },
         { text: "不发表评论，只听不说", feedback: "虽然避开了风险，但没有积极引导，家长可能继续纠缠。", type: 'neutral' }
+      ]
+    },
+    {
+      id: 5,
+      context: "下班后，你收到一位家长的语音通话请求，讨论孩子的琐碎表现。",
+      options: [
+        { text: "接听并聊上半小时", feedback: "这会消耗你宝贵的休息时间。建议引导至文字沟通或预约面谈。", type: 'weak' },
+        { text: "挂断并回复：现在不方便，请在工作时间联系我", feedback: "虽然明确了边界，但可以直接说明非紧急情况请留言。", type: 'neutral' },
+        { text: "回复文字：现在是私人休息时间，如有紧急情况请留言，否则我将在明天工作时间回复", feedback: "非常棒。既体现了责任心，又坚守了个人生活空间。", type: 'strong' }
+      ]
+    },
+    {
+      id: 6,
+      context: "学校要求老师在个人朋友圈转发学校的宣传推文，你并不想这样做。",
+      options: [
+        { text: "默默转发并设置分组可见", feedback: "这是一种妥协。你有权决定个人社交媒体的内容。", type: 'neutral' },
+        { text: "不予理会，坚持朋友圈的个人属性", feedback: "勇敢的边界设定。个人空间不应被强制职业化。", type: 'strong' },
+        { text: "在群里公开质疑这项要求", feedback: "虽然表达了不满，但可能引发不必要的冲突，建议私下沟通或冷处理。", type: 'weak' }
+      ]
+    },
+    {
+      id: 7,
+      context: "一位家长在家长会上公开质疑你的教学水平，语气带有攻击性。",
+      options: [
+        { text: "当场反驳并与其争吵", feedback: "这会破坏你的专业形象。建议保持冷静，引导至会后私下沟通。", type: 'weak' },
+        { text: "保持礼貌，建议会后单独详细讨论，并感谢其关注", feedback: "非常专业的处理方式。既维护了会场秩序，又展现了开放的态度。", type: 'strong' },
+        { text: "沉默不语，任由其指责", feedback: "过度退让可能让其他家长产生误解，建议适度回应以维护专业尊严。", type: 'neutral' }
+      ]
+    },
+    {
+      id: 8,
+      context: "同事经常在办公室大声谈论私人电话，严重干扰了你的备课工作。",
+      options: [
+        { text: "忍气吞声，戴上耳机", feedback: "虽然暂时解决了问题，但长期会积累怨气。建议友好沟通。", type: 'neutral' },
+        { text: "私下委婉地提醒同事，说明自己需要安静的环境备课", feedback: "正确的做法。清晰表达需求是建立健康职场边界的第一步。", type: 'strong' },
+        { text: "在办公室大声抱怨环境嘈杂", feedback: "被动攻击的方式往往会激化矛盾，不利于同事关系的维护。", type: 'weak' }
       ]
     }
   ];
@@ -189,6 +248,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     const unsubscribeDiary = onSnapshot(diaryQuery, (snapshot) => {
       const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DiaryEntry));
       setDiaryEntries(loaded.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "diaries");
     });
 
     const taskQuery = query(
@@ -198,15 +259,24 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     const unsubscribeTasks = onSnapshot(taskQuery, (snapshot) => {
       const loadedTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
       setTasks(loadedTasks.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "tasks");
     });
 
     // Load favorites
-    const favRef = doc(db, "users", profile.uid);
-    getDoc(favRef).then(snap => {
-      if (snap.exists()) {
-        setFavorites(snap.data().favoriteTools || []);
+    const loadFavorites = async () => {
+      const favRef = doc(db, "users", profile.uid);
+      try {
+        const snap = await getDoc(favRef);
+        if (snap.exists()) {
+          setFavorites(snap.data().favoriteTools || []);
+        }
+      } catch (e) {
+        handleFirestoreError(e, OperationType.GET, `users/${profile.uid}`);
       }
-    });
+    };
+    
+    loadFavorites();
 
     return () => {
       unsubscribeDiary();
@@ -238,7 +308,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
 
       await addDoc(collection(db, "tool_usage"), data);
     } catch (err) {
-      console.error("Failed to log tool usage:", err);
+      console.error("Failed to log tool usage:", err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -253,19 +323,30 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     }
     
     if (!isMuted && breathAudioRef.current) {
-      breathAudioRef.current.play().catch(e => console.log("Audio play blocked"));
+      const playPromise = breathAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          if (e.name !== 'AbortError') {
+            console.warn("Breathing audio play blocked or failed:", e.message);
+          }
+        });
+      }
     } else if (breathAudioRef.current) {
       breathAudioRef.current.pause();
     }
 
     const interval = setInterval(() => {
       setBreathPhase(current => {
+        // 震动反馈
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(50);
+        }
         if (current === 'inhale') return 'hold';
         if (current === 'hold') return 'exhale';
         // 只有在 exhale 结束时增加计数
         return 'inhale';
       });
-    }, 4000);
+    }, 3000);
     
     return () => clearInterval(interval);
   }, [activeTool, isMuted]);
@@ -318,7 +399,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
       });
       setNewTaskTitle("");
     } catch (err) {
-      console.error("Failed to add task:", err);
+      console.error("Failed to add task:", err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -346,6 +427,15 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     });
     setNewDiary({ content: "", mood: 5, tags: [] });
     logToolUsage('diary', undefined, 'better');
+  };
+
+  const handleDeleteDiary = async (id: string) => {
+    if (!window.confirm("确定要删除这条日记吗？")) return;
+    try {
+      await deleteDoc(doc(db, "diaries", id));
+    } catch (err) {
+      console.error("Failed to delete diary:", err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -409,7 +499,15 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
             </div>
             {activeTool === 'breathing' && (
               <div className="flex items-center gap-2">
-                <audio ref={breathAudioRef} loop src="https://assets.mixkit.co/music/preview/mixkit-ocean-waves-loop-1196.mp3" />
+                <audio 
+                  ref={breathAudioRef} 
+                  loop 
+                  src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"
+                  onError={() => {
+                    console.warn("Breathing audio failed to load");
+                    setIsMuted(true);
+                  }}
+                />
                 <button onClick={() => setIsMuted(!isMuted)} className="p-2 hover:bg-white rounded-xl transition-colors text-stone-400">
                   {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
                 </button>
@@ -434,14 +532,14 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                         scale: breathPhase === 'inhale' ? 1.5 : (breathPhase === 'exhale' ? 1 : 1.5),
                         opacity: breathPhase === 'hold' ? 0.8 : 1
                       }}
-                      transition={{ duration: 4, ease: "easeInOut" }}
+                      transition={{ duration: 3, ease: "easeInOut" }}
                       className="h-48 w-48 rounded-full bg-blue-500/20 flex items-center justify-center"
                     >
                       <motion.div 
                         animate={{ 
                           scale: breathPhase === 'inhale' ? 1.2 : (breathPhase === 'exhale' ? 0.8 : 1.2)
                         }}
-                        transition={{ duration: 4, ease: "easeInOut" }}
+                        transition={{ duration: 3, ease: "easeInOut" }}
                         className="h-32 w-32 rounded-full bg-blue-500 shadow-2xl shadow-blue-200"
                       />
                     </motion.div>
@@ -656,62 +754,141 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-stone-900">往期回顾</h3>
-                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
-                      {diaryEntries.map(entry => (
-                        <div key={entry.id} className="p-6 bg-stone-50 rounded-3xl border border-stone-100 space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-stone-400">{new Date(entry.timestamp).toLocaleDateString()}</span>
-                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg">心情 {entry.mood}</span>
+                    <div className="space-y-6">
+                      <h3 className="text-xl font-bold text-stone-900">往期回顾</h3>
+                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
+                        {diaryEntries.map(entry => (
+                          <div key={entry.id} className="p-6 bg-stone-50 rounded-3xl border border-stone-100 space-y-3 relative group">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-stone-400">{new Date(entry.timestamp).toLocaleDateString()}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg">心情 {entry.mood}</span>
+                                <button 
+                                  onClick={() => entry.id && handleDeleteDiary(entry.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-stone-300 hover:text-rose-500 transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-sm text-stone-700 leading-relaxed line-clamp-3">{entry.content}</p>
                           </div>
-                          <p className="text-sm text-stone-700 leading-relaxed line-clamp-3">{entry.content}</p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
                 </div>
               )}
 
               {activeTool === 'mindfulness' && (
                 <div className="w-full max-w-2xl space-y-8">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-2xl font-bold text-stone-900">正念冥想库</h3>
-                    <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">4 个课程可用</span>
+                    <div>
+                      <h3 className="text-2xl font-bold text-stone-900">正念冥想库</h3>
+                      <p className="text-xs text-stone-400 mt-1">当前音源来自 SoundHelix 免版税曲库</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowCustomInput(!showCustomInput)}
+                      className="px-4 py-2 bg-stone-100 text-stone-600 rounded-xl text-xs font-bold hover:bg-stone-200 transition-all"
+                    >
+                      {showCustomInput ? "返回列表" : "添加自定义音源"}
+                    </button>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {mindfulnessTracks.map(track => (
-                      <button 
-                        key={track.id}
-                        onClick={() => { 
-                          if (selectedAudio?.id === track.id) {
-                            setIsPlaying(!isPlaying);
-                          } else {
-                            setSelectedAudio(track); 
-                            setIsPlaying(true);
-                            logToolUsage('mindfulness', 300, 'better'); 
-                          }
-                        }}
-                        className={`p-6 rounded-3xl border transition-all flex items-center gap-6 ${selectedAudio?.id === track.id ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-200' : 'bg-white border-stone-100 hover:bg-stone-50'}`}
-                      >
-                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${selectedAudio?.id === track.id ? 'bg-violet-500 text-white' : 'bg-stone-100 text-stone-400'}`}>
-                          {selectedAudio?.id === track.id && isPlaying ? <Activity size={24} /> : <Music size={24} />}
+
+                  {showCustomInput ? (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6"
+                    >
+                      <div className="p-6 bg-stone-50 rounded-3xl border border-stone-100 space-y-4">
+                        <h4 className="font-bold text-stone-800 flex items-center gap-2">
+                          <Plus size={18} /> 输入音频 URL
+                        </h4>
+                        <input 
+                          type="text"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          placeholder="https://example.com/music.mp3"
+                          className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-200"
+                        />
+                        <button 
+                          onClick={() => {
+                            if (customUrl) {
+                              const newTrack = { id: 'custom-' + Date.now(), title: '自定义音源', duration: '未知', category: '自定义', url: customUrl };
+                              setSelectedAudio(newTrack);
+                              setIsPlaying(true);
+                              setShowCustomInput(false);
+                              setCustomUrl("");
+                            }
+                          }}
+                          className="w-full py-3 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-100"
+                        >
+                          立即播放
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest">推荐免版税音乐库</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {musicLibraries.map(lib => (
+                            <a 
+                              key={lib.name}
+                              href={lib.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-4 bg-white border border-stone-100 rounded-2xl hover:shadow-md transition-all group"
+                            >
+                              <p className="font-bold text-stone-900 group-hover:text-violet-600">{lib.name}</p>
+                              <p className="text-[10px] text-stone-400 mt-1">{lib.desc}</p>
+                            </a>
+                          ))}
                         </div>
-                        <div className="flex-1 text-left">
-                          <h4 className="font-bold text-stone-900">{track.title}</h4>
-                          <p className="text-xs text-stone-500 mt-1">{track.category} · {track.duration}</p>
-                        </div>
-                        <ChevronRight size={20} className="text-stone-300" />
-                      </button>
-                    ))}
-                  </div>
+                        <p className="text-[10px] text-stone-400 italic">提示：在这些网站找到喜欢的音乐后，复制其 MP3 直链即可在此播放。</p>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2">
+                      {mindfulnessTracks.map(track => (
+                        <button 
+                          key={track.id}
+                          onClick={() => { 
+                            if (selectedAudio?.id === track.id) {
+                              setIsPlaying(!isPlaying);
+                            } else {
+                              setSelectedAudio(track); 
+                              setIsPlaying(true);
+                              logToolUsage('mindfulness', 300, 'better'); 
+                            }
+                          }}
+                          className={`p-6 rounded-3xl border transition-all flex items-center gap-6 ${selectedAudio?.id === track.id ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-200' : 'bg-white border-stone-100 hover:bg-stone-50'}`}
+                        >
+                          <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${selectedAudio?.id === track.id ? 'bg-violet-500 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                            {selectedAudio?.id === track.id && isPlaying ? <Activity size={24} /> : <Music size={24} />}
+                          </div>
+                          <div className="flex-1 text-left">
+                            <h4 className="font-bold text-stone-900">{track.title}</h4>
+                            <p className="text-xs text-stone-500 mt-1">{track.category} · {track.duration}</p>
+                          </div>
+                          <ChevronRight size={20} className="text-stone-300" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {selectedAudio && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="p-6 bg-stone-900 rounded-3xl text-white flex items-center gap-6"
                     >
-                      <audio ref={audioRef} src={selectedAudio.url} onEnded={() => setIsPlaying(false)} />
+                      <audio 
+                        ref={audioRef} 
+                        src={selectedAudio.url} 
+                        onEnded={() => setIsPlaying(false)}
+                        onError={(e) => {
+                          console.error("Audio source failed to load");
+                          setIsPlaying(false);
+                        }}
+                      />
                       <div className="flex-1">
                         <p className="text-xs font-bold text-white/60 uppercase mb-1">{isPlaying ? "正在播放" : "已暂停"}</p>
                         <p className="font-bold">{selectedAudio.title}</p>

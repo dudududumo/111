@@ -30,6 +30,7 @@ import {
   addDoc,
   serverTimestamp 
 } from "firebase/firestore";
+import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 import { db } from "../firebase";
 import { Warning, UserRole, UserProfile } from "../types";
 import { 
@@ -65,6 +66,8 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warning));
       setWarnings(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "warnings");
     });
     return () => unsubscribe();
   }, []);
@@ -130,7 +133,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
         });
       }
     } catch (err) {
-      console.error("Analysis failed:", err);
+      console.error("Analysis failed:", err instanceof Error ? err.message : String(err));
     } finally {
       setIsAnalyzing(false);
     }
