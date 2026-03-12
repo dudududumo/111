@@ -21,11 +21,18 @@ import {
   Send,
   Activity,
   Pause,
-  Info
+  Info,
+  Mic,
+  Image as ImageIcon,
+  TrendingUp,
+  MessageSquare,
+  Users,
+  Calendar
 } from "lucide-react";
-import { UserProfile, ToolUsage, DiaryEntry, Task } from "../types";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { UserProfile, ToolUsage, DiaryEntry, Task, CommunityPost } from "../types";
 import { db } from "../firebase";
-import { collection, addDoc, query, where, orderBy, onSnapshot, updateDoc, deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, onSnapshot, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 
 interface ToolkitProps {
@@ -33,10 +40,31 @@ interface ToolkitProps {
 }
 
 const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
+  const [activeTab, setActiveTab] = useState<'tools' | 'community'>('tools');
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   
+  // Community State
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [activeTopic, setActiveTopic] = useState('all');
+  const [showNewPost, setShowNewPost] = useState(false);
+  const [newPostContent, setNewPostContent] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState("headteacher");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<CommunityPost | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [comments, setComments] = useState<Record<string, any[]>>({});
+
+  const TOPICS = [
+    { id: 'all', name: '全部动态', icon: Users },
+    { id: 'headteacher', name: '班主任心声', icon: MessageSquare },
+    { id: 'communication', name: '家校沟通艺术', icon: ShieldCheck },
+    { id: 'growth', name: '专业成长', icon: Info },
+    { id: 'life', name: '生活点滴', icon: Heart },
+  ];
+
   // 3x3 Breathing State
   const [breathPhase, setBreathPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
   const [breathCount, setBreathCount] = useState(0);
@@ -64,7 +92,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   // Anxiety Box State
   const [anxietyText, setAnxietyText] = useState("");
   const [isBoxClosed, setIsBoxClosed] = useState(false);
-  const [processingTime, setProcessingTime] = useState("tonight");
+  const [processingTime, setProcessingTime] = useState("今晚");
+  const [isRecording, setIsRecording] = useState(false);
 
   // Mindfulness State
   const [selectedAudio, setSelectedAudio] = useState<any>(null);
@@ -73,14 +102,20 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !selectedAudio) return;
 
-    if (selectedAudio && isPlaying) {
+    if (isPlaying) {
+      // Ensure the audio element has the correct source and is loaded
+      if (audio.src !== selectedAudio.url) {
+        audio.src = selectedAudio.url;
+        audio.load();
+      }
+      
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(err => {
           if (err.name !== 'AbortError') {
-            console.error("Audio play failed:", err.message);
+            console.error("播放失败:", err.message);
             setIsPlaying(false);
           }
         });
@@ -99,22 +134,16 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const mindfulnessTracks = [
-    { id: 'm1', title: '5分钟晨间唤醒：森林晨曦', duration: '5:00', category: '能量', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' },
-    { id: 'm2', title: '10分钟深度放松：海浪冥想', duration: '10:00', category: '减压', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3' },
-    { id: 'm3', title: '3分钟呼吸锚点：雨夜宁静', duration: '3:00', category: '专注', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3' },
-    { id: 'm4', title: '15分钟慈悲冥想：星空入眠', duration: '15:00', category: '情绪', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3' },
-    { id: 'm5', title: '阿尔法波：深度专注', duration: '20:00', category: '学习', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
-    { id: 'm6', title: '自然之声：夏日蝉鸣', duration: '10:00', category: '放松', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3' },
+    { id: 'm1', title: '清晨唤醒：开启元气一天', duration: '02:36', category: '晨间', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { id: 'm2', title: '身心合一：深度瑜伽冥想', duration: '05:12', category: '瑜伽', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
+    { id: 'm3', title: '内在宁静：消除焦虑杂念', duration: '04:45', category: '冥想', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+    { id: 'm4', title: '星空入梦：助眠白噪音', duration: '06:20', category: '助眠', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
+    { id: 'm5', title: '温柔抚慰：情绪急救包', duration: '03:50', category: '放松', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
+    { id: 'm6', title: '禅意空间：流水与蝉鸣', duration: '04:15', category: '静心', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3' },
+    { id: 'm7', title: '宇宙共鸣：灵性觉醒时刻', duration: '02:55', category: '灵性', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3' },
+    { id: 'm8', title: '环境节拍：高效工作背景', duration: '03:10', category: '节奏', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
+    { id: 'm9', title: '木吉他之语：午后舒缓时光', duration: '03:40', category: '舒缓', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3' },
   ];
-
-  const musicLibraries = [
-    { name: "Pixabay Music", url: "https://pixabay.com/music/", desc: "高品质免版税音乐库" },
-    { name: "Bensound", url: "https://www.bensound.com", desc: "专业的背景音乐资源" },
-    { name: "Free Music Archive", url: "https://freemusicarchive.org", desc: "独立音乐人的共享社区" },
-  ];
-
-  const [customUrl, setCustomUrl] = useState("");
-  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const boundaryScenarios = [
     {
@@ -232,7 +261,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const dailyCard = dailyCards[new Date().getDate() % dailyCards.length];
 
   // Diary State
-  const [newDiary, setNewDiary] = useState({ content: "", mood: 5, tags: [] as string[] });
+  const [newDiary, setNewDiary] = useState({ content: "", mood: 5, tags: [] as string[], imageUrl: "" });
+  const [showMoodCurve, setShowMoodCurve] = useState(false);
 
   // Task State
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -278,9 +308,32 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     
     loadFavorites();
 
+    // Community Listeners
+    const postsQuery = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityPost)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "posts");
+    });
+
+    const commentsQuery = query(collection(db, "comments"), orderBy("timestamp", "asc"));
+    const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
+      const allComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const grouped: Record<string, any[]> = {};
+      allComments.forEach((c: any) => {
+        if (!grouped[c.postId]) grouped[c.postId] = [];
+        grouped[c.postId].push(c);
+      });
+      setComments(grouped);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "comments");
+    });
+
     return () => {
       unsubscribeDiary();
       unsubscribeTasks();
+      unsubscribePosts();
+      unsubscribeComments();
     };
   }, [profile]);
 
@@ -416,6 +469,72 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     });
   };
 
+  // Community Handlers
+  const handleLike = async (post: CommunityPost) => {
+    if (!profile || !post.id) return;
+    const postRef = doc(db, "posts", post.id);
+    const isLiked = post.likedBy?.includes(profile.uid);
+    
+    await updateDoc(postRef, {
+      likes: isLiked ? post.likes - 1 : post.likes + 1,
+      likedBy: isLiked ? arrayRemove(profile.uid) : arrayUnion(profile.uid)
+    });
+  };
+
+  const handleSubmitPost = async () => {
+    if (!newPostContent.trim() || !profile) return;
+    setIsSubmitting(true);
+    setModerationError(null);
+
+    try {
+      const sensitiveKeywords = ["自杀", "去死", "杀人", "暴力", "色情"];
+      const hasSensitive = sensitiveKeywords.some(kw => newPostContent.includes(kw));
+
+      if (hasSensitive) {
+        setModerationError("内容包含敏感词汇，请修改后重新发布。");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await addDoc(collection(db, "posts"), {
+        authorId: profile.uid,
+        content: newPostContent,
+        topic: selectedTopic,
+        likes: 0,
+        likedBy: [],
+        isFlagged: false,
+        timestamp: new Date().toISOString()
+      });
+
+      setNewPostContent("");
+      setShowNewPost(false);
+    } catch (err) {
+      console.error("Failed to post:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitReply = async () => {
+    if (!replyContent.trim() || !profile || !replyingTo) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, "comments"), {
+        postId: replyingTo.id,
+        authorId: profile.uid,
+        content: replyContent,
+        isModerator: profile.role === 'psychologist' || profile.role === 'admin',
+        timestamp: new Date().toISOString()
+      });
+      setReplyContent("");
+      setReplyingTo(null);
+    } catch (err) {
+      console.error("Failed to reply:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSaveDiary = async () => {
     if (!newDiary.content.trim() || !profile) return;
     await addDoc(collection(db, "diaries"), {
@@ -423,18 +542,67 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
       content: newDiary.content,
       mood: newDiary.mood,
       tags: newDiary.tags,
+      imageUrl: newDiary.imageUrl,
       timestamp: new Date().toISOString()
     });
-    setNewDiary({ content: "", mood: 5, tags: [] });
+    setNewDiary({ content: "", mood: 5, tags: [], imageUrl: "" });
     logToolUsage('diary', undefined, 'better');
   };
 
   const handleDeleteDiary = async (id: string) => {
-    if (!window.confirm("确定要删除这条日记吗？")) return;
     try {
       await deleteDoc(doc(db, "diaries", id));
     } catch (err) {
-      console.error("Failed to delete diary:", err instanceof Error ? err.message : String(err));
+      handleFirestoreError(err, OperationType.DELETE, `diaries/${id}`);
+    }
+  };
+
+  // Speech to Text Logic
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("您的浏览器不支持语音识别功能，请尝试使用 Chrome 或 Edge。");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setAnxietyText(prev => prev + (prev ? " " : "") + transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.start();
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!profile) return;
+    try {
+      await deleteDoc(doc(db, "posts", postId));
+      // Also delete comments
+      const q = query(collection(db, "comments"), where("postId", "==", postId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, "comments", d.id));
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `posts/${postId}`);
     }
   };
 
@@ -445,14 +613,30 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
         <div>
           <h1 className="text-3xl font-bold text-stone-900 flex items-center gap-3">
             <Wind className="text-blue-500" size={32} />
-            心晴调适驿站
+            蓝色调适：心晴驿站
           </h1>
-          <p className="text-stone-500 mt-1">数字化心理工具包，助您在繁忙工作中找回宁静</p>
+          <p className="text-stone-500 mt-1">数字化心理工具包与匿名支持社区</p>
+        </div>
+        <div className="flex bg-white p-1 rounded-2xl border border-stone-100 shadow-sm">
+          <button 
+            onClick={() => setActiveTab('tools')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'tools' ? 'bg-blue-500 text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
+          >
+            心理工具包
+          </button>
+          <button 
+            onClick={() => setActiveTab('community')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'community' ? 'bg-blue-500 text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
+          >
+            匿名社区
+          </button>
         </div>
       </div>
 
-      {/* Tools Grid */}
-      {!activeTool ? (
+      {activeTab === 'tools' ? (
+        <>
+          {/* Tools Grid */}
+          {!activeTool ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {tools.map((tool) => (
             <motion.div
@@ -606,13 +790,28 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                   {!isBoxClosed ? (
                     <>
                       <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-stone-900">写下你的烦恼</h3>
-                        <textarea 
-                          value={anxietyText}
-                          onChange={(e) => setAnxietyText(e.target.value)}
-                          placeholder="此时此刻，什么让你感到焦虑？"
-                          className="w-full h-48 p-6 bg-stone-50 border border-stone-100 rounded-3xl focus:ring-2 focus:ring-stone-200 outline-none resize-none text-stone-700"
-                        />
+                        <h3 className="text-xl font-bold text-stone-900">写下或说出你的烦恼</h3>
+                        <div className="relative">
+                          <textarea 
+                            value={anxietyText}
+                            onChange={(e) => setAnxietyText(e.target.value)}
+                            placeholder="此时此刻，什么让你感到焦虑？"
+                            className="w-full h-48 p-6 bg-stone-50 border border-stone-100 rounded-3xl focus:ring-2 focus:ring-stone-200 outline-none resize-none text-stone-700"
+                          />
+                          <button 
+                            onClick={() => {
+                              if (isRecording) {
+                                // Stop logic if needed, but usually recognition.stop() is handled by onend or manual
+                                setIsRecording(false);
+                              } else {
+                                startSpeechRecognition();
+                              }
+                            }}
+                            className={`absolute bottom-4 right-4 p-4 rounded-full shadow-lg transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white text-stone-400 hover:text-stone-900'}`}
+                          >
+                            <Mic size={20} />
+                          </button>
+                        </div>
                         <div className="flex items-center gap-4">
                           <span className="text-sm font-bold text-stone-500">设定处理时间:</span>
                           <div className="flex gap-2">
@@ -724,35 +923,90 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
               {activeTool === 'diary' && (
                 <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-stone-900">记录此刻心情</h3>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-stone-500">心情指数: {newDiary.mood}</span>
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
-                            <button 
-                              key={m}
-                              onClick={() => setNewDiary(prev => ({ ...prev, mood: m }))}
-                              className={`h-6 w-6 rounded-md text-[10px] font-bold transition-all ${newDiary.mood === m ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}
-                            >
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <textarea 
-                        value={newDiary.content}
-                        onChange={(e) => setNewDiary(prev => ({ ...prev, content: e.target.value }))}
-                        placeholder="写下今天让你印象深刻的事..."
-                        className="w-full h-64 p-6 bg-stone-50 border border-stone-100 rounded-3xl outline-none resize-none text-stone-700"
-                      />
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-stone-900">记录此刻心情</h3>
                       <button 
-                        onClick={handleSaveDiary}
-                        className="w-full py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-lg shadow-amber-100 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                        onClick={() => setShowMoodCurve(!showMoodCurve)}
+                        className="flex items-center gap-2 text-xs font-bold text-amber-600 hover:text-amber-700"
                       >
-                        <Save size={20} /> 保存日记
+                        <TrendingUp size={16} />
+                        {showMoodCurve ? "返回记录" : "查看情绪曲线"}
                       </button>
                     </div>
+
+                    {showMoodCurve ? (
+                      <div className="h-[400px] w-full bg-stone-50 rounded-3xl p-6 border border-stone-100">
+                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-6">最近 7 次心情波动</h4>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={[...diaryEntries].reverse().slice(-7).map(e => ({ date: new Date(e.timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }), mood: e.mood }))}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <YAxis domain={[0, 10]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                            <RechartsTooltip 
+                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="mood" 
+                              stroke="#f59e0b" 
+                              strokeWidth={4} 
+                              dot={{ r: 6, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }}
+                              activeDot={{ r: 8, fill: '#f59e0b' }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-stone-500">心情指数: {newDiary.mood}</span>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
+                              <button 
+                                key={m}
+                                onClick={() => setNewDiary(prev => ({ ...prev, mood: m }))}
+                                className={`h-6 w-6 rounded-md text-[10px] font-bold transition-all ${newDiary.mood === m ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <textarea 
+                            value={newDiary.content}
+                            onChange={(e) => setNewDiary(prev => ({ ...prev, content: e.target.value }))}
+                            placeholder="写下今天让你印象深刻的事..."
+                            className="w-full h-64 p-6 bg-stone-50 border border-stone-100 rounded-3xl outline-none resize-none text-stone-700"
+                          />
+                          <div className="absolute bottom-4 right-4 flex gap-2">
+                            {newDiary.imageUrl && (
+                              <div className="relative group">
+                                <img src={newDiary.imageUrl} alt="Upload" className="h-12 w-12 rounded-lg object-cover border border-white shadow-sm" />
+                                <button 
+                                  onClick={() => setNewDiary(prev => ({ ...prev, imageUrl: "" }))}
+                                  className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            )}
+                            <button 
+                              onClick={() => setNewDiary(prev => ({ ...prev, imageUrl: "https://picsum.photos/seed/diary/800/600" }))}
+                              className="p-3 bg-white text-stone-400 hover:text-amber-500 rounded-2xl shadow-sm border border-stone-100 transition-all"
+                            >
+                              <ImageIcon size={20} />
+                            </button>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={handleSaveDiary}
+                          className="w-full py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-lg shadow-amber-100 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Save size={20} /> 保存日记
+                        </button>
+                      </div>
+                    )}
                   </div>
                     <div className="space-y-6">
                       <h3 className="text-xl font-bold text-stone-900">往期回顾</h3>
@@ -772,6 +1026,9 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                               </div>
                             </div>
                             <p className="text-sm text-stone-700 leading-relaxed line-clamp-3">{entry.content}</p>
+                            {entry.imageUrl && (
+                              <img src={entry.imageUrl} alt="Diary" className="w-full h-32 object-cover rounded-2xl mt-2" referrerPolicy="no-referrer" />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -784,124 +1041,66 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-2xl font-bold text-stone-900">正念冥想库</h3>
-                      <p className="text-xs text-stone-400 mt-1">当前音源来自 SoundHelix 免版税曲库</p>
+                      <p className="text-xs text-stone-400 mt-1">精选 Pixabay 高品质正念音源</p>
                     </div>
-                    <button 
-                      onClick={() => setShowCustomInput(!showCustomInput)}
-                      className="px-4 py-2 bg-stone-100 text-stone-600 rounded-xl text-xs font-bold hover:bg-stone-200 transition-all"
-                    >
-                      {showCustomInput ? "返回列表" : "添加自定义音源"}
-                    </button>
                   </div>
 
-                  {showCustomInput ? (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-6"
-                    >
-                      <div className="p-6 bg-stone-50 rounded-3xl border border-stone-100 space-y-4">
-                        <h4 className="font-bold text-stone-800 flex items-center gap-2">
-                          <Plus size={18} /> 输入音频 URL
-                        </h4>
-                        <input 
-                          type="text"
-                          value={customUrl}
-                          onChange={(e) => setCustomUrl(e.target.value)}
-                          placeholder="https://example.com/music.mp3"
-                          className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-200"
-                        />
-                        <button 
-                          onClick={() => {
-                            if (customUrl) {
-                              const newTrack = { id: 'custom-' + Date.now(), title: '自定义音源', duration: '未知', category: '自定义', url: customUrl };
-                              setSelectedAudio(newTrack);
-                              setIsPlaying(true);
-                              setShowCustomInput(false);
-                              setCustomUrl("");
-                            }
-                          }}
-                          className="w-full py-3 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-100"
-                        >
-                          立即播放
-                        </button>
-                      </div>
-
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest">推荐免版税音乐库</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          {musicLibraries.map(lib => (
-                            <a 
-                              key={lib.name}
-                              href={lib.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-4 bg-white border border-stone-100 rounded-2xl hover:shadow-md transition-all group"
-                            >
-                              <p className="font-bold text-stone-900 group-hover:text-violet-600">{lib.name}</p>
-                              <p className="text-[10px] text-stone-400 mt-1">{lib.desc}</p>
-                            </a>
-                          ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2">
+                    {mindfulnessTracks.map(track => (
+                      <button 
+                        key={track.id}
+                        onClick={() => { 
+                          if (selectedAudio?.id === track.id) {
+                            setIsPlaying(!isPlaying);
+                          } else {
+                            setSelectedAudio(track); 
+                            setIsPlaying(true);
+                            logToolUsage('mindfulness', 300, 'better'); 
+                          }
+                        }}
+                        className={`p-4 rounded-2xl border transition-all flex items-center gap-4 ${selectedAudio?.id === track.id ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-200' : 'bg-white border-stone-100 hover:bg-stone-50'}`}
+                      >
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${selectedAudio?.id === track.id ? 'bg-violet-500 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                          {selectedAudio?.id === track.id && isPlaying ? <Activity size={20} /> : <Music size={20} />}
                         </div>
-                        <p className="text-[10px] text-stone-400 italic">提示：在这些网站找到喜欢的音乐后，复制其 MP3 直链即可在此播放。</p>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2">
-                      {mindfulnessTracks.map(track => (
-                        <button 
-                          key={track.id}
-                          onClick={() => { 
-                            if (selectedAudio?.id === track.id) {
-                              setIsPlaying(!isPlaying);
-                            } else {
-                              setSelectedAudio(track); 
-                              setIsPlaying(true);
-                              logToolUsage('mindfulness', 300, 'better'); 
-                            }
-                          }}
-                          className={`p-6 rounded-3xl border transition-all flex items-center gap-6 ${selectedAudio?.id === track.id ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-200' : 'bg-white border-stone-100 hover:bg-stone-50'}`}
-                        >
-                          <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${selectedAudio?.id === track.id ? 'bg-violet-500 text-white' : 'bg-stone-100 text-stone-400'}`}>
-                            {selectedAudio?.id === track.id && isPlaying ? <Activity size={24} /> : <Music size={24} />}
+                        <div className="flex-1 text-left min-w-0">
+                          <h4 className="font-bold text-stone-900 text-sm truncate">{track.title}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded font-bold">{track.category}</span>
+                            <span className="text-[10px] text-stone-400">{track.duration}</span>
                           </div>
-                          <div className="flex-1 text-left">
-                            <h4 className="font-bold text-stone-900">{track.title}</h4>
-                            <p className="text-xs text-stone-500 mt-1">{track.category} · {track.duration}</p>
-                          </div>
-                          <ChevronRight size={20} className="text-stone-300" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  
                   {selectedAudio && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="p-6 bg-stone-900 rounded-3xl text-white flex items-center gap-6"
+                      className="p-5 bg-stone-900 rounded-[32px] text-white flex items-center gap-5 shadow-2xl"
                     >
                       <audio 
                         ref={audioRef} 
-                        src={selectedAudio.url} 
                         onEnded={() => setIsPlaying(false)}
                         onError={(e) => {
-                          console.error("Audio source failed to load");
+                          console.error("音频加载失败");
                           setIsPlaying(false);
                         }}
                       />
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-white/60 uppercase mb-1">{isPlaying ? "正在播放" : "已暂停"}</p>
-                        <p className="font-bold">{selectedAudio.title}</p>
+                      <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
+                        <Music size={24} className="text-violet-400" />
                       </div>
-                      <div className="flex gap-4">
-                        <button className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20">
-                          <Volume2 size={20} />
-                        </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-white/40 uppercase mb-0.5">{isPlaying ? "正在播放" : "已暂停"}</p>
+                        <p className="font-bold text-sm truncate">{selectedAudio.title}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
                         <button 
                           onClick={() => setIsPlaying(!isPlaying)}
-                          className="h-10 w-10 rounded-full bg-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20"
+                          className="h-12 w-12 rounded-full bg-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20 hover:scale-105 transition-transform"
                         >
-                          {isPlaying ? <Pause size={20} /> : <Music size={20} />}
+                          {isPlaying ? <Pause size={24} /> : <Music size={24} />}
                         </button>
                       </div>
                     </motion.div>
@@ -1004,6 +1203,158 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
           </div>
         </div>
       )}
+
+        </>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Community Sidebar */}
+          <div className="space-y-4">
+            <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm space-y-2">
+              <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">话题小组</h3>
+              {TOPICS.map((topic) => (
+                <button
+                  key={topic.id}
+                  onClick={() => setActiveTopic(topic.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${activeTopic === topic.id ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-stone-500 hover:bg-stone-50'}`}
+                >
+                  <topic.icon size={18} />
+                  {topic.name}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => setShowNewPost(true)}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all"
+            >
+              <Plus size={20} /> 发布心声
+            </button>
+          </div>
+
+          {/* Community Feed */}
+          <div className="lg:col-span-3 space-y-6">
+            {posts.filter(p => activeTopic === 'all' || p.topic === activeTopic).map((post) => (
+              <motion.div
+                key={post.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm space-y-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${post.isModerator ? 'bg-blue-100 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
+                      {post.isModerator ? <ShieldCheck size={20} /> : <Users size={20} />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-stone-900">{post.isModerator ? "社区专家" : "匿名教师"}</p>
+                        {post.isModerator && <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[8px] font-bold rounded uppercase">Moderator</span>}
+                      </div>
+                      <p className="text-[10px] text-stone-400 font-medium">{new Date(post.timestamp).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-stone-50 text-stone-500 text-[10px] font-bold rounded-full uppercase">
+                      {TOPICS.find(t => t.id === post.topic)?.name}
+                    </span>
+                    {post.authorId === profile?.uid && (
+                      <button 
+                        onClick={() => post.id && handleDeletePost(post.id)}
+                        className="p-1.5 text-stone-300 hover:text-rose-500 transition-colors"
+                        title="删除我的发布"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-stone-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+
+                <div className="flex items-center gap-6 pt-4 border-t border-stone-50">
+                  <button 
+                    onClick={() => handleLike(post)}
+                    className={`flex items-center gap-2 text-sm font-bold transition-colors ${post.likedBy?.includes(profile?.uid || '') ? 'text-blue-600' : 'text-stone-400 hover:text-blue-600'}`}
+                  >
+                    <Heart size={18} fill={post.likedBy?.includes(profile?.uid || '') ? "currentColor" : "none"} />
+                    {post.likes}
+                  </button>
+                  <button 
+                    onClick={() => setReplyingTo(post)}
+                    className="flex items-center gap-2 text-sm font-bold text-stone-400 hover:text-stone-600 transition-colors"
+                  >
+                    <MessageSquare size={18} />
+                    回复 {comments[post.id || '']?.length || 0}
+                  </button>
+                </div>
+
+                {comments[post.id || ''] && (
+                  <div className="mt-4 space-y-4 pl-8 border-l-2 border-stone-50">
+                    {comments[post.id || ''].map((comment) => (
+                      <div key={comment.id} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold ${comment.isModerator ? 'text-blue-600' : 'text-stone-500'}`}>
+                            {comment.isModerator ? "专家回复" : "匿名回复"}
+                          </span>
+                          <span className="text-[8px] text-stone-300">{new Date(comment.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <p className="text-xs text-stone-600">{comment.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showNewPost && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowNewPost(false)} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-stone-900">发布心声</h2>
+                <button onClick={() => setShowNewPost(false)} className="p-2 hover:bg-stone-50 rounded-xl transition-colors"><X size={24} className="text-stone-400" /></button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="flex flex-wrap gap-2">
+                  {TOPICS.filter(t => t.id !== 'all').map(topic => (
+                    <button key={topic.id} onClick={() => setSelectedTopic(topic.id)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedTopic === topic.id ? 'bg-blue-600 text-white' : 'bg-stone-50 text-stone-500'}`}>{topic.name}</button>
+                  ))}
+                </div>
+                <textarea value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} placeholder="分享您的心声..." className="w-full h-48 p-6 bg-stone-50 border border-stone-100 rounded-3xl outline-none resize-none text-stone-700" />
+                {moderationError && <p className="text-xs text-rose-600">{moderationError}</p>}
+              </div>
+              <div className="p-8 bg-stone-50 flex justify-end gap-4">
+                <button onClick={() => setShowNewPost(false)} className="px-6 py-2 text-stone-500 font-bold">取消</button>
+                <button onClick={handleSubmitPost} disabled={isSubmitting || !newPostContent.trim()} className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100">确认发布</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {replyingTo && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setReplyingTo(null)} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-white rounded-[40px] shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h2 className="text-xl font-bold text-stone-900">回复心声</h2>
+                <button onClick={() => setReplyingTo(null)} className="p-2 hover:bg-stone-50 rounded-xl transition-colors"><X size={24} className="text-stone-400" /></button>
+              </div>
+              <div className="p-8 space-y-4">
+                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100 text-sm text-stone-600 italic">"{replyingTo.content}"</div>
+                <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="写下您的回复..." className="w-full h-32 p-4 bg-stone-50 border border-stone-100 rounded-2xl outline-none resize-none text-stone-700" />
+              </div>
+              <div className="p-8 bg-stone-50 flex justify-end gap-4">
+                <button onClick={() => setReplyingTo(null)} className="px-6 py-2 text-stone-500 font-bold">取消</button>
+                <button onClick={handleSubmitReply} disabled={isSubmitting || !replyContent.trim()} className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100">确认回复</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

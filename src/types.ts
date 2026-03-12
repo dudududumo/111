@@ -12,10 +12,12 @@ export interface UserProfile {
   role: UserRole;
   school?: string;
   department?: string;
+  deptId?: string; // For team support
   createdAt: string;
   consentAccepted?: boolean;
   wearableBrand?: "Apple" | "Huawei" | "Xiaomi" | null;
   syncFrequency?: "hourly" | "daily" | "realtime";
+  preferences?: string[]; // For resource matching
 }
 
 export interface Assessment {
@@ -78,6 +80,7 @@ export interface DiaryEntry {
   content: string;
   mood: number; // 1-10
   tags: string[];
+  imageUrl?: string;
   timestamp: string;
 }
 
@@ -98,6 +101,7 @@ export interface CommunityPost {
   likes: number;
   likedBy: string[];
   isFlagged: boolean;
+  isModerator?: boolean;
   timestamp: string;
 }
 
@@ -106,7 +110,49 @@ export interface CommunityComment {
   postId: string;
   authorId: string;
   content: string;
+  isModerator?: boolean;
   timestamp: string;
+}
+
+export interface GroupActivity {
+  id?: string;
+  groupId: string;
+  title: string;
+  type: 'sandplay' | 'tea' | 'workshop' | 'other';
+  description: string;
+  date: string;
+  location: string;
+  createdBy: string;
+  participants: string[];
+}
+
+export interface InterventionTask {
+  id?: string;
+  warningId: string;
+  teacherId: string;
+  teacherName?: string;
+  assignedTo: string; // Psychologist or Admin UID
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'high' | 'medium' | 'low';
+  careRecords: {
+    date: string;
+    summary: string;
+    createdBy: string;
+  }[];
+  createdAt: string;
+}
+
+export interface MentalResource {
+  id: string;
+  title: string;
+  type: 'counseling' | 'room' | 'activity' | 'external';
+  description: string;
+  tags: string[];
+  contact?: string;
+  location?: string;
+  imageUrl?: string;
+  isVerified?: boolean;
+  agreementSigned?: boolean;
 }
 
 export interface PhysiologicalData {
@@ -128,4 +174,37 @@ export interface BehavioralData {
     nonTeachingTasks: number;
     totalWorkloadIndex: number;
   };
+}
+
+export interface CockpitData {
+  overallIndex: number;
+  warningCount: number;
+  interventionRate: number;
+  resourceEngagement: number;
+  trends: {
+    date: string;
+    anxiety: number;
+    hrv: number;
+  }[];
+  riskHeatmap: {
+    grade: string;
+    subject: string;
+    riskLevel: number; // 0-100
+  }[];
+  resourceEfficiency: {
+    tool: string;
+    usage: number;
+    improvement: number;
+  }[];
+}
+
+export interface DeidentifiedTracking {
+  id: string;
+  interventionType: string;
+  preScore: number;
+  postScore: number;
+  timeline: {
+    day: number;
+    score: number;
+  }[];
 }

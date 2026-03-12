@@ -12,7 +12,8 @@ import {
   Info,
   Zap,
   Briefcase,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from "lucide-react";
 import { 
   XAxis, 
@@ -43,6 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
   const [physioData, setPhysioData] = useState<PhysiologicalData | null>(null);
   const [behavioralData, setBehavioralData] = useState<BehavioralData | null>(null);
   const [latestAssessment, setLatestAssessment] = useState<any>(null);
+  const [recentAssessments, setRecentAssessments] = useState<any[]>([]);
 
   useEffect(() => {
     // Simulate fetching physiological data
@@ -70,19 +72,22 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
     };
     setBehavioralData(mockBehavioral);
 
-    // Fetch latest assessment
-    const fetchLatest = async () => {
+    // Fetch latest and recent assessments
+    const fetchAssessments = async () => {
       if (profile) {
         try {
           const q = query(
             collection(db, "assessments"),
             where("uid", "==", profile.uid),
             orderBy("timestamp", "desc"),
-            limit(1)
+            limit(3)
           );
           const snap = await getDocs(q);
-          if (!snap.empty) {
-            setLatestAssessment(snap.docs[0].data());
+          const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          if (docs.length > 0) {
+            setLatestAssessment(docs[0]);
+            setRecentAssessments(docs);
           }
         } catch (e) {
           handleFirestoreError(e, OperationType.LIST, "assessments");
@@ -90,8 +95,31 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
       }
     };
     
-    fetchLatest();
+    fetchAssessments();
   }, [profile]);
+
+  const getScaleName = (id: string) => {
+    const names: Record<string, string> = {
+      scl90: "SCL-90 症状自评",
+      sas: "SAS 焦虑自评",
+      sds: "SDS 抑郁自评",
+      mbi: "MBI 职业倦怠",
+      phq9: "PHQ-9 抑郁筛查",
+      gad7: "GAD-7 焦虑筛查"
+    };
+    return names[id] || id;
+  };
+
+  const getRiskColor = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'green': return 'bg-emerald-100 text-emerald-700';
+      case 'blue': return 'bg-blue-100 text-blue-700';
+      case 'yellow': return 'bg-amber-100 text-amber-700';
+      case 'orange': return 'bg-orange-100 text-orange-700';
+      case 'red': return 'bg-red-100 text-red-700';
+      default: return 'bg-stone-100 text-stone-700';
+    }
+  };
 
   const hrvData = physioData?.hrv.map((val, i) => ({ name: physioData.timestamps[i], value: val })) || [];
   const sleepData = physioData?.sleepDuration.map((val, i) => ({ name: physioData.timestamps[i], value: val })) || [];
@@ -302,54 +330,65 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
             <Link to="/assessment" className="text-sm font-medium text-emerald-600 hover:underline">查看全部</Link>
           </div>
           <div className="space-y-4">
-            {[
-              { title: "SCL-90 症状自评", date: "2024-05-20", score: "正常", color: "bg-emerald-100 text-emerald-700" },
-              { title: "MBI 职业倦怠量表", date: "2024-05-15", score: "轻度", color: "bg-blue-100 text-blue-700" },
-              { title: "SAS 焦虑自评", date: "2024-05-01", score: "正常", color: "bg-emerald-100 text-emerald-700" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500">
-                    <Calendar size={20} />
+            {recentAssessments.length > 0 ? (
+              recentAssessments.map((item, i) => (
+                <div key={item.id || i} className="flex items-center justify-between p-4 rounded-2xl hover:bg-stone-50 transition-colors group cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500">
+                      <Calendar size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-stone-900">{getScaleName(item.type)}</p>
+                      <p className="text-xs text-stone-400">{new Date(item.timestamp).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-stone-900">{item.title}</p>
-                    <p className="text-xs text-stone-400">{item.date}</p>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRiskColor(item.riskLevel)}`}>{item.level}</span>
+                    <ChevronRight size={16} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.color}`}>{item.score}</span>
-                  <ChevronRight size={16} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-stone-400 text-sm">
+                暂无测评记录
               </div>
-            ))}
+            )}
           </div>
         </div>
 
-        {/* AI Recommendations */}
-        <div className="bg-emerald-600 p-8 rounded-3xl shadow-lg shadow-emerald-100 text-white relative overflow-hidden">
+        {/* Intelligent Resource Matching (4.2) */}
+        <div className="bg-orange-600 p-8 rounded-3xl shadow-lg shadow-orange-100 text-white relative overflow-hidden">
           <div className="relative z-10">
-            <h3 className="text-xl font-bold mb-2">AI 智能关怀</h3>
-            <p className="text-emerald-100 text-sm mb-6 leading-relaxed">
-              基于您本周的生理指标与工作负荷，AI 助手为您生成了专属调适建议。
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={20} />
+              <h3 className="text-xl font-bold">智能资源匹配</h3>
+            </div>
+            <p className="text-orange-100 text-sm mb-6 leading-relaxed">
+              基于您的心理画像与偏好，为您精准匹配最合适的干预资源。
             </p>
             <div className="space-y-4">
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
-                <p className="text-sm font-medium">建议：尝试 3x3 呼吸法</p>
-                <p className="text-xs text-emerald-100 mt-1">监测到您今日 HRV 略有下降，深呼吸有助于激活副交感神经。</p>
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 flex items-center justify-between group cursor-pointer hover:bg-white/20 transition-all">
+                <div>
+                  <p className="text-sm font-medium">校内心理咨询预约</p>
+                  <p className="text-xs text-orange-100 mt-1">匹配度 98% · 专业 1对1 关怀</p>
+                </div>
+                <ChevronRight size={18} className="text-orange-200 group-hover:translate-x-1 transition-transform" />
               </div>
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
-                <p className="text-sm font-medium">推荐：正念冥想音频</p>
-                <p className="text-xs text-emerald-100 mt-1">“睡前舒缓冥想”适合您今晚尝试，以改善睡眠深度。</p>
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 flex items-center justify-between group cursor-pointer hover:bg-white/20 transition-all">
+                <div>
+                  <p className="text-sm font-medium">教师茶话会 (本周五)</p>
+                  <p className="text-xs text-orange-100 mt-1">匹配度 92% · 团队社交放松</p>
+                </div>
+                <ChevronRight size={18} className="text-orange-200 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
-            <button className="mt-8 bg-white text-emerald-600 px-6 py-3 rounded-2xl font-bold text-sm shadow-xl hover:bg-emerald-50 transition-colors">
-              立即开始调适
-            </button>
+            <Link to="/intervention" className="mt-8 inline-block bg-white text-orange-600 px-6 py-3 rounded-2xl font-bold text-sm shadow-xl hover:bg-orange-50 transition-colors">
+              进入支持网络
+            </Link>
           </div>
           {/* Decorative elements */}
-          <div className="absolute -right-10 -bottom-10 h-40 w-40 bg-emerald-500 rounded-full blur-3xl opacity-50" />
-          <div className="absolute -left-10 -top-10 h-40 w-40 bg-emerald-400 rounded-full blur-3xl opacity-30" />
+          <div className="absolute -right-10 -bottom-10 h-40 w-40 bg-orange-500 rounded-full blur-3xl opacity-50" />
+          <div className="absolute -left-10 -top-10 h-40 w-40 bg-orange-400 rounded-full blur-3xl opacity-30" />
         </div>
       </div>
     </motion.div>

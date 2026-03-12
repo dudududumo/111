@@ -33,6 +33,7 @@ import {
 import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
 import { db } from "../firebase";
 import { Warning, UserRole, UserProfile } from "../types";
+import { analyzeTeacherRisk, triggerWarning } from "../services/riskEngineService";
 import { 
   ResponsiveContainer, 
   ScatterChart, 
@@ -58,6 +59,11 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [responseConfig, setResponseConfig] = useState([
+    { id: 'emergency', level: "三级紧急", color: "bg-rose-600", threshold: 0.9, desc: "风险指数 > 0.9 或 抑郁因子连续 ≥ 2.0", action: "即时推送至心理负责人，启动正式干预流程" },
+    { id: 'intervention', level: "二级介入", color: "bg-amber-500", threshold: 0.8, desc: "风险指数 > 0.8", action: "脱敏推送至年级主任/教研组长，建议面谈关注" },
+    { id: 'attention', level: "一级关注", color: "bg-blue-500", threshold: 0.75, desc: "风险指数 > 0.75", action: "自动推送自助心理资源包至教师个人端" },
+  ]);
 
   const userRole = profile?.role || UserRole.TEACHER;
 
@@ -85,7 +91,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
 
   const scatterData = warnings.map(w => ({
     x: w.riskScore * 100,
-    y: Math.random() * 100, // Simulated secondary dimension
+    y: 50 + (Math.sin(w.riskScore * 10) * 20), // More structured simulated secondary dimension
     z: w.level === 'emergency' ? 100 : (w.level === 'intervention' ? 60 : 30),
     level: w.level,
     name: userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? w.teacherName : "匿名教师"
@@ -96,6 +102,38 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     { name: '介入', value: stats.intervention, color: '#f59e0b' },
     { name: '关注', value: stats.attention, color: '#3b82f6' },
   ].filter(d => d.value > 0);
+
+  const handleTriggerIntervention = async (warning: Warning) => {
+    try {
+      const taskData = {
+        title: `针对 ${warning.teacherName} 的心理干预`,
+        description: `基于预警触发：${warning.factors.join('；')}。风险等级：${warning.level}。`,
+        type: warning.level === 'emergency' ? 'platform' : 'team',
+        status: 'pending',
+        priority: warning.level === 'emergency' ? 'high' : 'medium',
+        assignedTo: '心理咨询室',
+        targetUserId: warning.uid,
+        createdAt: new Date().toISOString(),
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      await addDoc(collection(db, 'interventionTasks'), taskData);
+      
+      const docRef = doc(db, "warnings", warning.id!);
+      await updateDoc(docRef, { 
+        status: "processing",
+        responseLog: [
+          ...(warning.responseLog || []),
+          { action: "启动协作干预流程", timestamp: new Date().toISOString(), actor: profile?.displayName || "管理员" }
+        ]
+      });
+
+      alert('干预任务已成功创建并下发至协作平台。');
+      setSelectedWarning(null);
+    } catch (error) {
+      console.error('Error triggering intervention:', error);
+    }
+  };
 
   const handleResolve = async (id: string) => {
     const docRef = doc(db, "warnings", id);
@@ -112,25 +150,24 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const runAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      // Simulate calling the risk engine for a random teacher
-      const mockUids = ["teacher_001", "teacher_002", "teacher_003", "teacher_004"];
-      const targetUid = mockUids[Math.floor(Math.random() * mockUids.length)];
+      // In a real app, we would iterate through all teachers
+      // For this demo, we'll pick a few mock teachers to scan
+      const mockTeachers = [
+        { uid: "teacher_001", name: "张老师" },
+        { uid: "teacher_002", name: "李老师" },
+        { uid: "teacher_003", name: "王老师" },
+        { uid: "teacher_004", name: "赵老师" }
+      ];
       
-      const response = await fetch(`/api/risk-engine/analyze/${targetUid}`, { method: 'POST' });
-      const result = await response.json();
-
-      if (result.warningTriggered) {
-        await addDoc(collection(db, "warnings"), {
-          uid: targetUid,
-          teacherName: `教师 ${targetUid.split('_')[1]}`,
-          level: result.warningLevel,
-          riskScore: result.riskScore,
-          factors: result.factors,
-          reason: `LSTM 预测风险指数达 ${(result.riskScore * 100).toFixed(0)}%`,
-          status: "pending",
-          timestamp: new Date().toISOString(),
-          responseLog: [{ action: "系统自动触发预警", timestamp: new Date().toISOString(), actor: "LSTM 引擎" }]
-        });
+      for (const teacher of mockTeachers) {
+        const result = await analyzeTeacherRisk(teacher.uid, teacher.name);
+        if (result.warningTriggered) {
+          // Check if a pending warning already exists for this teacher to avoid duplicates
+          const existing = warnings.find(w => w.uid === teacher.uid && w.status === "pending");
+          if (!existing) {
+            await triggerWarning(teacher.uid, teacher.name, result);
+          }
+        }
       }
     } catch (err) {
       console.error("Analysis failed:", err instanceof Error ? err.message : String(err));
@@ -333,26 +370,53 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
 
                       {/* Response Mechanism */}
                       <section>
-                        <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">响应机制</h4>
-                        <div className="p-4 bg-stone-900 rounded-2xl text-white">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center">
-                              <Users size={16} />
+                        <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">响应机制与记录</h4>
+                        <div className="space-y-4">
+                          <div className="p-4 bg-stone-900 rounded-2xl text-white">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center">
+                                <Users size={16} />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white/60">当前响应级别</p>
+                                <p className="text-sm font-bold">
+                                  {selectedWarning.level === 'emergency' ? '三级干预：推送至心理负责人' : 
+                                   selectedWarning.level === 'intervention' ? '二级关注：推送至年级主任' : '一级提醒：推送自助资源'}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs font-bold text-white/60">当前响应级别</p>
-                              <p className="text-sm font-bold">
-                                {selectedWarning.level === 'emergency' ? '三级干预：推送至心理负责人' : 
-                                 selectedWarning.level === 'intervention' ? '二级关注：推送至年级主任' : '一级提醒：推送自助资源'}
-                              </p>
+                            <div className="flex flex-col gap-3">
+                              {selectedWarning.status === 'pending' && (
+                                <button 
+                                  onClick={() => handleTriggerIntervention(selectedWarning)}
+                                  className="w-full py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+                                >
+                                  <Play size={18} /> 启动协作干预
+                                </button>
+                              )}
+                              {selectedWarning.status !== 'resolved' && (
+                                <button 
+                                  onClick={() => handleResolve(selectedWarning.id!)}
+                                  className="w-full py-3 bg-white text-stone-900 rounded-xl text-sm font-bold hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <CheckCircle size={18} /> 标记为已处理
+                                </button>
+                              )}
                             </div>
                           </div>
-                          <button 
-                            onClick={() => handleResolve(selectedWarning.id!)}
-                            className="w-full py-3 bg-white text-stone-900 rounded-xl text-sm font-bold hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
-                          >
-                            <CheckCircle size={18} /> 标记为已处理
-                          </button>
+
+                          <div className="space-y-3">
+                            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">处理日志</p>
+                            {selectedWarning.responseLog?.map((log, i) => (
+                              <div key={i} className="flex gap-3 pl-2 border-l-2 border-stone-100">
+                                <div className="text-[10px] text-stone-400 w-16 shrink-0">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                                <div className="text-xs">
+                                  <span className="font-bold text-stone-700">{log.actor}: </span>
+                                  <span className="text-stone-500">{log.action}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </section>
 
@@ -475,11 +539,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
               </div>
               
               <div className="p-8 space-y-6">
-                {[
-                  { level: "三级紧急", color: "bg-rose-600", desc: "风险指数 > 0.9 或 抑郁因子连续 ≥ 2.0", action: "即时推送至心理负责人，启动正式干预流程" },
-                  { level: "二级介入", color: "bg-amber-500", desc: "风险指数 > 0.8", action: "脱敏推送至年级主任/教研组长，建议面谈关注" },
-                  { level: "一级关注", color: "bg-blue-500", desc: "风险指数 > 0.75", action: "自动推送自助心理资源包至教师个人端" },
-                ].map((item, i) => (
+                {responseConfig.map((item, i) => (
                   <div key={i} className="flex gap-6 p-6 bg-stone-50 rounded-2xl border border-stone-100">
                     <div className={`h-12 w-12 rounded-2xl ${item.color} shrink-0 flex items-center justify-center text-white`}>
                       <Bell size={24} />
@@ -487,11 +547,35 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                     <div className="flex-1">
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="font-bold text-stone-900">{item.level}</h3>
-                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">已激活</span>
+                        <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">已激活</span>
                       </div>
-                      <p className="text-xs text-stone-500 mb-4">{item.desc}</p>
-                      <div className="p-3 bg-white rounded-xl border border-stone-200 text-sm font-medium text-stone-700">
-                        {item.action}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-stone-400 uppercase">触发阈值</label>
+                          <input 
+                            type="text" 
+                            value={item.desc}
+                            onChange={(e) => {
+                              const newConfig = [...responseConfig];
+                              newConfig[i].desc = e.target.value;
+                              setResponseConfig(newConfig);
+                            }}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-stone-400 uppercase">执行动作</label>
+                          <textarea 
+                            value={item.action}
+                            onChange={(e) => {
+                              const newConfig = [...responseConfig];
+                              newConfig[i].action = e.target.value;
+                              setResponseConfig(newConfig);
+                            }}
+                            rows={2}
+                            className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

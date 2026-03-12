@@ -24,7 +24,7 @@ import Dashboard from "./pages/Dashboard";
 import AssessmentPage from "./pages/AssessmentPage";
 import WarningCenter from "./pages/WarningCenter";
 import Toolkit from "./pages/Toolkit";
-import Community from "./pages/Community";
+import Intervention from "./pages/Intervention";
 import AdminCockpit from "./pages/AdminCockpit";
 
 import { handleFirestoreError, OperationType } from "./utils/firestoreErrorHandler";
@@ -138,7 +138,7 @@ const App: React.FC = () => {
     { path: "/", label: "个人看板", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST] },
     { path: "/assessment", label: "绿色测评", icon: ClipboardCheck, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST] },
     { path: "/toolkit", label: "蓝色调适", icon: Wind, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST] },
-    { path: "/community", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST] },
+    { path: "/intervention", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST] },
     { path: "/warnings", label: "红色预警", icon: AlertTriangle, roles: [UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD] },
     { path: "/cockpit", label: "紫色评估", icon: BarChart3, roles: [UserRole.ADMIN] },
   ];
@@ -227,7 +227,7 @@ const App: React.FC = () => {
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <header className="h-16 bg-white border-b border-stone-100 flex items-center px-6 justify-between lg:justify-end">
-            <button onClick={() => setIsSidebarOpen(true)} className={`lg:hidden text-stone-600 ${isSidebarOpen ? 'hidden' : 'block'}`}>
+            <button onClick={() => setIsSidebarOpen(true)} className={`text-stone-600 ${isSidebarOpen ? 'hidden' : 'block'}`}>
               <Menu size={24} />
             </button>
             <div className="flex items-center gap-4">
@@ -241,7 +241,7 @@ const App: React.FC = () => {
                 <Route path="/" element={<Dashboard profile={profile} />} />
                 <Route path="/assessment" element={<AssessmentPage profile={profile} />} />
                 <Route path="/toolkit" element={<Toolkit profile={profile} />} />
-                <Route path="/community" element={<Community profile={profile} />} />
+                <Route path="/intervention" element={<Intervention profile={profile} />} />
                 
                 {/* Protected Routes */}
                 {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) && (

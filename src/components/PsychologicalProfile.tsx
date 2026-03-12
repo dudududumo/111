@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { UserProfile, PhysiologicalData, BehavioralData } from "../types";
 import { motion } from "motion/react";
-import { Activity, Moon, Heart, Zap, Briefcase, Info, ClipboardCheck } from "lucide-react";
+import { Activity, Moon, Heart, Zap, Briefcase, Info, ClipboardCheck, TrendingUp } from "lucide-react";
 import { db } from "../firebase";
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 
@@ -90,6 +90,13 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     return names[id] || id;
   };
 
+  // Process assessment history for trend curves
+  const assessmentTrend = [...assessments].reverse().map(a => ({
+    date: new Date(a.timestamp).toLocaleDateString(),
+    score: a.scores?.total || 0,
+    type: getScaleName(a.type)
+  }));
+
   const radarData = [
     { subject: '情绪状态', A: 85, fullMark: 100 },
     { subject: '压力水平', A: 65, fullMark: 100 },
@@ -108,6 +115,15 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     { name: '授课', value: behavioralData?.workload.classHours || 0, color: '#10b981' },
     { name: '会议', value: behavioralData?.workload.meetingHours || 0, color: '#3b82f6' },
     { name: '非教学', value: behavioralData?.workload.nonTeachingTasks || 0, color: '#f59e0b' },
+  ];
+
+  // Mock Behavioral Activity Map (Heatmap style)
+  const activityMap = [
+    { day: 'Mon', morning: 80, afternoon: 60, evening: 40 },
+    { day: 'Tue', morning: 70, afternoon: 90, evening: 50 },
+    { day: 'Wed', morning: 90, afternoon: 70, evening: 60 },
+    { day: 'Thu', morning: 60, afternoon: 80, evening: 70 },
+    { day: 'Fri', morning: 50, afternoon: 60, evening: 90 },
   ];
 
   return (
@@ -166,7 +182,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
                 <Tooltip 
@@ -181,11 +197,69 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Workload Bar Chart */}
+        {/* Psychological Indicator Curves */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
+          className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
+        >
+          <div className="flex items-center gap-2 mb-6">
+            <Activity size={18} className="text-emerald-500" />
+            <h3 className="text-sm font-bold text-stone-900">心理指标趋势 (测评历史)</h3>
+          </div>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={assessmentTrend}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Area type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.1} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* Behavioral Activity Map */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="lg:col-span-1 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
+        >
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingUp size={18} className="text-blue-500" />
+            <h3 className="text-sm font-bold text-stone-900">行为活跃度图谱</h3>
+          </div>
+          <div className="space-y-4">
+            {activityMap.map((item) => (
+              <div key={item.day} className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-stone-400 w-8">{item.day}</span>
+                <div className="flex-1 flex gap-1">
+                  <div className="h-4 flex-1 rounded-sm" style={{ backgroundColor: `rgba(59, 130, 246, ${item.morning / 100})` }} title={`Morning: ${item.morning}%`} />
+                  <div className="h-4 flex-1 rounded-sm" style={{ backgroundColor: `rgba(59, 130, 246, ${item.afternoon / 100})` }} title={`Afternoon: ${item.afternoon}%`} />
+                  <div className="h-4 flex-1 rounded-sm" style={{ backgroundColor: `rgba(59, 130, 246, ${item.evening / 100})` }} title={`Evening: ${item.evening}%`} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 flex justify-between text-[10px] text-stone-400 font-bold uppercase">
+            <span>上午</span>
+            <span>下午</span>
+            <span>晚上</span>
+          </div>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Workload Bar Chart */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
           className="lg:col-span-1 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
         >
           <div className="flex items-center gap-2 mb-6">
@@ -218,7 +292,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.5 }}
           className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
         >
           <div className="flex items-center gap-2 mb-6">
@@ -252,6 +326,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           </div>
         </motion.div>
       </div>
+
 
       {/* Assessment History Section */}
       <motion.div 
