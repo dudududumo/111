@@ -1,0 +1,92 @@
+[
+  {
+    "uid": "teacher1",
+    "name": "张三",
+    "assessmentScores": [
+      2.2,
+      2,
+      1.6,
+      2.1
+    ],
+    "hrvData": [
+      65,
+      52,
+      41,
+      64
+    ],
+    "activityChangeRate": -0.29,
+    "workloadIndex": 54
+  },
+  {
+    "uid": "teacher2",
+    "name": "李四",
+    "assessmentScores": [
+      1.7,
+      1.6,
+      1.5,
+      2.9
+    ],
+    "hrvData": [
+      65,
+      44,
+      53,
+      69
+    ],
+    "activityChangeRate": -0.13,
+    "workloadIndex": 86
+  },
+  {
+    "uid": "teacher3",
+    "name": "王五",
+    "assessmentScores": [
+      2.9,
+      1.6,
+      1.6,
+      1.3
+    ],
+    "hrvData": [
+      70,
+      56,
+      49,
+      51
+    ],
+    "activityChangeRate": -0.21,
+    "workloadIndex": 79
+  },
+  {
+    "uid": "teacher4",
+    "name": "赵六",
+    "assessmentScores": [
+      1.7,
+      1.7,
+      1.3,
+      1.1
+    ],
+    "hrvData": [
+      41,
+      62,
+      46,
+      66
+    ],
+    "activityChangeRate": -0.19,
+    "workloadIndex": 59
+  },
+  {
+    "uid": "teacher5",
+    "name": "孙七",
+    "assessmentScores": [
+      1,
+      1.4,
+      2,
+      2.5
+    ],
+    "hrvData": [
+      69,
+      65,
+      55,
+      41
+    ],
+    "activityChangeRate": -0.18,
+    "workloadIndex": 63
+  }
+]

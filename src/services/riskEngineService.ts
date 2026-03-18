@@ -1,10 +1,8 @@
-import { db } from "../firebase";
-import { collection, query, where, orderBy, limit, getDocs, addDoc, Timestamp } from "firebase/firestore";
-import { Warning, UserRole } from "../types";
+import api from "./api";
 
 export interface RiskAnalysisResult {
   warningTriggered: boolean;
-  warningLevel?: "attention" | "intervention" | "emergency";
+  warningLevel?: "level1" | "level2" | "level3";
   riskScore: number;
   factors: string[];
   reason: string;
@@ -18,14 +16,8 @@ export interface RiskAnalysisResult {
 export const analyzeTeacherRisk = async (uid: string, teacherName: string): Promise<RiskAnalysisResult> => {
   try {
     // 1. Fetch last 4 weeks of assessments
-    const assessmentsQuery = query(
-      collection(db, "assessments"),
-      where("uid", "==", uid),
-      orderBy("timestamp", "desc"),
-      limit(4)
-    );
-    const assessmentSnap = await getDocs(assessmentsQuery);
-    const assessments = assessmentSnap.docs.map(d => d.data());
+    const response = await api.assessment.getMyAssessments();
+    const assessments = response.assessments || [];
 
     // 2. Mock Physiological & Behavioral Data (In real app, fetch from respective collections)
     // For simulation, we'll generate some data based on the UID to keep it consistent
@@ -76,17 +68,17 @@ export const analyzeTeacherRisk = async (uid: string, teacherName: string): Prom
 
     // Determine Warning Level
     let warningTriggered = false;
-    let warningLevel: "attention" | "intervention" | "emergency" | undefined;
+    let warningLevel: "level1" | "level2" | "level3" | undefined;
 
     if (riskScore > 0.9 || consecutiveHighDepression) {
       warningTriggered = true;
-      warningLevel = "emergency";
+      warningLevel = "level3";
     } else if (riskScore > 0.8) {
       warningTriggered = true;
-      warningLevel = "intervention";
+      warningLevel = "level2";
     } else if (riskScore > 0.75) {
       warningTriggered = true;
-      warningLevel = "attention";
+      warningLevel = "level1";
     }
 
     return {
@@ -113,58 +105,21 @@ export const analyzeTeacherRisk = async (uid: string, teacherName: string): Prom
 export const triggerWarning = async (uid: string, teacherName: string, analysis: RiskAnalysisResult) => {
   if (!analysis.warningTriggered || !analysis.warningLevel) return;
 
-  const warningData: Omit<Warning, 'id'> = {
-    uid,
+ const warningData = {
+    userId: uid,
     teacherName,
-    level: analysis.warningLevel,
+    level: analysis.warningLevel || "level1",
     riskScore: analysis.riskScore,
     factors: analysis.factors,
     reason: analysis.reason,
-    status: "pending",
-    timestamp: new Date().toISOString(),
-    responseLog: [
-      { 
-        action: `系统自动触发${analysis.warningLevel === 'emergency' ? '三级紧急' : analysis.warningLevel === 'intervention' ? '二级介入' : '一级关注'}预警`, 
-        timestamp: new Date().toISOString(), 
-        actor: "LSTM 风险引擎" 
-      }
-    ]
+    status: "pending"
   };
 
-  // Add automated response based on level
-  if (analysis.warningLevel === "attention") {
-    warningData.responseLog?.push({
-      action: "自动推送自助心理资源包至教师个人端",
-      timestamp: new Date().toISOString(),
-      actor: "系统自动化"
-    });
-  } else if (analysis.warningLevel === "intervention") {
-    warningData.responseLog?.push({
-      action: "脱敏信息已推送至年级主任/教研组长",
-      timestamp: new Date().toISOString(),
-      actor: "系统自动化"
-    });
-  } else if (analysis.warningLevel === "emergency") {
-    warningData.responseLog?.push({
-      action: "即时通知已发送至学校心理负责人",
-      timestamp: new Date().toISOString(),
-      actor: "系统自动化"
-    });
-  }
-
-  const warningDoc = await addDoc(collection(db, "warnings"), warningData);
+  await api.warning.create(warningData);
 
   // 4.1 Organizational Support: Auto-create intervention task for Level 3 (Emergency)
-  if (analysis.warningLevel === "emergency") {
-    await addDoc(collection(db, "intervention_tasks"), {
-      warningId: warningDoc.id,
-      teacherId: uid,
-      teacherName: teacherName,
-      assignedTo: "psychologist_admin", // Placeholder for actual assignment logic
-      status: "pending",
-      priority: "high",
-      careRecords: [],
-      createdAt: new Date().toISOString()
-    });
+  if (analysis.warningLevel === "level3") {
+    // 这里需要调用后端API创建干预任务
+    console.log("创建紧急干预任务 for user:", uid);
   }
 };

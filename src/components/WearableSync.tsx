@@ -25,17 +25,17 @@ const WearableSync: React.FC<WearableSyncProps> = ({ currentBrand, onSync }) => 
   };
 
   return (
-    <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
-      <div className="flex items-center justify-between mb-8">
+      <div className="bg-gradient-to-br from-white to-emerald-50 p-4 rounded-[32px] shadow-sm">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Watch size={24} />
+            <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Watch size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-stone-900">生理数据接入</h3>
+              <p className="text-stone-500 text-sm">同步您的可穿戴设备数据</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-bold text-stone-900">生理数据接入</h3>
-            <p className="text-stone-500 text-xs">同步您的可穿戴设备数据</p>
-          </div>
-        </div>
         {currentBrand && (
           <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold">
             <CheckCircle2 size={14} /> 已连接
@@ -44,13 +44,13 @@ const WearableSync: React.FC<WearableSyncProps> = ({ currentBrand, onSync }) => 
       </div>
 
       {!currentBrand ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2">
           {BRANDS.map((brand) => (
             <button
               key={brand.id}
               onClick={() => handleSync(brand.id)}
               disabled={syncing}
-              className={`${brand.color} p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50`}
+              className={`${brand.color} p-3 rounded-2xl flex flex-col items-center justify-center gap-1 hover:opacity-90 transition-all disabled:opacity-50`}
             >
               <span className="text-2xl font-black">{brand.icon}</span>
               <span className="text-xs font-bold">{brand.name}</span>

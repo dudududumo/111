@@ -32,9 +32,7 @@ import {
   Bar
 } from "recharts";
 
-import { db } from "../firebase";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
-import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
+import api from "../services/api";
 
 interface DashboardProps {
   profile: UserProfile | null;
@@ -76,21 +74,13 @@ const Dashboard: React.FC<DashboardProps> = ({ profile }) => {
     const fetchAssessments = async () => {
       if (profile) {
         try {
-          const q = query(
-            collection(db, "assessments"),
-            where("uid", "==", profile.uid),
-            orderBy("timestamp", "desc"),
-            limit(3)
-          );
-          const snap = await getDocs(q);
-          const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          
-          if (docs.length > 0) {
-            setLatestAssessment(docs[0]);
-            setRecentAssessments(docs);
+          const assessments = await api.assessment.getMyAssessments();
+          if (assessments.length > 0) {
+            setLatestAssessment(assessments[0]);
+            setRecentAssessments(assessments.slice(0, 3));
           }
         } catch (e) {
-          handleFirestoreError(e, OperationType.LIST, "assessments");
+          console.error("获取评估记录失败:", e);
         }
       }
     };

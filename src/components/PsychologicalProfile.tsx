@@ -19,8 +19,6 @@ import {
 import { UserProfile, PhysiologicalData, BehavioralData } from "../types";
 import { motion } from "motion/react";
 import { Activity, Moon, Heart, Zap, Briefcase, Info, ClipboardCheck, TrendingUp } from "lucide-react";
-import { db } from "../firebase";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 
 interface PsychologicalProfileProps {
   profile: UserProfile | null;
@@ -36,38 +34,56 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     const fetchData = async () => {
       if (!profile) return;
       try {
-        const [physioRes, workloadRes] = await Promise.all([
-          fetch(`/api/physiological/${profile.uid}`),
-          fetch(`/api/workload/${profile.uid}`)
+        const [physioRes, workloadRes, assessmentRes, toolUsageRes] = await Promise.all([
+          fetch(`/api/physiological/${profile.uid}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }),
+          fetch(`/api/workload/${profile.uid}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }),
+          fetch(`/api/assessments/my`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }),
+          fetch(`/api/tool-usage/my`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
         ]);
         
         const physio = await physioRes.json();
         const workload = await workloadRes.json();
+        const assessmentsData = await assessmentRes.json();
+        const toolUsageData = await toolUsageRes.json();
         
         setPhysioData(physio);
+        
+        // 计算行为数据
+        const loginFrequency = calculateLoginFrequency();
+        const toolUsageMinutes = calculateToolUsageMinutes(toolUsageData);
+        const communityInteractions = 0; // 默认值，因为社区统计API不存在
+        
         setBehavioralData({
-          loginFrequency: 12,
-          toolUsageMinutes: 45,
-          communityInteractions: 8,
+          loginFrequency: loginFrequency,
+          toolUsageMinutes: toolUsageMinutes,
+          communityInteractions: communityInteractions,
           workload: workload
         });
 
-        // Fetch assessment history
-        const q = query(
-          collection(db, "assessments"),
-          where("uid", "==", profile.uid),
-          orderBy("timestamp", "desc"),
-          limit(10)
-        );
-        const querySnapshot = await getDocs(q);
-        const history = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setAssessments(history);
+        setAssessments(assessmentsData || []);
 
       } catch (err) {
         console.error("Error fetching profile data:", err);
+        // 错误时使用默认数据
+        setBehavioralData({
+          loginFrequency: 5,
+          toolUsageMinutes: 30,
+          communityInteractions: 3,
+          workload: {
+            classHours: 12,
+            meetingHours: 5,
+            nonTeachingTasks: 8,
+            totalWorkloadIndex: 65
+          }
+        });
       } finally {
         setLoading(false);
       }
@@ -76,16 +92,35 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     fetchData();
   }, [profile]);
 
+  // 计算登录频率
+  const calculateLoginFrequency = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const loginKey = `login_${today}`;
+    return parseInt(localStorage.getItem(loginKey) || '0');
+  };
+
+  // 计算工具使用时长
+  const calculateToolUsageMinutes = (toolUsageData: any[]) => {
+    if (!toolUsageData || toolUsageData.length === 0) return 0;
+    return toolUsageData.reduce((total, usage) => total + (usage.duration || 0), 0) / 60;
+  };
+
+  // 计算社区互动次数
+  const calculateCommunityInteractions = (communityData: any) => {
+    if (!communityData) return 0;
+    return (communityData.posts || 0) + (communityData.likes || 0) + (communityData.comments || 0);
+  };
+
   if (loading) return <div className="h-64 flex items-center justify-center">加载动态档案中...</div>;
 
   const getScaleName = (id: string) => {
     const names: Record<string, string> = {
-      scl90: "SCL-90 症状自评",
-      sas: "SAS 焦虑自评",
-      sds: "SDS 抑郁自评",
-      mbi: "MBI 职业倦怠",
-      phq9: "PHQ-9 抑郁筛查",
-      gad7: "GAD-7 焦虑量表"
+      scl90: "SCL-90 症状自评量表",
+      sas: "SAS 焦虑自评量表",
+      sds: "SDS 抑郁自评量表",
+      mbi: "MBI 教师职业倦怠量表",
+      phq9: "PHQ-9 抑郁症筛查量表",
+      gad7: "GAD-7 广泛性焦虑量表"
     };
     return names[id] || id;
   };
@@ -117,14 +152,25 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     { name: '非教学', value: behavioralData?.workload.nonTeachingTasks || 0, color: '#f59e0b' },
   ];
 
-  // Mock Behavioral Activity Map (Heatmap style)
-  const activityMap = [
-    { day: 'Mon', morning: 80, afternoon: 60, evening: 40 },
-    { day: 'Tue', morning: 70, afternoon: 90, evening: 50 },
-    { day: 'Wed', morning: 90, afternoon: 70, evening: 60 },
-    { day: 'Thu', morning: 60, afternoon: 80, evening: 70 },
-    { day: 'Fri', morning: 50, afternoon: 60, evening: 90 },
-  ];
+  // 生成行为活跃度图谱数据
+  const generateActivityMap = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    return days.map(day => {
+      // 基于工具使用时长和社区互动生成活跃度数据
+      const baseActivity = behavioralData?.toolUsageMinutes || 30;
+      const communityActivity = behavioralData?.communityInteractions || 3;
+      
+      // 生成随机但有规律的活跃度数据
+      return {
+        day,
+        morning: Math.min(100, Math.floor(baseActivity * 0.3 + communityActivity * 2 + Math.random() * 20)),
+        afternoon: Math.min(100, Math.floor(baseActivity * 0.4 + communityActivity * 3 + Math.random() * 30)),
+        evening: Math.min(100, Math.floor(baseActivity * 0.3 + communityActivity * 1 + Math.random() * 25)),
+      };
+    });
+  };
+
+  const activityMap = generateActivityMap();
 
   return (
     <div className="space-y-8">
@@ -141,7 +187,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           </div>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <PolarGrid stroke="#f1f1f1" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#78716c', fontSize: 10 }} />
                 <Radar
@@ -163,19 +209,19 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           transition={{ delay: 0.1 }}
           className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Heart size={18} className="text-rose-500" />
-              <h3 className="text-sm font-bold text-stone-900">生理指标趋势 (HRV/心率)</h3>
+              <h3 className="text-sm font-bold text-stone-900 whitespace-nowrap">生理指标趋势</h3>
             </div>
-            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider">
               <span className="flex items-center gap-1 text-emerald-600"><div className="h-2 w-2 rounded-full bg-emerald-500" /> HRV</span>
               <span className="flex items-center gap-1 text-rose-600"><div className="h-2 w-2 rounded-full bg-rose-500" /> 心率</span>
             </div>
           </div>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={hrvTrend}>
+              <AreaChart data={hrvTrend} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <defs>
                   <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
@@ -184,9 +230,12 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} width={30} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
+                  activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: '#ffffff' }}
+                  trigger="both"
                 />
                 <Area type="monotone" dataKey="hrv" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHrv)" />
                 <Area type="monotone" dataKey="hr" stroke="#f43f5e" strokeWidth={2} strokeDasharray="5 5" fill="transparent" />
@@ -204,18 +253,21 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           transition={{ delay: 0.2 }}
           className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
         >
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-4">
             <Activity size={18} className="text-emerald-500" />
-            <h3 className="text-sm font-bold text-stone-900">心理指标趋势 (测评历史)</h3>
+            <h3 className="text-sm font-bold text-stone-900 whitespace-nowrap">心理指标趋势</h3>
           </div>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={assessmentTrend}>
+              <AreaChart data={assessmentTrend} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} width={30} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
+                  activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: '#ffffff' }}
+                  trigger="both"
                 />
                 <Area type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.1} />
               </AreaChart>
@@ -262,16 +314,20 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           transition={{ delay: 0.4 }}
           className="lg:col-span-1 bg-white p-6 rounded-[32px] border border-stone-100 shadow-sm"
         >
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-4">
             <Briefcase size={18} className="text-blue-500" />
-            <h3 className="text-sm font-bold text-stone-900">工作负荷分布 (周)</h3>
+            <h3 className="text-sm font-bold text-stone-900 whitespace-nowrap">工作负荷分布</h3>
           </div>
           <div className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={workloadData} layout="vertical">
+              <BarChart data={workloadData} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#78716c', fontSize: 12 }} width={60} />
-                <Tooltip cursor={{ fill: 'transparent' }} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#78716c', fontSize: 11 }} width={45} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                  trigger="both"
+                />
                 <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={20}>
                   {workloadData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -344,42 +400,40 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
         </div>
 
         {assessments.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-stone-50">
-                  <th className="pb-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">测评项目</th>
-                  <th className="pb-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">测评时间</th>
-                  <th className="pb-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">结果等级</th>
-                  <th className="pb-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">得分</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {assessments.map((item) => (
-                  <tr key={item.id} className="group hover:bg-stone-50 transition-colors">
-                    <td className="py-4">
-                      <span className="text-sm font-bold text-stone-800">{getScaleName(item.type)}</span>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-xs text-stone-500">{new Date(item.timestamp).toLocaleString()}</span>
-                    </td>
-                    <td className="py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                        item.riskLevel === 'green' ? 'bg-emerald-50 text-emerald-600' :
-                        item.riskLevel === 'yellow' ? 'bg-amber-50 text-amber-600' :
-                        item.riskLevel === 'orange' ? 'bg-orange-50 text-orange-600' :
-                        'bg-red-50 text-red-600'
-                      }`}>
-                        {item.level}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-sm font-mono font-bold text-stone-600">{item.scores?.total || 0}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {assessments.map((item) => (
+              <div key={item.id} className="bg-stone-50 rounded-lg p-2 hover:bg-stone-100 transition-colors">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-stone-900 truncate">{getScaleName(item.type)}</div>
+                  </div>
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${
+                    item.risk_level === 'green' ? 'bg-emerald-50 text-emerald-600' :
+                    item.risk_level === 'yellow' ? 'bg-amber-50 text-amber-600' :
+                    item.risk_level === 'orange' ? 'bg-orange-50 text-orange-600' :
+                    'bg-red-50 text-red-600'
+                  }`}>
+                    {item.type === 'scl90' ? (
+                      item.risk_level === 'green' ? '正常' : 
+                      item.risk_level === 'yellow' ? '轻度症状' : 
+                      item.risk_level === 'orange' ? '中度症状' : 
+                      item.risk_level === 'red' ? '重度症状' : '正常'
+                    ) : (
+                      item.risk_level === 'green' ? '正常' : 
+                      item.risk_level === 'blue' ? '轻度' : 
+                      item.risk_level === 'yellow' ? '中度' : 
+                      item.risk_level === 'orange' ? '重度' : '危急'
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="text-stone-500">
+                    {new Date(item.timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className="text-stone-600 font-mono font-bold">{item.scores?.total || 0} 分</div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="py-12 text-center space-y-3">

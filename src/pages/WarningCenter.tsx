@@ -20,20 +20,21 @@ import {
   Bell,
   X
 } from "lucide-react";
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  orderBy, 
-  doc, 
-  updateDoc,
-  addDoc,
-  serverTimestamp 
-} from "firebase/firestore";
-import { handleFirestoreError, OperationType } from "../utils/firestoreErrorHandler";
-import { db } from "../firebase";
+import api from "../services/api";
 import { Warning, UserRole, UserProfile } from "../types";
 import { analyzeTeacherRisk, triggerWarning } from "../services/riskEngineService";
+import { scanTeachersRisk, getWarningConfigs, RiskAnalysisResult, WarningTrigger, WarningResponse, WarningVariables } from "../services/redWarningService";
+
+// 响应配置项类型
+interface ResponseConfigItem {
+  id: string;
+  level: string;
+  color: string;
+  threshold: number;
+  variables: WarningVariables;
+  triggers: WarningTrigger[];
+  responses: WarningResponse[];
+}
 import { 
   ResponsiveContainer, 
   ScatterChart, 
@@ -53,30 +54,153 @@ interface WarningCenterProps {
 }
 
 const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
+
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [responseConfig, setResponseConfig] = useState([
-    { id: 'emergency', level: "三级紧急", color: "bg-rose-600", threshold: 0.9, desc: "风险指数 > 0.9 或 抑郁因子连续 ≥ 2.0", action: "即时推送至心理负责人，启动正式干预流程" },
-    { id: 'intervention', level: "二级介入", color: "bg-amber-500", threshold: 0.8, desc: "风险指数 > 0.8", action: "脱敏推送至年级主任/教研组长，建议面谈关注" },
-    { id: 'attention', level: "一级关注", color: "bg-blue-500", threshold: 0.75, desc: "风险指数 > 0.75", action: "自动推送自助心理资源包至教师个人端" },
-  ]);
+
+  // 从数据库加载预警数据（真正的数据库持久化）
+  useEffect(() => {
+    const loadWarnings = async () => {
+      try {
+        console.log('正在从数据库加载预警数据...');
+        const response = await api.warning.getAll();
+        console.log('从数据库加载预警数据成功:', response.length || 0, '条');
+        console.log('数据库返回的数据:', response);
+        
+        // 转换数据库格式为前端格式
+        const dbWarnings = (response || []).map(warning => ({
+          id: warning.id,
+          uid: warning.user_id,
+          teacherName: warning.display_name || warning.teacher_name || '',
+          level: warning.level === 'attention' ? 'level1' : 
+                 warning.level === 'intervention' ? 'level2' : 'level3',
+          riskScore: warning.risk_score,
+          factors: Array.isArray(warning.factors) ? warning.factors : [],
+          reason: warning.reason || '',
+          status: warning.status || 'pending',
+          timestamp: warning.created_at || new Date().toISOString()
+        }));
+        
+        setWarnings(dbWarnings);
+        console.log('转换后的预警数据:', dbWarnings.length, '条');
+      } catch (error) {
+        console.error('从数据库加载预警数据失败:', error);
+        console.error('错误详情:', error.message || error);
+        // 降级方案：使用空数组
+        setWarnings([]);
+      }
+    };
+
+    loadWarnings();
+  }, []);
+  // 重构响应配置为可动态配置的结构化数据
+  const [responseConfig, setResponseConfig] = useState<ResponseConfigItem[]>([]);
+  
+  // 从数据库加载预警配置
+  useEffect(() => {
+    const loadConfigs = async () => {
+      try {
+        const configs = await getWarningConfigs();
+        const mappedConfigs = configs.map(config => ({
+          id: config.level,
+          level: config.name,
+          color: config.level === 'level3' ? 'bg-rose-600' : config.level === 'level2' ? 'bg-amber-500' : 'bg-blue-500',
+          threshold: config.threshold,
+          // 使用配置中的变量
+          variables: {
+            depressionThreshold: config.variables?.depressionThreshold ?? (config.level === 'level3' ? 2.5 : 2.0),
+            riskThreshold: config.variables?.riskThreshold ?? (config.level === 'level3' ? 0.8 : config.level === 'level2' ? 0.7 : 0.6),
+            consecutiveWeeks: config.variables?.consecutiveWeeks ?? 1,
+            durationDays: config.variables?.durationDays ?? 1
+          },
+          // 使用配置中的triggers
+          triggers: config.triggers?.map(trigger => ({
+            type: trigger.type,
+            operator: trigger.operator,
+            value: trigger.value,
+            description: trigger.description
+          })) || [],
+          // 使用配置中的responses
+          responses: config.responses?.map(response => ({
+            type: response.type,
+            target: response.target,
+            content: response.content,
+            description: response.description
+          })) || []
+        }));
+        setResponseConfig(mappedConfigs);
+        console.log('已从数据库加载预警配置:', mappedConfigs.length, '条');
+      } catch (error) {
+        console.error('加载预警配置失败:', error);
+        // 降级方案：使用空数组
+        setResponseConfig([]);
+      }
+    };
+    
+    loadConfigs();
+  }, []);
+
+  // 保存配置到数据库
+  const handleSaveConfig = async () => {
+    try {
+      console.log('开始保存配置到数据库...');
+      
+      // 逐个保存每个配置
+      for (const config of responseConfig) {
+        await api.warningConfig.save({
+          level: config.id,
+          name: config.level,
+          threshold: config.threshold,
+          triggers: config.triggers,
+          responses: config.responses,
+          variables: config.variables
+        });
+        console.log('已保存配置:', config.id);
+      }
+      
+      console.log('所有配置保存成功！');
+      alert('配置保存成功！');
+      setShowConfig(false);
+      
+      // 重新加载配置
+      const configs = await getWarningConfigs();
+      const mappedConfigs = configs.map(config => ({
+        id: config.level,
+        level: config.name,
+        color: config.level === 'level3' ? 'bg-rose-600' : config.level === 'level2' ? 'bg-amber-500' : 'bg-blue-500',
+        threshold: config.threshold,
+        variables: {
+          depressionThreshold: config.variables?.depressionThreshold ?? (config.level === 'level3' ? 2.5 : 2.0),
+          riskThreshold: config.variables?.riskThreshold ?? (config.level === 'level3' ? 0.8 : config.level === 'level2' ? 0.7 : 0.6),
+          consecutiveWeeks: config.variables?.consecutiveWeeks ?? 1,
+          durationDays: config.variables?.durationDays ?? 1
+        },
+        triggers: config.triggers?.map(trigger => ({
+          type: trigger.type,
+          operator: trigger.operator,
+          value: trigger.value,
+          description: trigger.description
+        })) || [],
+        responses: config.responses?.map(response => ({
+          type: response.type,
+          target: response.target,
+          content: response.content,
+          description: response.description
+        })) || []
+      }));
+      setResponseConfig(mappedConfigs);
+      
+    } catch (error) {
+      console.error('保存配置失败:', error);
+      alert('保存配置失败，请重试！');
+    }
+  };
 
   const userRole = profile?.role || UserRole.TEACHER;
-
-  useEffect(() => {
-    const q = query(collection(db, "warnings"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warning));
-      setWarnings(data);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "warnings");
-    });
-    return () => unsubscribe();
-  }, []);
 
   const filteredWarnings = warnings.filter(w => {
     if (filter === "all") return true;
@@ -84,89 +208,185 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   });
 
   const stats = {
-    emergency: warnings.filter(w => w.level === "emergency").length,
-    intervention: warnings.filter(w => w.level === "intervention").length,
-    attention: warnings.filter(w => w.level === "attention").length,
+    level3: warnings.filter(w => w.level === "level3").length,
+    level2: warnings.filter(w => w.level === "level2").length,
+    level1: warnings.filter(w => w.level === "level1").length,
   };
 
   const scatterData = warnings.map(w => ({
     x: w.riskScore * 100,
     y: 50 + (Math.sin(w.riskScore * 10) * 20), // More structured simulated secondary dimension
-    z: w.level === 'emergency' ? 100 : (w.level === 'intervention' ? 60 : 30),
+    z: w.level === 'level3' ? 100 : (w.level === 'level2' ? 60 : 30),
     level: w.level,
     name: userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? w.teacherName : "匿名教师"
   }));
 
   const pieData = [
-    { name: '紧急', value: stats.emergency, color: '#ef4444' },
-    { name: '介入', value: stats.intervention, color: '#f59e0b' },
-    { name: '关注', value: stats.attention, color: '#3b82f6' },
+    { name: '三级干预', value: stats.level3, color: '#ef4444' },
+    { name: '二级关注', value: stats.level2, color: '#f59e0b' },
+    { name: '一级提醒', value: stats.level1, color: '#3b82f6' },
   ].filter(d => d.value > 0);
 
   const handleTriggerIntervention = async (warning: Warning) => {
     try {
+      // 1. 先检查是否已存在关联的干预任务
+      let existingTask = null;
+      try {
+        existingTask = await api.intervention.getTaskByWarningId(warning.id!);
+      } catch (e) {
+        // 如果没有找到，继续创建新任务
+        console.log('未找到现有干预任务，将创建新任务');
+      }
+
+      if (existingTask && existingTask.id) {
+        alert('该预警已存在关联的干预任务，请前往干预任务看板查看。');
+        return;
+      }
+
+      // 2. 创建干预任务
       const taskData = {
-        title: `针对 ${warning.teacherName} 的心理干预`,
-        description: `基于预警触发：${warning.factors.join('；')}。风险等级：${warning.level}。`,
-        type: warning.level === 'emergency' ? 'platform' : 'team',
-        status: 'pending',
-        priority: warning.level === 'emergency' ? 'high' : 'medium',
-        assignedTo: '心理咨询室',
-        targetUserId: warning.uid,
-        createdAt: new Date().toISOString(),
-        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        warningId: warning.id!,
+        teacherId: warning.uid,
+        teacherName: warning.teacherName,
+        warningLevel: warning.level,
+        priority: warning.level === 'level3' ? 'high' : warning.level === 'level2' ? 'medium' : 'low',
       };
 
-      await addDoc(collection(db, 'interventionTasks'), taskData);
-      
-      const docRef = doc(db, "warnings", warning.id!);
-      await updateDoc(docRef, { 
-        status: "processing",
-        responseLog: [
-          ...(warning.responseLog || []),
-          { action: "启动协作干预流程", timestamp: new Date().toISOString(), actor: profile?.displayName || "管理员" }
-        ]
-      });
+      console.log("创建干预任务:", taskData);
+      const result = await api.intervention.createTask(taskData);
+      console.log("干预任务创建成功:", result);
+
+      // 3. 更新预警状态为active（表示已启动干预）
+      await api.warning.updateStatus(warning.id!, 'active');
+
+      // 4. 更新本地状态
+      const updatedWarnings = warnings.map(w =>
+        w.id === warning.id ? { ...w, status: 'active' as const } : w
+      );
+      setWarnings(updatedWarnings);
 
       alert('干预任务已成功创建并下发至协作平台。');
       setSelectedWarning(null);
     } catch (error) {
       console.error('Error triggering intervention:', error);
+      alert('创建干预任务失败，请稍后重试。');
     }
   };
 
   const handleResolve = async (id: string) => {
-    const docRef = doc(db, "warnings", id);
-    await updateDoc(docRef, { 
-      status: "resolved",
-      responseLog: [
-        ...(selectedWarning?.responseLog || []),
-        { action: "标记为已处理", timestamp: new Date().toISOString(), actor: profile?.displayName || "管理员" }
-      ]
-    });
-    setSelectedWarning(null);
+    console.log("标记为已处理:", id);
+    
+    try {
+      // 更新数据库中的预警状态
+      await api.warning.updateStatus(id, 'resolved');
+      
+      // 更新本地状态
+      const updatedWarnings = warnings.map(warning => 
+        warning.id === id ? { ...warning, status: 'resolved' as const } : warning
+      );
+      
+      setWarnings(updatedWarnings);
+      setSelectedWarning(null);
+      
+      console.log("预警已标记为已处理:", id);
+    } catch (error) {
+      console.error('更新预警状态失败:', error);
+      // 降级方案：只更新本地状态
+      const updatedWarnings = warnings.map(warning => 
+        warning.id === id ? { ...warning, status: 'resolved' as const } : warning
+      );
+      setWarnings(updatedWarnings);
+      setSelectedWarning(null);
+    }
   };
 
   const runAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      // In a real app, we would iterate through all teachers
-      // For this demo, we'll pick a few mock teachers to scan
-      const mockTeachers = [
-        { uid: "teacher_001", name: "张老师" },
-        { uid: "teacher_002", name: "李老师" },
-        { uid: "teacher_003", name: "王老师" },
-        { uid: "teacher_004", name: "赵老师" }
-      ];
+      // 清理旧的预警数据
+      try {
+        await api.warning.deleteAll();
+        console.log("已清理旧的预警数据");
+      } catch (error) {
+        console.error("清理旧预警数据失败:", error);
+      }
       
-      for (const teacher of mockTeachers) {
-        const result = await analyzeTeacherRisk(teacher.uid, teacher.name);
-        if (result.warningTriggered) {
-          // Check if a pending warning already exists for this teacher to avoid duplicates
-          const existing = warnings.find(w => w.uid === teacher.uid && w.status === "pending");
-          if (!existing) {
-            await triggerWarning(teacher.uid, teacher.name, result);
-          }
+      // 从数据库获取所有教师
+      const teachers = await api.user.getTeachers();
+      console.log("从数据库获取教师数量:", teachers.length, "条");
+      
+      if (teachers.length === 0) {
+        console.log("数据库中没有教师数据，无法进行风险扫描");
+        alert("数据库中没有教师数据，请先添加教师信息");
+        return;
+      }
+      
+      // 转换为风险扫描需要的格式
+      const uniqueTeachers = teachers.map(teacher => ({
+        uid: teacher.id,
+        name: teacher.display_name
+      }));
+      
+      console.log("使用以下教师数据进行风险扫描:", uniqueTeachers.length, "条");
+
+      // 构建当前配置传递给扫描函数
+      const currentConfigs = responseConfig.map(item => ({
+        level: item.id as 'level1' | 'level2' | 'level3',
+        name: item.level,
+        threshold: item.threshold,
+        variables: item.variables,
+        triggers: item.triggers,
+        responses: item.responses
+      }));
+
+      console.log("当前预警配置:", currentConfigs.length, "条");
+      currentConfigs.forEach(config => {
+        console.log(`- ${config.level}: depressionThreshold=${config.variables?.depressionThreshold}, riskThreshold=${config.variables?.riskThreshold}`);
+      });
+
+      // 使用红色预警模块的批量扫描功能，传入当前配置
+      console.log("开始调用 scanTeachersRisk...");
+      const results = await scanTeachersRisk(uniqueTeachers, currentConfigs);
+      console.log("scanTeachersRisk 返回结果:", results);
+      console.log("触发预警的数量:", results.filter(r => r.analysis.warningTriggered).length);
+      
+      // 将扫描结果转换为预警格式并更新到页面
+      const newWarnings: Warning[] = results
+        .filter(result => result.analysis.warningTriggered && result.warningId)
+        .map((result, index) => ({
+          id: result.warningId || `warning_${Date.now()}_${index}`,
+          uid: result.teacher.uid,
+          teacherName: result.teacher.name,
+          level: result.analysis.warningLevel === "level1" ? "level1" : 
+                 result.analysis.warningLevel === "level2" ? "level2" : "level3",
+          riskScore: result.analysis.riskScore,
+          factors: result.analysis.factors,
+          reason: result.analysis.reason,
+          status: "pending" as const,
+          timestamp: new Date().toISOString()
+        }));
+      
+      // 更新预警列表（完全替换，避免重复）
+      setWarnings(newWarnings);
+      console.log("预警列表已更新，共", newWarnings.length, "条预警");
+      
+      // 将预警数据保存到数据库
+      console.log("开始将预警数据保存到数据库...");
+      for (const warning of newWarnings) {
+        try {
+          await api.warning.upsert({
+            userId: warning.uid,
+            teacherName: warning.teacherName,
+            level: warning.level === 'level1' ? 'attention' : 
+                   warning.level === 'level2' ? 'intervention' : 'emergency',
+            riskScore: warning.riskScore,
+            factors: warning.factors,
+            reason: warning.reason,
+            status: warning.status
+          });
+          console.log(`预警已保存: ${warning.teacherName} (${warning.level})`);
+        } catch (error) {
+          console.error(`保存预警失败: ${warning.teacherName}`, error);
         }
       }
     } catch (err) {
@@ -180,26 +400,35 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-8"
+      className="min-h-screen bg-gradient-to-br from-rose-50 via-rose-100 to-rose-50"
     >
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-stone-900 flex items-center gap-3">
-              <ShieldAlert className="text-rose-600" size={32} />
-              智能预警中心
-            </h1>
-            <p className="text-stone-500 mt-1">基于 LSTM 算法引擎的实时风险监测与分级响应</p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
+                <ShieldAlert className="text-rose-600" size={24} />
+                红色预警：智能预警中心
+              </h1>
+              <p className="text-stone-500 mt-1">基于 LSTM 算法引擎的实时风险监测与分级响应</p>
+            </div>
+            <div className="inline-flex bg-gradient-to-r from-rose-50 to-rose-100 rounded-xl sm:rounded-2xl p-1 shadow-lg shadow-rose-200/50 w-fit">
+              <button 
+                onClick={() => setViewMode("list")}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${viewMode === "list" ? "bg-rose-600 text-white shadow-md" : "text-stone-500 hover:text-stone-700"}`}
+              >
+                预警列表
+              </button>
+              <button 
+                onClick={() => setViewMode("map")}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${viewMode === "map" ? "bg-rose-600 text-white shadow-md" : "text-stone-500 hover:text-stone-700"}`}
+              >
+                风险图谱
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowConfig(true)}
-              className="p-3 bg-white border border-stone-200 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
-              title="响应机制配置"
-            >
-              <Settings size={20} />
-            </button>
+          <div className="flex justify-end items-center gap-3">
             <button 
               onClick={runAnalysis}
               disabled={isAnalyzing}
@@ -212,35 +441,28 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
               ) : <Play size={20} />}
               {isAnalyzing ? "引擎分析中..." : "启动风险扫描"}
             </button>
-            <div className="flex bg-white p-1 rounded-2xl border border-stone-200 shadow-sm ml-2">
-              <button 
-                onClick={() => setViewMode("list")}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewMode === "list" ? "bg-stone-900 text-white shadow-md" : "text-stone-500 hover:bg-stone-50"}`}
-              >
-                <BarChart3 size={18} /> 预警列表
-              </button>
-              <button 
-                onClick={() => setViewMode("map")}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewMode === "map" ? "bg-stone-900 text-white shadow-md" : "text-stone-500 hover:bg-stone-50"}`}
-              >
-                <Map size={18} /> 风险图谱
-              </button>
-            </div>
+            <button 
+              onClick={() => setShowConfig(true)}
+              className="p-3 bg-white border border-stone-200 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
+              title="响应机制配置"
+            >
+              <Settings size={20} />
+            </button>
           </div>
         </div>
 
         {/* Stats Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { label: "紧急干预", count: stats.emergency, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100", level: "emergency" },
-            { label: "重点关注", count: stats.intervention, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", level: "intervention" },
-            { label: "常规监测", count: stats.attention, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", level: "attention" },
+            { label: "三级干预（专业）", count: stats.level3, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100", level: "level3" },
+            { label: "二级关注（互助）", count: stats.level2, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", level: "level2" },
+            { label: "一级提醒（自助）", count: stats.level1, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", level: "level1" },
           ].map((s, i) => (
             <motion.button
               key={i}
               whileHover={{ y: -4 }}
               onClick={() => setFilter(s.level)}
-              className={`p-6 rounded-3xl border ${s.bg} ${s.border} text-left transition-all ${filter === s.level ? 'ring-2 ring-stone-900' : ''}`}
+              className={`p-6 rounded-3xl border ${s.bg} ${s.border} text-left transition-all shadow-lg shadow-rose-100/50 ${filter === s.level ? 'ring-2 ring-stone-900' : ''}`}
             >
               <p className={`text-sm font-bold uppercase tracking-wider ${s.color}`}>{s.label}</p>
               <div className="flex items-baseline gap-2 mt-2">
@@ -282,36 +504,42 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       onClick={() => setSelectedWarning(warning)}
-                      className={`group bg-white p-6 rounded-3xl border transition-all cursor-pointer hover:shadow-lg ${selectedWarning?.id === warning.id ? 'border-stone-900 ring-1 ring-stone-900' : 'border-stone-100'}`}
+                      className={`group bg-white p-6 rounded-3xl border transition-all cursor-pointer hover:shadow-lg hover:shadow-rose-100/50 ${selectedWarning?.id === warning.id ? 'border-rose-600 ring-1 ring-rose-300' : 'border-rose-100'}`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${
-                            warning.level === 'emergency' ? 'bg-rose-100 text-rose-600' : 
-                            warning.level === 'intervention' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
-                          }`}>
-                            <AlertTriangle size={24} />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-stone-900">
-                              {userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? warning.teacherName : "匿名教师"}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                warning.level === 'emergency' ? 'bg-rose-50 text-rose-600' : 
-                                warning.level === 'intervention' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
-                              }`}>
-                                {warning.level === 'emergency' ? '三级紧急' : warning.level === 'intervention' ? '二级介入' : '一级关注'}
-                              </span>
-                              <span className="text-xs text-stone-400 flex items-center gap-1">
-                                <Clock size={12} /> {new Date(warning.timestamp).toLocaleString()}
-                              </span>
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${
+                              warning.level === 'level3' ? 'bg-rose-100 text-rose-600' : 
+                              warning.level === 'level2' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              <AlertTriangle size={24} />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-3">
+                                <h3 className="font-bold text-stone-900 whitespace-nowrap">
+                                  {userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? warning.teacherName : "匿名教师"}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-stone-400 flex items-center gap-1">
+                                  <Clock size={12} /> {new Date(warning.timestamp).toLocaleString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-black text-stone-900">{(warning.riskScore * 100).toFixed(0)}%</div>
+                            <div className="text-[10px] font-bold text-stone-400 uppercase">风险指数</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-black text-stone-900">{(warning.riskScore * 100).toFixed(0)}%</div>
-                          <div className="text-[10px] font-bold text-stone-400 uppercase">风险指数</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold uppercase px-3 py-1 rounded-full ${
+                            warning.level === 'level3' ? 'bg-rose-50 text-rose-600' : 
+                            warning.level === 'level2' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
+                          }`}>
+                            {warning.level === 'level3' ? '三级干预' : warning.level === 'level2' ? '二级关注' : '一级提醒'}
+                          </span>
                         </div>
                       </div>
                     </motion.div>
@@ -335,16 +563,13 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden sticky top-24"
+                    className="bg-white rounded-3xl border border-rose-100 shadow-xl shadow-rose-100/50 overflow-hidden lg:sticky lg:top-24 max-lg:fixed max-lg:inset-4 max-lg:z-50 max-lg:max-h-[80vh] max-lg:overflow-y-auto"
                   >
-                    <div className={`p-6 ${
-                      selectedWarning.level === 'emergency' ? 'bg-rose-600' : 
-                      selectedWarning.level === 'intervention' ? 'bg-amber-500' : 'bg-blue-500'
-                    } text-white`}>
+                    <div className={`p-6 rounded-t-3xl bg-gradient-to-r ${selectedWarning.level === 'level3' ? 'from-rose-600 to-rose-700' : selectedWarning.level === 'level2' ? 'from-amber-500 to-amber-600' : 'from-blue-500 to-blue-600'} text-white`}>
                       <div className="flex justify-between items-start">
                         <h2 className="text-xl font-bold">风险详情分析</h2>
-                        <button onClick={() => setSelectedWarning(null)} className="hover:bg-white/20 p-1 rounded-lg transition-colors">
-                          <ChevronRight size={20} className="rotate-90" />
+                        <button onClick={() => setSelectedWarning(null)} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors">
+                          <X size={20} />
                         </button>
                       </div>
                       <p className="text-white/80 text-sm mt-1">算法引擎：LSTM 时序风险模型 v2.1</p>
@@ -358,9 +583,9 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                         </h4>
                         <div className="space-y-3">
                           {selectedWarning.factors.map((f, i) => (
-                            <div key={i} className="flex items-start gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-100">
-                              <div className="h-5 w-5 rounded-full bg-white border border-stone-200 flex items-center justify-center shrink-0 mt-0.5">
-                                <div className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                            <div key={i} className="flex items-start gap-3 p-4 bg-rose-50 rounded-2xl border border-rose-100 hover:shadow-md transition-all">
+                              <div className={`h-6 w-6 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${selectedWarning.level === 'level3' ? 'bg-rose-100 text-rose-600' : selectedWarning.level === 'level2' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                <div className="h-2 w-2 rounded-full bg-current" />
                               </div>
                               <p className="text-sm text-stone-700 font-medium leading-relaxed">{f}</p>
                             </div>
@@ -372,16 +597,16 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                       <section>
                         <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">响应机制与记录</h4>
                         <div className="space-y-4">
-                          <div className="p-4 bg-stone-900 rounded-2xl text-white">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center">
-                                <Users size={16} />
+                          <div className={`p-6 rounded-2xl border ${selectedWarning.level === 'level3' ? 'bg-rose-50 border-rose-100' : selectedWarning.level === 'level2' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${selectedWarning.level === 'level3' ? 'bg-rose-100 text-rose-600' : selectedWarning.level === 'level2' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                <Users size={20} />
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-white/60">当前响应级别</p>
-                                <p className="text-sm font-bold">
-                                  {selectedWarning.level === 'emergency' ? '三级干预：推送至心理负责人' : 
-                                   selectedWarning.level === 'intervention' ? '二级关注：推送至年级主任' : '一级提醒：推送自助资源'}
+                                <p className="text-xs font-bold text-stone-500">当前响应级别</p>
+                                <p className="text-sm font-bold text-stone-900">
+                                  {selectedWarning.level === 'level3' ? '三级干预：推送至心理负责人' : 
+                                   selectedWarning.level === 'level2' ? '二级关注：推送至年级主任' : '一级提醒：推送自助资源'}
                                 </p>
                               </div>
                             </div>
@@ -389,7 +614,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                               {selectedWarning.status === 'pending' && (
                                 <button 
                                   onClick={() => handleTriggerIntervention(selectedWarning)}
-                                  className="w-full py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+                                  className={`w-full py-3 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg ${selectedWarning.level === 'level3' ? 'bg-rose-600 text-white shadow-rose-100 hover:bg-rose-700' : selectedWarning.level === 'level2' ? 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600' : 'bg-blue-500 text-white shadow-blue-100 hover:bg-blue-600'}`}
                                 >
                                   <Play size={18} /> 启动协作干预
                                 </button>
@@ -397,7 +622,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                               {selectedWarning.status !== 'resolved' && (
                                 <button 
                                   onClick={() => handleResolve(selectedWarning.id!)}
-                                  className="w-full py-3 bg-white text-stone-900 rounded-xl text-sm font-bold hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
+                                  className="w-full py-3 bg-white text-stone-900 rounded-2xl text-sm font-bold hover:bg-stone-50 transition-colors flex items-center justify-center gap-2 border border-stone-200 shadow-sm"
                                 >
                                   <CheckCircle size={18} /> 标记为已处理
                                 </button>
@@ -408,7 +633,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                           <div className="space-y-3">
                             <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">处理日志</p>
                             {selectedWarning.responseLog?.map((log, i) => (
-                              <div key={i} className="flex gap-3 pl-2 border-l-2 border-stone-100">
+                              <div key={i} className="flex gap-3 pl-2 border-l-2 border-rose-100">
                                 <div className="text-[10px] text-stone-400 w-16 shrink-0">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                                 <div className="text-xs">
                                   <span className="font-bold text-stone-700">{log.actor}: </span>
@@ -421,8 +646,8 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                       </section>
 
                       {/* Privacy Notice */}
-                      <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100 flex gap-3">
-                        <Lock className="text-stone-400 shrink-0" size={18} />
+                      <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 flex gap-3">
+                        <Lock className="text-rose-400 shrink-0" size={18} />
                         <p className="text-[10px] text-stone-500 leading-relaxed">
                           本预警信息仅限授权人员查看。所有访问记录将被审计，严禁将信息用于绩效考核或其他非心理健康用途。
                         </p>
@@ -446,14 +671,14 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
               <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
                 <div className="flex items-center justify-between mb-8">
                   <div>
-                    <h3 className="text-lg font-bold text-stone-900">群体风险分布图谱</h3>
-                    <p className="text-sm text-stone-500">横轴：风险指数 | 纵轴：活跃度波动</p>
+                    <h3 className="text-lg font-bold text-rose-900">群体风险分布图谱</h3>
+                    <p className="text-sm text-rose-600">横轴：风险指数 | 纵轴：活跃度波动</p>
                   </div>
                 </div>
                 <div className="h-[400px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: -15 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#fecaca" />
                       <XAxis type="number" dataKey="x" name="风险指数" unit="%" axisLine={false} tickLine={false} />
                       <YAxis type="number" dataKey="y" name="活跃度" unit="%" axisLine={false} tickLine={false} />
                       <ZAxis type="number" dataKey="z" range={[100, 1000]} />
@@ -462,7 +687,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                         {scatterData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
-                            fill={entry.level === 'emergency' ? '#ef4444' : (entry.level === 'intervention' ? '#f59e0b' : '#3b82f6')} 
+                            fill={entry.level === 'level3' ? '#ef4444' : (entry.level === 'level2' ? '#f59e0b' : '#3b82f6')} 
                             fillOpacity={0.6}
                           />
                         ))}
@@ -473,7 +698,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
               </div>
 
               <div className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
-                <h3 className="text-lg font-bold text-stone-900 mb-8">风险等级占比</h3>
+                <h3 className="text-lg font-bold text-rose-900 mb-8">风险等级占比</h3>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -526,55 +751,143 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl max-h-[80vh] bg-white rounded-3xl shadow-2xl shadow-rose-100/50 overflow-hidden flex flex-col"
             >
-              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+              <div className="p-8 border-b border-rose-100 flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-bold text-stone-900">响应机制配置</h2>
                   <p className="text-stone-500 text-sm">自定义不同风险等级的自动化响应流程</p>
                 </div>
-                <button onClick={() => setShowConfig(false)} className="p-2 hover:bg-stone-50 rounded-xl transition-colors">
-                  <X size={24} className="text-stone-400" />
+                <button onClick={() => setShowConfig(false)} className="p-2 hover:bg-rose-50 rounded-xl transition-colors">
+                  <X size={24} className="text-rose-400" />
                 </button>
               </div>
               
-              <div className="p-8 space-y-6">
+              <div className="p-8 space-y-6 overflow-y-auto flex-1">
                 {responseConfig.map((item, i) => (
-                  <div key={i} className="flex gap-6 p-6 bg-stone-50 rounded-2xl border border-stone-100">
-                    <div className={`h-12 w-12 rounded-2xl ${item.color} shrink-0 flex items-center justify-center text-white`}>
+                  <div key={i} className={`flex gap-6 p-6 rounded-2xl border ${item.color === 'bg-rose-600' ? 'bg-rose-50 border-rose-100' : item.color === 'bg-amber-500' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                    <div className={`h-12 w-12 rounded-2xl ${item.color} shrink-0 flex items-center justify-center text-white shadow-md shadow-rose-100/30`}>
                       <Bell size={24} />
                     </div>
                     <div className="flex-1">
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-between items-start mb-4">
                         <h3 className="font-bold text-stone-900">{item.level}</h3>
                         <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">已激活</span>
                       </div>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-[10px] font-bold text-stone-400 uppercase">触发阈值</label>
-                          <input 
-                            type="text" 
-                            value={item.desc}
-                            onChange={(e) => {
-                              const newConfig = [...responseConfig];
-                              newConfig[i].desc = e.target.value;
-                              setResponseConfig(newConfig);
-                            }}
-                            className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
-                          />
+                      <div className="space-y-4">
+                        {/* 变量配置区域 */}
+                        <div className="p-4 bg-white rounded-2xl border border-stone-200 shadow-sm">
+                          <label className="text-[10px] font-bold text-stone-400 uppercase block mb-3">阈值变量配置</label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-stone-500 block mb-1">抑郁因子分阈值</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={item.variables.depressionThreshold}
+                                onChange={(e) => {
+                                  const newConfig = [...responseConfig];
+                                  newConfig[i].variables.depressionThreshold = parseFloat(e.target.value);
+                                  // 同步更新 triggers 中的值
+                                  const triggerIdx = newConfig[i].triggers.findIndex(t => t.type === 'depression_score');
+                                  if (triggerIdx >= 0) {
+                                    newConfig[i].triggers[triggerIdx].value = parseFloat(e.target.value);
+                                  }
+                                  setResponseConfig(newConfig);
+                                }}
+                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-stone-500 block mb-1">风险指数阈值</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="1"
+                                value={item.variables.riskThreshold}
+                                onChange={(e) => {
+                                  const newConfig = [...responseConfig];
+                                  newConfig[i].variables.riskThreshold = parseFloat(e.target.value);
+                                  // 同步更新 triggers 中的值
+                                  const triggerIdx = newConfig[i].triggers.findIndex(t => t.type === 'risk_index');
+                                  if (triggerIdx >= 0) {
+                                    newConfig[i].triggers[triggerIdx].value = parseFloat(e.target.value);
+                                  }
+                                  setResponseConfig(newConfig);
+                                }}
+                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                              />
+                            </div>
+                            {item.id === 'level2' && (
+                              <div>
+                                <label className="text-xs text-stone-500 block mb-1">连续周数</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.variables.consecutiveWeeks}
+                                  onChange={(e) => {
+                                    const newConfig = [...responseConfig];
+                                    newConfig[i].variables.consecutiveWeeks = parseInt(e.target.value);
+                                    setResponseConfig(newConfig);
+                                  }}
+                                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <label className="text-xs text-stone-500 block mb-1">持续时间(天)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.variables.durationDays}
+                                onChange={(e) => {
+                                  const newConfig = [...responseConfig];
+                                  newConfig[i].variables.durationDays = parseInt(e.target.value);
+                                  setResponseConfig(newConfig);
+                                }}
+                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-stone-400 uppercase">执行动作</label>
-                          <textarea 
-                            value={item.action}
-                            onChange={(e) => {
-                              const newConfig = [...responseConfig];
-                              newConfig[i].action = e.target.value;
-                              setResponseConfig(newConfig);
-                            }}
-                            rows={2}
-                            className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
-                          />
+
+                        {/* 触发条件只读展示 - 根据变量动态生成 */}
+                        <div className={`p-4 rounded-2xl border ${item.color === 'bg-rose-600' ? 'bg-rose-50 border-rose-100' : item.color === 'bg-amber-500' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                          <label className="text-[10px] font-bold text-stone-400 uppercase block mb-3">触发条件（自动同步）</label>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-stone-700 font-medium">
+                              <span className={`h-2 w-2 rounded-full ${item.color === 'bg-rose-600' ? 'bg-rose-500' : item.color === 'bg-amber-500' ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
+                              <span>抑郁因子分 ≥ {item.variables.depressionThreshold}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-stone-700 font-medium">
+                              <span className={`h-2 w-2 rounded-full ${item.color === 'bg-rose-600' ? 'bg-rose-500' : item.color === 'bg-amber-500' ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
+                              <span>风险指数 ≥ {item.variables.riskThreshold}</span>
+                            </div>
+                            {item.id === 'level2' && (
+                              <div className="flex items-center gap-2 text-xs text-stone-700 font-medium">
+                                <span className={`h-2 w-2 rounded-full ${item.color === 'bg-rose-600' ? 'bg-rose-500' : item.color === 'bg-amber-500' ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
+                                <span>连续 {item.variables.consecutiveWeeks} 周超标</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* 执行动作只读展示 */}
+                        <div className={`p-4 rounded-2xl border ${item.color === 'bg-rose-600' ? 'bg-rose-50 border-rose-100' : item.color === 'bg-amber-500' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                          <label className="text-[10px] font-bold text-stone-400 uppercase block mb-3">执行动作</label>
+                          <div className="space-y-2">
+                            {item.responses.map((response, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs text-stone-700 font-medium">
+                                <span className={`h-2 w-2 rounded-full ${item.color === 'bg-rose-600' ? 'bg-rose-500' : item.color === 'bg-amber-500' ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
+                                <span>{response.description}</span>
+                                <span className="text-stone-400">→</span>
+                                <span className="text-stone-600">
+                                  {response.target === 'user' ? '教师本人' : 
+                                   response.target === 'manager' ? '教研组长/年级主任' : '学校心理负责人'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -582,9 +895,9 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                 ))}
               </div>
 
-              <div className="p-8 bg-stone-50 flex justify-end gap-4">
-                <button onClick={() => setShowConfig(false)} className="px-6 py-2 text-stone-500 font-bold hover:text-stone-700">取消</button>
-                <button onClick={() => setShowConfig(false)} className="px-8 py-2 bg-stone-900 text-white rounded-xl font-bold shadow-lg shadow-stone-200 hover:bg-stone-800 transition-all">保存配置</button>
+              <div className="p-8 bg-rose-50 flex justify-end gap-4">
+                <button onClick={() => setShowConfig(false)} className="px-6 py-3 text-stone-500 font-bold hover:text-stone-700 transition-colors">取消</button>
+                <button onClick={handleSaveConfig} className="px-8 py-3 bg-rose-600 text-white rounded-2xl font-bold shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all">保存配置</button>
               </div>
             </motion.div>
           </div>
@@ -595,3 +908,4 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
 };
 
 export default WarningCenter;
+

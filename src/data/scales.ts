@@ -118,8 +118,18 @@ export const SCL90_SCALE: Scale = {
     { id: 90, text: "感到自己的脑子有毛病", options: SCL90_OPTIONS },
   ],
   calculateResult: (scores) => {
-    const total = scores.reduce((a, b) => a + b, 0);
+    // 反向计分处理
+    const reverseItems = [5, 19, 43, 68, 72]; // 项目编号（1-based）
+    const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
+    
+    const processedScores = scores.map((score, index) => {
+      const itemNumber = index + 1;
+      return reverseItems.includes(itemNumber) ? reverseMapping[score as keyof typeof reverseMapping] : score;
+    });
+    
+    const total = processedScores.reduce((a, b) => a + b, 0);
     const avg = total / 90;
+    const positiveItems = processedScores.filter(score => score >= 2).length;
     
     // Factor indices (1-based from PDF)
     const somatization = [1, 4, 12, 27, 40, 42, 48, 49, 52, 53, 56, 58];
@@ -133,7 +143,7 @@ export const SCL90_SCALE: Scale = {
     const psychoticism = [7, 16, 35, 62, 77, 84, 85, 87, 88, 90];
 
     const getFactorAvg = (indices: number[]) => {
-      const sum = indices.reduce((acc, idx) => acc + (scores[idx - 1] || 0), 0);
+      const sum = indices.reduce((acc, idx) => acc + (processedScores[idx - 1] || 0), 0);
       return sum / indices.length;
     };
 
@@ -151,14 +161,17 @@ export const SCL90_SCALE: Scale = {
 
     const maxFactorScore = Math.max(...Object.values(factorScores));
 
-    if (total < 160 && maxFactorScore < 2) {
+    // 根据中国常模标准判断结果
+    if (total < 160 && avg < 1.5 && maxFactorScore < 2) {
       return { score: total, level: "正常", color: "green", advice: "您的整体心理健康状况良好，继续保持积极的生活态度。" };
-    } else if (total < 200 && maxFactorScore < 3) {
-      return { score: total, level: "轻度症状", color: "yellow", advice: "您可能存在一些轻微的心理困扰，建议关注相关因子（如抑郁或焦虑），尝试放松练习。" };
-    } else if (total < 250 || maxFactorScore < 4) {
-      return { score: total, level: "中度症状", color: "orange", advice: "您存在明显的心理症状，建议寻求心理咨询师的专业帮助，进行深入评估。" };
+    } else if (total >= 160 || avg >= 1.5 || maxFactorScore >= 2) {
+      if (maxFactorScore >= 3 || total >= 200) {
+        return { score: total, level: "中度症状", color: "orange", advice: "您存在明显的心理症状，建议寻求心理咨询师的专业帮助，进行深入评估。" };
+      } else {
+        return { score: total, level: "轻度症状", color: "yellow", advice: "您可能存在一些轻微的心理困扰，建议关注相关因子（如抑郁或焦虑），尝试放松练习。" };
+      }
     } else {
-      return { score: total, level: "重度症状", color: "red", advice: "您的心理症状较为严重，请务必前往专业医疗机构进行诊断与干预。" };
+      return { score: total, level: "正常", color: "green", advice: "您的整体心理健康状况良好，继续保持积极的生活态度。" };
     }
   }
 };

@@ -41,7 +41,7 @@ export interface Warning {
   id?: string;
   uid: string;
   teacherName?: string; // Only visible to authorized roles
-  level: "attention" | "intervention" | "emergency";
+  level: "level1" | "level2" | "level3";
   riskScore: number;
   factors: string[];
   reason: string;
@@ -53,6 +53,34 @@ export interface Warning {
     timestamp: string;
     actor: string;
   }[];
+}
+
+export interface WarningTrigger {
+  type: "depression_score" | "risk_index" | "duration" | "consecutive_count";
+  operator: ">=" | "<=" | "==" | ">" | "<";
+  value: number;
+  description: string;
+}
+
+export interface WarningResponse {
+  type: "message" | "resource" | "notification" | "intervention";
+  target: "user" | "manager" | "psychologist";
+  content: string;
+  description: string;
+}
+
+export interface WarningConfig {
+  level: "level1" | "level2" | "level3";
+  name: string;
+  threshold: number;
+  triggers: WarningTrigger[];
+  responses: WarningResponse[];
+  variables?: {
+    depressionThreshold?: number;
+    riskThreshold?: number;
+    consecutiveWeeks?: number;
+    durationDays?: number;
+  };
 }
 
 export interface RiskAssessment {
@@ -88,7 +116,7 @@ export interface Task {
   id: string;
   uid: string;
   title: string;
-  quadrant: 1 | 2 | 3 | 4; // 1: Important/Urgent, 2: Important/Not Urgent, etc.
+  quadrant: 1 | 2 | 3 | 4 | '重要紧急' | '重要不紧急' | '紧急不重要' | '不重要不紧急';
   completed: boolean;
   createdAt: string;
 }
@@ -98,6 +126,8 @@ export interface CommunityPost {
   authorId: string; // Anonymous UID
   content: string;
   topic: string;
+  identity?: string; // Legacy: single identity tag
+  identities?: string[]; // Multiple identity tags
   likes: number;
   likedBy: string[];
   isFlagged: boolean;
@@ -124,6 +154,7 @@ export interface GroupActivity {
   location: string;
   createdBy: string;
   participants: string[];
+  maxParticipants?: number;
 }
 
 export interface InterventionTask {
@@ -145,7 +176,8 @@ export interface InterventionTask {
 export interface MentalResource {
   id: string;
   title: string;
-  type: 'counseling' | 'room' | 'activity' | 'external';
+  type: 'internal' | 'external';
+  category?: string;
   description: string;
   tags: string[];
   contact?: string;
