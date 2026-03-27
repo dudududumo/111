@@ -104,34 +104,40 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
+        console.log('开始从数据库加载预警配置...');
         const configs = await getWarningConfigs();
-        const mappedConfigs = configs.map(config => ({
-          id: config.level,
-          level: config.name,
-          color: config.level === 'level3' ? 'bg-rose-600' : config.level === 'level2' ? 'bg-amber-500' : 'bg-blue-500',
-          threshold: config.threshold,
-          // 使用配置中的变量
-          variables: {
-            depressionThreshold: config.variables?.depressionThreshold ?? (config.level === 'level3' ? 2.5 : 2.0),
-            riskThreshold: config.variables?.riskThreshold ?? (config.level === 'level3' ? 0.8 : config.level === 'level2' ? 0.7 : 0.6),
-            consecutiveWeeks: config.variables?.consecutiveWeeks ?? 1,
-            durationDays: config.variables?.durationDays ?? 1
-          },
-          // 使用配置中的triggers
-          triggers: config.triggers?.map(trigger => ({
-            type: trigger.type,
-            operator: trigger.operator,
-            value: trigger.value,
-            description: trigger.description
-          })) || [],
-          // 使用配置中的responses
-          responses: config.responses?.map(response => ({
-            type: response.type,
-            target: response.target,
-            content: response.content,
-            description: response.description
-          })) || []
-        }));
+        console.log('从API获取的原始配置:', configs);
+        const mappedConfigs = configs.map(config => {
+          console.log('处理配置:', config.level, 'variables:', config.variables, 'triggers:', config.triggers);
+          return {
+            id: config.level,
+            level: config.name,
+            color: config.level === 'level3' ? 'bg-rose-600' : config.level === 'level2' ? 'bg-amber-500' : 'bg-blue-500',
+            threshold: config.threshold,
+            // 使用配置中的变量
+            variables: {
+              depressionThreshold: config.variables?.depressionThreshold ?? (config.level === 'level3' ? 2.5 : 2.0),
+              riskThreshold: config.variables?.riskThreshold ?? (config.level === 'level3' ? 0.8 : config.level === 'level2' ? 0.7 : 0.6),
+              consecutiveWeeks: config.variables?.consecutiveWeeks ?? 1,
+              durationDays: config.variables?.durationDays ?? 1
+            },
+            // 使用配置中的triggers
+            triggers: config.triggers?.map(trigger => ({
+              type: trigger.type,
+              operator: trigger.operator,
+              value: trigger.value,
+              description: trigger.description
+            })) || [],
+            // 使用配置中的responses
+            responses: config.responses?.map(response => ({
+              type: response.type,
+              target: response.target,
+              content: response.content,
+              description: response.description
+            })) || []
+          };
+        });
+        console.log('映射后的配置:', mappedConfigs);
         setResponseConfig(mappedConfigs);
         console.log('已从数据库加载预警配置:', mappedConfigs.length, '条');
       } catch (error) {
@@ -148,13 +154,25 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const handleSaveConfig = async () => {
     try {
       console.log('开始保存配置到数据库...');
+      console.log('当前 responseConfig 状态:', responseConfig.map(c => ({
+        level: c.id,
+        riskThreshold: c.variables.riskThreshold,
+        depressionThreshold: c.variables.depressionThreshold,
+        triggers: c.triggers.map(t => ({ type: t.type, value: t.value, desc: t.description }))
+      })));
       
       // 逐个保存每个配置
       for (const config of responseConfig) {
-        await api.warningConfig.save({
+        console.log('准备保存配置:', {
           level: config.id,
           name: config.level,
           threshold: config.threshold,
+          variables: config.variables,
+          triggers: config.triggers
+        });
+        await api.warningConfig.save({
+          level: config.id,
+          name: config.level,
           triggers: config.triggers,
           responses: config.responses,
           variables: config.variables
@@ -786,14 +804,21 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                 step="0.1"
                                 value={item.variables.depressionThreshold}
                                 onChange={(e) => {
-                                  const newConfig = [...responseConfig];
-                                  newConfig[i].variables.depressionThreshold = parseFloat(e.target.value);
-                                  // 同步更新 triggers 中的值
-                                  const triggerIdx = newConfig[i].triggers.findIndex(t => t.type === 'depression_score');
-                                  if (triggerIdx >= 0) {
-                                    newConfig[i].triggers[triggerIdx].value = parseFloat(e.target.value);
-                                  }
-                                  setResponseConfig(newConfig);
+                                  const value = parseFloat(e.target.value);
+                                  console.log(`[onChange] 抑郁因子分输入值: ${value}`);
+                                  setResponseConfig(prev => {
+                                    const newConfig = [...prev];
+                                    newConfig[i] = { ...newConfig[i] };
+                                    newConfig[i].variables = { ...newConfig[i].variables, depressionThreshold: value };
+                                    // 同步更新 triggers 中的值和描述
+                                    newConfig[i].triggers = newConfig[i].triggers.map(t => 
+                                      t.type === 'depression_score' 
+                                        ? { ...t, value, description: `抑郁因子分首次≥${value}` }
+                                        : t
+                                    );
+                                    console.log(`[setResponseConfig] 更新后 triggers:`, newConfig[i].triggers);
+                                    return newConfig;
+                                  });
                                 }}
                                 className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
                               />
@@ -807,14 +832,21 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                 max="1"
                                 value={item.variables.riskThreshold}
                                 onChange={(e) => {
-                                  const newConfig = [...responseConfig];
-                                  newConfig[i].variables.riskThreshold = parseFloat(e.target.value);
-                                  // 同步更新 triggers 中的值
-                                  const triggerIdx = newConfig[i].triggers.findIndex(t => t.type === 'risk_index');
-                                  if (triggerIdx >= 0) {
-                                    newConfig[i].triggers[triggerIdx].value = parseFloat(e.target.value);
-                                  }
-                                  setResponseConfig(newConfig);
+                                  const value = parseFloat(e.target.value);
+                                  console.log(`[onChange] 风险指数输入值: ${value}`);
+                                  setResponseConfig(prev => {
+                                    const newConfig = [...prev];
+                                    newConfig[i] = { ...newConfig[i] };
+                                    newConfig[i].variables = { ...newConfig[i].variables, riskThreshold: value };
+                                    // 同步更新 triggers 中的值和描述
+                                    newConfig[i].triggers = newConfig[i].triggers.map(t => 
+                                      t.type === 'risk_index' 
+                                        ? { ...t, value, description: `风险指数≥${value}` }
+                                        : t
+                                    );
+                                    console.log(`[setResponseConfig] 更新后 triggers:`, newConfig[i].triggers);
+                                    return newConfig;
+                                  });
                                 }}
                                 className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
                               />

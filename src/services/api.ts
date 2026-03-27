@@ -160,6 +160,16 @@ export const userApi = {
   getTeachers: async () => {
     return fetchApi("/users/teachers");
   },
+
+  // 获取所有部门负责人（教研组长/年级主任）
+  getManagers: async () => {
+    return fetchApi("/users/managers");
+  },
+
+  // 获取所有心理专家
+  getPsychologists: async () => {
+    return fetchApi("/users/psychologists");
+  },
 };
 
 // ==================== 评估相关 API ====================
@@ -270,7 +280,6 @@ export const warningConfigApi = {
   save: async (config: {
     level: string;
     name: string;
-    threshold: number;
     triggers: Array<{ type: string; operator: string; value: number; description: string }>;
     responses: Array<{ type: string; target: string; content: string; description: string }>;
     variables?: { depressionThreshold?: number; riskThreshold?: number; consecutiveWeeks?: number; durationDays?: number };
@@ -286,6 +295,41 @@ export const warningConfigApi = {
     return fetchApi("/warning-configs/reset", {
       method: "POST",
     });
+  },
+};
+
+// ==================== 通知 API ====================
+
+export const notificationApi = {
+  // 创建通知
+  create: async (notification: {
+    userId: string;
+    type: string;
+    title: string;
+    content: string;
+    relatedId?: string;
+  }) => {
+    return fetchApi("/notifications", {
+      method: "POST",
+      body: JSON.stringify(notification),
+    });
+  },
+
+  // 获取用户通知
+  getAll: async () => {
+    return fetchApi("/notifications");
+  },
+
+  // 标记通知为已读
+  markAsRead: async (id: string) => {
+    return fetchApi(`/notifications/mark-read/${id}`, {
+      method: "POST",
+    });
+  },
+
+  // 获取未读通知数量
+  getUnreadCount: async () => {
+    return fetchApi("/notifications/unread-count");
   },
 };
 
@@ -440,33 +484,7 @@ export const interventionApi = {
   },
 };
 
-// ==================== 通知服务 API ====================
 
-export const notificationApi = {
-  // 发送通知给用户
-  sendToUser: async (userId: string, content: string, type: string = 'warning') => {
-    return fetchApi("/notifications/send", {
-      method: "POST",
-      body: JSON.stringify({ userId, content, type }),
-    });
-  },
-
-  // 发送通知给管理人员
-  sendToManagers: async (teacherId: string, content: string, level: string) => {
-    return fetchApi("/notifications/send-to-managers", {
-      method: "POST",
-      body: JSON.stringify({ teacherId, content, level }),
-    });
-  },
-
-  // 发送通知给心理专家
-  sendToPsychologists: async (teacherId: string, content: string, level: string) => {
-    return fetchApi("/notifications/send-to-psychologists", {
-      method: "POST",
-      body: JSON.stringify({ teacherId, content, level }),
-    });
-  },
-};
 
 export default {
   auth: authApi,
@@ -481,5 +499,5 @@ export default {
   community: communityApi,
   toolUsage: toolUsageApi,
   intervention: interventionApi,
-  notification: notificationApi,
+  notificationApi: notificationApi,
 };

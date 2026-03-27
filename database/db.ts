@@ -105,6 +105,30 @@ export const userDb = {
   getAllTeachers: () => {
     const stmt = db.prepare("SELECT * FROM users WHERE role = 'teacher'");
     return stmt.all();
+  },
+
+  // 获取所有部门负责人（教研组长/年级主任）
+  getManagers: () => {
+    const stmt = db.prepare("SELECT * FROM users WHERE role = 'dept_head'");
+    return stmt.all();
+  },
+
+  // 获取所有心理专家
+  getPsychologists: () => {
+    const stmt = db.prepare("SELECT * FROM users WHERE role = 'psychologist'");
+    return stmt.all();
+  },
+
+  // 根据邮箱查找用户
+  findByEmail: (email: string) => {
+    const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
+    return stmt.get(email);
+  },
+
+  // 根据ID查找用户
+  findById: (id: string) => {
+    const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
+    return stmt.get(id);
   }
 };
 
@@ -315,31 +339,30 @@ export const warningConfigDb = {
   upsert: (config: {
     level: string;
     name: string;
-    threshold: number;
     triggers: Array<{ type: string; operator: string; value: number; description: string }>;
     responses: Array<{ type: string; target: string; content: string; description: string }>;
     variables?: { depressionThreshold?: number; riskThreshold?: number; consecutiveWeeks?: number; durationDays?: number };
   }) => {
-    console.log('数据库操作 - 保存配置:', config.level, '阈值:', config.threshold, 'triggers:', config.triggers, 'variables:', config.variables);
+    console.log('数据库操作 - 保存配置:', config.level, 'triggers:', config.triggers, 'variables:', config.variables);
     const existing = db.prepare('SELECT id FROM warning_configs WHERE level = ?').get(config.level);
     
     if (existing) {
       console.log('数据库操作 - 更新现有配置:', existing.id);
       const stmt = db.prepare(`
         UPDATE warning_configs 
-        SET name = ?, threshold = ?, triggers = ?, responses = ?, variables = ?, updated_at = datetime('now')
+        SET name = ?, triggers = ?, responses = ?, variables = ?, updated_at = datetime('now')
         WHERE level = ?
       `);
-      const result = stmt.run(config.name, config.threshold, JSON.stringify(config.triggers), JSON.stringify(config.responses), JSON.stringify(config.variables || {}), config.level);
+      const result = stmt.run(config.name, JSON.stringify(config.triggers), JSON.stringify(config.responses), JSON.stringify(config.variables || {}), config.level);
       console.log('数据库操作 - 更新结果:', result);
     } else {
       console.log('数据库操作 - 创建新配置');
       const id = uuidv4();
       const stmt = db.prepare(`
-        INSERT INTO warning_configs (id, level, name, threshold, triggers, responses, variables)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO warning_configs (id, level, name, triggers, responses, variables)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
-      const result = stmt.run(id, config.level, config.name, config.threshold, JSON.stringify(config.triggers), JSON.stringify(config.responses), JSON.stringify(config.variables || {}));
+      const result = stmt.run(id, config.level, config.name, JSON.stringify(config.triggers), JSON.stringify(config.responses), JSON.stringify(config.variables || {}));
       console.log('数据库操作 - 插入结果:', result);
     }
   },
@@ -823,6 +846,49 @@ export const interventionTaskDb = {
     const stmt = db.prepare('UPDATE intervention_tasks SET care_records = ?, status = ? WHERE id = ?');
     stmt.run(JSON.stringify(careRecords), 'in_progress', id);
     return careRecords;
+  }
+};
+
+// 通知相关操作
+export const notificationDb = {
+  // 发送通知
+  create: (notification: {
+    userId: string;
+    type: string;
+    title: string;
+    content: string;
+    relatedId?: string;
+  }) => {
+    const id = uuidv4();
+    console.log('数据库创建通知:', { id, ...notification });
+    const stmt = db.prepare(`
+      INSERT INTO notifications (id, user_id, type, title, content, related_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(id, notification.userId, notification.type, notification.title, notification.content, notification.relatedId || null);
+    console.log('数据库创建通知结果:', result);
+    return id;
+  },
+
+  // 获取用户通知
+  getByUserId: (userId: string) => {
+    const stmt = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC');
+    return stmt.all(userId);
+  },
+
+  // 标记通知为已读
+  markAsRead: (id: string) => {
+    const stmt = db.prepare('UPDATE notifications SET status = ?, read_at = datetime(\'now\') WHERE id = ?');
+    const result = stmt.run('read', id);
+    console.log('数据库标记通知已读结果:', result);
+    return result.changes > 0;
+  },
+
+  // 获取未读通知数量
+  getUnreadCount: (userId: string) => {
+    const stmt = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND status = \'unread\'');
+    const result = stmt.get(userId);
+    return result?.count || 0;
   }
 };
 

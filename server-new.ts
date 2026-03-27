@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb } from "./database/db.js";
+import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb } from "./database/db.js";
 
 dotenv.config();
 
@@ -246,15 +246,37 @@ async function startServer() {
   // 获取所有教师（管理驾驶舱用）
   app.get("/api/users/teachers", authMiddleware, (req: any, res) => {
     try {
-      // 检查权限
       if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
         return res.status(403).json({ error: "无权访问" });
       }
-
       const teachers = userDb.getAllTeachers();
       res.json(teachers);
     } catch (error) {
       res.status(500).json({ error: "获取教师列表失败" });
+    }
+  });
+
+  app.get("/api/users/managers", authMiddleware, (req: any, res) => {
+    try {
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权访问" });
+      }
+      const managers = userDb.getManagers();
+      res.json(managers);
+    } catch (error) {
+      res.status(500).json({ error: "获取部门负责人列表失败" });
+    }
+  });
+
+  app.get("/api/users/psychologists", authMiddleware, (req: any, res) => {
+    try {
+      if (!["admin"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权访问" });
+      }
+      const psychologists = userDb.getPsychologists();
+      res.json(psychologists);
+    } catch (error) {
+      res.status(500).json({ error: "获取心理专家列表失败" });
     }
   });
 
@@ -541,15 +563,15 @@ async function startServer() {
       if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
         return res.status(403).json({ error: "无权修改" });
       }
-      const { level, name, threshold, triggers, responses, variables } = req.body;
+      const { level, name, triggers, responses, variables } = req.body;
       
-      console.log('收到配置保存请求:', { level, name, threshold, triggers, responses, variables });
+      console.log('收到配置保存请求:', { level, name, triggers, responses, variables });
       
-      if (!level || !name || threshold === undefined || !triggers || !responses) {
+      if (!level || !name || !triggers || !responses) {
         return res.status(400).json({ error: "缺少必填字段" });
       }
       
-      warningConfigDb.upsert({ level, name, threshold, triggers, responses, variables });
+      warningConfigDb.upsert({ level, name, triggers, responses, variables });
       console.log('配置保存成功:', level);
       res.json({ success: true });
     } catch (error) {
@@ -1064,6 +1086,55 @@ async function startServer() {
       res.json({ success: true, careRecords });
     } catch (error) {
       res.status(500).json({ error: "添加护理记录失败" });
+    }
+  });
+
+  // ==================== 通知相关 API ====================
+
+  app.get("/api/notifications", authMiddleware, (req: any, res) => {
+    try {
+      const notifications = notificationDb.getByUserId(req.user.userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("获取通知失败:", error);
+      res.status(500).json({ error: "获取通知失败" });
+    }
+  });
+
+  app.post("/api/notifications/mark-read/:id", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const success = notificationDb.markAsRead(id);
+      res.json({ success });
+    } catch (error) {
+      console.error("标记通知已读失败:", error);
+      res.status(500).json({ error: "标记通知已读失败" });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", authMiddleware, (req: any, res) => {
+    try {
+      const count = notificationDb.getUnreadCount(req.user.userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("获取未读通知数量失败:", error);
+      res.status(500).json({ error: "获取未读通知数量失败" });
+    }
+  });
+
+  app.post("/api/notifications", authMiddleware, (req: any, res) => {
+    try {
+      const { userId, type, title, content, relatedId } = req.body;
+      
+      if (!userId || !type || !title || !content) {
+        return res.status(400).json({ error: "缺少必填字段" });
+      }
+      
+      const notificationId = notificationDb.create({ userId, type, title, content, relatedId });
+      res.json({ success: true, id: notificationId });
+    } catch (error) {
+      console.error("创建通知失败:", error);
+      res.status(500).json({ error: "创建通知失败" });
     }
   });
 

@@ -18,6 +18,7 @@ import {
   UserPlus,
   ChevronRight
 } from "lucide-react";
+import NotificationDropdown from "./components/NotificationDropdown";
 import { motion, AnimatePresence } from "motion/react";
 
 // Pages
@@ -339,10 +340,10 @@ const App: React.FC = () => {
   }
 
   const navItems = [
-    { path: "/", label: "个人看板", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST], color: "slate", gradient: "from-slate-50 to-slate-100", activeBg: "bg-slate-300", activeText: "text-slate-600", hoverBg: "hover:bg-slate-50", hoverText: "hover:text-slate-600" },
-    { path: "/assessment", label: "绿色测评", icon: ClipboardCheck, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST], color: "emerald", gradient: "from-emerald-50 to-emerald-100", activeBg: "bg-emerald-600", activeText: "text-emerald-600", hoverBg: "hover:bg-emerald-50", hoverText: "hover:text-emerald-600" },
-    { path: "/toolkit", label: "蓝色调适", icon: Wind, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST], color: "blue", gradient: "from-blue-50 to-blue-100", activeBg: "bg-blue-600", activeText: "text-blue-600", hoverBg: "hover:bg-blue-50", hoverText: "hover:text-blue-600" },
-    { path: "/intervention", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST], color: "orange", gradient: "from-orange-50 to-orange-100", activeBg: "bg-orange-600", activeText: "text-orange-600", hoverBg: "hover:bg-orange-50", hoverText: "hover:text-orange-600" },
+    { path: "/", label: "个人看板", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "slate", gradient: "from-slate-50 to-slate-100", activeBg: "bg-slate-300", activeText: "text-slate-600", hoverBg: "hover:bg-slate-50", hoverText: "hover:text-slate-600" },
+    { path: "/assessment", label: "绿色测评", icon: ClipboardCheck, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "emerald", gradient: "from-emerald-50 to-emerald-100", activeBg: "bg-emerald-600", activeText: "text-emerald-600", hoverBg: "hover:bg-emerald-50", hoverText: "hover:text-emerald-600" },
+    { path: "/toolkit", label: "蓝色调适", icon: Wind, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "blue", gradient: "from-blue-50 to-blue-100", activeBg: "bg-blue-600", activeText: "text-blue-600", hoverBg: "hover:bg-blue-50", hoverText: "hover:text-blue-600" },
+    { path: "/intervention", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "orange", gradient: "from-orange-50 to-orange-100", activeBg: "bg-orange-600", activeText: "text-orange-600", hoverBg: "hover:bg-orange-50", hoverText: "hover:text-orange-600" },
     { path: "/warnings", label: "红色预警", icon: AlertTriangle, roles: [UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "rose", gradient: "from-rose-50 to-rose-100", activeBg: "bg-rose-600", activeText: "text-rose-600", hoverBg: "hover:bg-rose-50", hoverText: "hover:text-rose-600" },
     { path: "/cockpit", label: "紫色评估", icon: BarChart3, roles: [UserRole.ADMIN], color: "purple", gradient: "from-purple-50 to-purple-100", activeBg: "bg-purple-600", activeText: "text-purple-600", hoverBg: "hover:bg-purple-50", hoverText: "hover:text-purple-600" },
   ];
@@ -381,8 +382,9 @@ const App: React.FC = () => {
             >
               <Menu size={24} />
             </button>
-            <div className="flex-1 flex items-center justify-end px-4">
+            <div className="flex-1 flex items-center justify-end px-4 gap-4">
               <span className="text-sm text-stone-500 hidden sm:block">{new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <NotificationDropdown />
             </div>
           </header>
 

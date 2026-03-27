@@ -620,47 +620,64 @@ const executeResponseAction = async (
 
     switch (target) {
       case 'user':
-        // 向教师本人推送（暂时跳过，避免卡住）
+        // 向教师本人推送
         if (type === 'message' || type === 'resource') {
-          console.log(`[executeResponseAction] 跳过通知发送（避免卡住），教师: ${teacherName}`);
-          // 暂时跳过通知发送，确保核心功能正常工作
-          // try {
-          //   await api.notification.sendToUser(
-          //     userId,
-          //     `【心理健康关怀】${content}。您的风险评估显示：${factors?.join('，') || '请关注心理健康'}。如有需要，请及时使用调适工具或寻求帮助。`,
-          //     'warning'
-          //   );
-          //   console.log(`✅ [executeResponseAction] 已向教师 ${teacherName} 推送关怀消息`);
-          // } catch (notifyError) {
-          //   console.error(`❌ [executeResponseAction] 向教师 ${teacherName} 推送关怀消息失败:`, notifyError);
-          // }
+          try {
+            await api.notificationApi.create({
+              userId,
+              type: 'warning',
+              title: '【心理健康关怀】',
+              content: `${content}。您的风险评估显示：${factors?.join('，') || '请关注心理健康'}。如有需要，请及时使用调适工具或寻求帮助。`,
+              relatedId: warningId
+            });
+            console.log(`✅ [executeResponseAction] 已向教师 ${teacherName} 推送关怀消息`);
+          } catch (notifyError) {
+            console.error(`❌ [executeResponseAction] 向教师 ${teacherName} 推送关怀消息失败:`, notifyError);
+          }
         }
         break;
 
       case 'manager':
-        // 向教研组长/年级主任推送（脱敏信息）（暂时跳过，避免卡住）
+        // 向教研组长/年级主任推送（脱敏信息）
         if (type === 'notification') {
-          console.log(`[executeResponseAction] 跳过管理人员通知，教师: ${teacherName}`);
-          // await api.notification.sendToManagers(
-          //   userId,
-          //   `【团队心理关怀提醒】您所在团队有教师需要关注。风险等级：${warningLevel === 'level2' ? '二级关注' : '一级提醒'}。请关注团队成员心理状态，必要时提供支持。`,
-          //   warningLevel
-          // );
-          // console.log(`✅ 已向管理人员推送关于教师 ${teacherName} 的预警信息（脱敏）`);
+          // 获取部门负责人列表
+          try {
+            const managers = await api.user.getManagers();
+            for (const manager of managers) {
+              await api.notificationApi.create({
+                userId: manager.id,
+                type: 'warning',
+                title: '【团队心理关怀提醒】',
+                content: `您所在团队有教师需要关注。风险等级：${warningLevel === 'level2' ? '二级关注' : '一级提醒'}。请关注团队成员心理状态，必要时提供支持。`,
+                relatedId: warningId
+              });
+            }
+            console.log(`✅ 已向管理人员推送关于教师 ${teacherName} 的预警信息（脱敏）`);
+          } catch (error) {
+            console.error(`❌ 向管理人员推送通知失败:`, error);
+          }
         }
         break;
 
       case 'psychologist':
-        // 向心理负责人推送并自动创建干预任务（暂时跳过通知，避免卡住）
+        // 向心理负责人推送并自动创建干预任务
         if (type === 'notification' || type === 'intervention') {
-          console.log(`[executeResponseAction] 跳过心理专家通知，教师: ${teacherName}`);
-          // // 1. 发送通知
-          // await api.notification.sendToPsychologists(
-          //   userId,
-          //   `【紧急心理干预】教师 ${teacherName} 触发三级预警，风险指数：${((riskScore || 0) * 100).toFixed(0)}%。预警依据：${factors?.join('，') || '风险指标超标'}。请及时跟进处理。`,
-          //   warningLevel
-          // );
-          // console.log(`✅ 已向心理负责人推送关于教师 ${teacherName} 的三级预警信息`);
+          // 1. 发送通知给心理专家
+          try {
+            const psychologists = await api.user.getPsychologists();
+            for (const psychologist of psychologists) {
+              await api.notificationApi.create({
+                userId: psychologist.id,
+                type: 'warning',
+                title: '【紧急心理干预】',
+                content: `教师 ${teacherName} 触发三级预警，风险指数：${((riskScore || 0) * 100).toFixed(0)}%。预警依据：${factors?.join('，') || '风险指标超标'}。请及时跟进处理。`,
+                relatedId: warningId
+              });
+            }
+            console.log(`✅ 已向心理负责人推送关于教师 ${teacherName} 的三级预警信息`);
+          } catch (error) {
+            console.error(`❌ 向心理负责人推送通知失败:`, error);
+          }
 
           // 2. 自动创建干预任务（仅三级预警）
           if (warningLevel === 'level3' && warningId) {
