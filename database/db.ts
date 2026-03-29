@@ -117,18 +117,6 @@ export const userDb = {
   getPsychologists: () => {
     const stmt = db.prepare("SELECT * FROM users WHERE role = 'psychologist'");
     return stmt.all();
-  },
-
-  // 根据邮箱查找用户
-  findByEmail: (email: string) => {
-    const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
-    return stmt.get(email);
-  },
-
-  // 根据ID查找用户
-  findById: (id: string) => {
-    const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
-    return stmt.get(id);
   }
 };
 
