@@ -10,6 +10,7 @@ export interface User {
   school?: string;
   department?: string;
   consentAccepted?: boolean;
+  syncFrequency?: "hourly" | "daily" | "realtime";
 }
 
 // 登录

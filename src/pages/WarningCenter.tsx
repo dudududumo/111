@@ -482,35 +482,12 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
           timestamp: new Date().toISOString()
         }));
       
-      // 获取所有现有的有关联任务的预警，保留它们
-      const existingWarningsWithTasks = warnings.filter(w => warningIdsWithTasks.has(w.id));
+      // 直接使用新扫描的预警替换整个列表，避免重复叠加
+      setWarnings(newWarningsFromScan);
+      console.log("预警列表已更新，共", newWarningsFromScan.length, "条预警");
       
-      // 合并新旧预警：保留有关联任务的旧预警 + 新扫描的预警
-      const finalWarnings = [...existingWarningsWithTasks, ...newWarningsFromScan];
-      
-      // 更新预警列表
-      setWarnings(finalWarnings);
-      console.log("预警列表已更新，共", finalWarnings.length, "条预警（其中", existingWarningsWithTasks.length, "条是保留的有关联任务的预警）");
-      
-      // 将预警数据保存到数据库
-      console.log("开始将预警数据保存到数据库...");
-      for (const warning of newWarningsFromScan) {
-        try {
-          await api.warning.upsert({
-            userId: warning.uid,
-            teacherName: warning.teacherName,
-            level: warning.level === 'level1' ? 'attention' : 
-                   warning.level === 'level2' ? 'intervention' : 'emergency',
-            riskScore: warning.riskScore,
-            factors: warning.factors,
-            reason: warning.reason,
-            status: warning.status
-          });
-          console.log(`预警已保存: ${warning.teacherName} (${warning.level})`);
-        } catch (error) {
-          console.error(`保存预警失败: ${warning.teacherName}`, error);
-        }
-      }
+      // 预警数据已在 scanTeachersRisk 中通过 triggerWarning 保存到数据库，无需重复保存
+      console.log("预警数据已在扫描过程中保存到数据库");
     } catch (err) {
       console.error("Analysis failed:", err instanceof Error ? err.message : String(err));
     } finally {
@@ -1023,20 +1000,6 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                 />
                               </div>
                             )}
-                            <div>
-                              <label className="text-xs text-stone-500 block mb-1">持续时间(天)</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.variables.durationDays}
-                                onChange={(e) => {
-                                  const newConfig = [...responseConfig];
-                                  newConfig[i].variables.durationDays = parseInt(e.target.value);
-                                  setResponseConfig(newConfig);
-                                }}
-                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
-                              />
-                            </div>
                           </div>
                         </div>
 

@@ -37,9 +37,10 @@ import {
 
 interface AssessmentPageProps {
   profile: UserProfile | null;
+  onProfileUpdate?: (profile: UserProfile) => void;
 }
 
-const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
+const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdate }) => {
   const [selectedScale, setSelectedScale] = useState<Scale | null>(null);
   const [step, setStep] = useState(0); 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -56,6 +57,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
   const [showPushConfig, setShowPushConfig] = useState(false);
   const [pushConfig, setPushConfig] = useState(getPushConfig());
   const [unfinishedAssessments, setUnfinishedAssessments] = useState<Record<string, any>>({});
+  const [syncFrequency, setSyncFrequency] = useState<string>(profile?.syncFrequency || 'daily');
 
   useEffect(() => {
     if (profile && !profile.consentAccepted && !consentGiven) {
@@ -66,6 +68,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
       initPushService();
       const progress = getAssessmentProgress();
       setUnfinishedAssessments(progress);
+      setSyncFrequency(profile.syncFrequency || 'daily');
     }
   }, [profile, consentGiven]);
 
@@ -666,7 +669,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
                         </div>
                         <div>
                           <h3 className="text-lg font-bold text-stone-900">测评提醒设置</h3>
-                          <p className="text-stone-500 text-sm">设置您的测评提醒时间</p>
+                          <p className="text-stone-500 text-sm">设置您的测评提醒时间和频率</p>
                         </div>
                       </div>
                     <button
@@ -710,6 +713,33 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile }) => {
                           onChange={(e) => setPushConfig({ ...pushConfig, reminderInterval: parseInt(e.target.value) })}
                           className="w-full p-2 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-sm font-medium text-stone-700">测评频率</span>
+                        <select
+                          value={syncFrequency}
+                          onChange={async (e) => {
+                            const newFrequency = e.target.value;
+                            setSyncFrequency(newFrequency);
+                            if (profile) {
+                              try {
+                                await api.user.update(profile.uid, { syncFrequency: newFrequency });
+                                // 更新 App.tsx 中的 profile 状态
+                                if (onProfileUpdate) {
+                                  onProfileUpdate({ ...profile, syncFrequency: newFrequency as "hourly" | "daily" | "realtime" });
+                                }
+                              } catch (error) {
+                                console.error('更新测评频率失败:', error);
+                              }
+                            }
+                          }}
+                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="hourly">高频（每小时）</option>
+                          <option value="daily">中频（每天）</option>
+                          <option value="realtime">实时</option>
+                        </select>
+                        <p className="text-xs text-stone-400">系统会根据您的心理状态自动调整测评频率，您也可以手动设置。</p>
                       </div>
                       <button
                         onClick={() => {

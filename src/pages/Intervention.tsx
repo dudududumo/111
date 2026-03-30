@@ -91,6 +91,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   });
   const [teamResources, setTeamResources] = useState<any[]>([]);
   const [interventionTasks, setInterventionTasks] = useState<InterventionTask[]>([]);
+  const [users, setUsers] = useState<Record<string, { displayName: string }>>({});
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [atmosphereData, setAtmosphereData] = useState([
     { name: '活力', value: 85, color: '#10b981' },
@@ -232,6 +233,24 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         const tasks = await api.intervention.getAllTasks();
         setInterventionTasks(tasks as InterventionTask[]);
         console.log('成功加载干预任务:', tasks.length, '条');
+
+        // 加载用户信息
+        const userIds = new Set(tasks.map(task => task.assignedTo).filter(Boolean));
+        const userMap: Record<string, { displayName: string }> = {};
+        
+        for (const userId of userIds) {
+          try {
+            const user = await api.user.getUserById(userId);
+            if (user) {
+              userMap[userId] = { displayName: user.display_name || user.displayName || userId };
+            }
+          } catch (error) {
+            console.error(`Error loading user ${userId}:`, error);
+            userMap[userId] = { displayName: userId };
+          }
+        }
+        
+        setUsers(userMap);
       } catch (error) {
         console.error("Error loading intervention tasks:", error);
         // 如果API不存在，使用空数组
@@ -944,7 +963,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                                 )}
                               </div>
                               <p className="text-base font-bold text-stone-900 mt-1">
-                                {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) ? task.teacherName : '匿名教师'}
+                                {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) ? task.teacherName : '匿名教师'}
                               </p>
                             </div>
                             <span className="text-[10px] text-stone-400 font-medium">{new Date(task.createdAt || '').toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
@@ -954,7 +973,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                             <div className="flex-1">
                               <p className="text-xs text-stone-500 mb-2 flex items-center gap-1">
                                 <UserPlus size={12} className="text-stone-300" />
-                                负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo || '待指派'}</span>
+                                负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo ? (users[task.assignedTo]?.displayName || task.assignedTo) : '待指派'}</span>
                               </p>
                               {task.careRecords && task.careRecords.length > 0 ? (
                                 <div className="p-3 bg-white/60 rounded-xl border border-stone-100/50">

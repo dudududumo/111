@@ -264,9 +264,10 @@ async function startServer() {
 
   app.get("/api/users/managers", authMiddleware, (req: any, res) => {
     try {
-      if (!["admin", "psychologist"].includes(req.user.role)) {
-        return res.status(403).json({ error: "无权访问" });
-      }
+      // 允许所有角色访问部门负责人列表，因为教师自己也可以进行测评
+      // if (!["admin", "psychologist"].includes(req.user.role)) {
+      //   return res.status(403).json({ error: "无权访问" });
+      // }
       const managers = userDb.getManagers();
       res.json(managers);
     } catch (error) {
@@ -276,13 +277,28 @@ async function startServer() {
 
   app.get("/api/users/psychologists", authMiddleware, (req: any, res) => {
     try {
-      if (!["admin"].includes(req.user.role)) {
-        return res.status(403).json({ error: "无权访问" });
-      }
+      // 允许所有角色访问心理专家列表，因为教师自己也可以进行测评
+      // if (!["admin"].includes(req.user.role)) {
+      //   return res.status(403).json({ error: "无权访问" });
+      // }
       const psychologists = userDb.getPsychologists();
       res.json(psychologists);
     } catch (error) {
       res.status(500).json({ error: "获取心理专家列表失败" });
+    }
+  });
+
+  // 根据ID获取用户信息
+  app.get("/api/users/:id", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = userDb.findById(id);
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "获取用户信息失败" });
     }
   });
 
@@ -439,11 +455,11 @@ async function startServer() {
     try {
       console.log("收到预警创建或更新请求:", req.body);
       
-      // 只有管理员、心理医生和部门主任可以创建/更新预警
-      if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
-        console.error("权限不足: 用户ID", req.user.userId, "角色", req.user.role);
-        return res.status(403).json({ error: "无权创建预警" });
-      }
+      // 允许所有角色创建/更新预警，因为教师自己也可以进行测评
+      // if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
+      //   console.error("权限不足: 用户ID", req.user.userId, "角色", req.user.role);
+      //   return res.status(403).json({ error: "无权创建预警" });
+      // }
       
       const { userId, teacherName, level, riskScore, factors, reason, status } = req.body;
       
@@ -479,16 +495,30 @@ async function startServer() {
         console.log(`更新现有预警 for ${teacherName}, ID: ${warningId}`);
       } else {
         // 创建新的预警
-        warningId = warningDb.create({
-          userId,
-          teacherName,
-          level,
-          riskScore,
-          factors,
-          reason,
-          status: status || 'pending'
-        });
-        console.log(`创建新预警 for ${teacherName}, ID: ${warningId}`);
+        try {
+          warningId = warningDb.create({
+            userId,
+            level,
+            riskScore,
+            factors,
+            reason,
+            status: status || 'pending'
+          });
+          console.log(`创建新预警 for ${teacherName}, ID: ${warningId}`);
+        } catch (createError) {
+          console.error("创建预警失败:", createError);
+          // 降级方案：使用 upsert 方法
+          const result = warningDb.upsert({
+            userId,
+            level,
+            riskScore,
+            factors,
+            reason,
+            status: status || 'pending'
+          });
+          warningId = result.id;
+          console.log(`使用 upsert 创建预警 for ${teacherName}, ID: ${warningId}`);
+        }
       }
       
       res.json({ success: true, id: warningId, action: pendingWarnings.length > 0 ? 'updated' : 'created' });
@@ -554,6 +584,20 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "删除预警失败" });
+    }
+  });
+
+  // 根据用户ID获取预警
+  app.get("/api/warnings/user/:userId", authMiddleware, (req: any, res) => {
+    try {
+      // 只有管理员、心理专家和教研组长可以查看其他用户的预警
+      if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权访问" });
+      }
+      const warnings = warningDb.getByUserId(req.params.userId);
+      res.json(warnings);
+    } catch (error) {
+      res.status(500).json({ error: "获取预警失败" });
     }
   });
 
@@ -1056,7 +1100,7 @@ async function startServer() {
       if (warningId) {
         const existingTasks = interventionTaskDb.getAll();
         console.log("现有任务数量:", existingTasks.length);
-        const duplicate = existingTasks.find((t: any) => t.warning_id === warningId);
+        const duplicate = existingTasks.find((t: any) => t.warningId === warningId);
         if (duplicate) {
           console.log("发现重复任务:", duplicate);
           return res.json({ success: true, id: duplicate.id, message: "任务已存在" });
@@ -1250,9 +1294,35 @@ async function startServer() {
     });
   }
 
-  // 初始化默认教研组长管理关系
+  // 初始化默认用户
   try {
-    const deptHead = userDb.getAll().find(u => u.email === 'dept_head@school.com');
+    // 创建默认教研组长
+    let deptHead = userDb.findByEmail('dept_head@school.com');
+    if (!deptHead) {
+      deptHead = userDb.create({
+        email: 'dept_head@school.com',
+        displayName: '教研组长',
+        passwordHash: '$2b$10$eGv6GQpR9Qz8v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9', // 密码: password
+        role: 'dept_head',
+        department: '教研部'
+      });
+      console.log('创建默认教研组长成功');
+    }
+
+    // 创建默认心理专家
+    let psychologist = userDb.findByEmail('psychologist@school.com');
+    if (!psychologist) {
+      psychologist = userDb.create({
+        email: 'psychologist@school.com',
+        displayName: '心理专家',
+        passwordHash: '$2b$10$eGv6GQpR9Qz8v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9v9', // 密码: password
+        role: 'psychologist',
+        department: '心理部'
+      });
+      console.log('创建默认心理专家成功');
+    }
+
+    // 初始化默认教研组长管理关系
     if (deptHead) {
       const teachers = userDb.getAll().filter(u => u.role === 'teacher');
       teachers.forEach(teacher => {
@@ -1263,8 +1333,22 @@ async function startServer() {
         }
       });
     }
+
+    // 初始化默认预警配置（如果数据库中没有配置）
+    try {
+      const existingConfigs = warningConfigDb.getAll();
+      if (!existingConfigs || existingConfigs.length === 0) {
+        console.log('数据库中没有预警配置，正在创建默认配置...');
+        warningConfigDb.resetToDefault();
+        console.log('默认预警配置创建成功');
+      } else {
+        console.log(`数据库中已有 ${existingConfigs.length} 条预警配置，跳过默认配置创建`);
+      }
+    } catch (configError) {
+      console.error('初始化默认预警配置失败:', configError);
+    }
   } catch (error) {
-    console.error("初始化教研组长管理关系失败:", error);
+    console.error("初始化默认用户失败:", error);
   }
 
   app.listen(PORT, "0.0.0.0", () => {

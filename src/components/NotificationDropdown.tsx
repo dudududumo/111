@@ -96,13 +96,12 @@ const NotificationDropdown: React.FC = () => {
   const handleAction = (notification: Notification) => {
     // 根据通知类型进行跳转
     if (notification.type === 'warning') {
-      // 预警通知，如果是心理专家跳转到干预任务，如果是本人跳转到调适
-      if (notification.title.includes('紧急') || notification.title.includes('干预')) {
-        navigate('/intervention');
-      } else if (notification.title.includes('团队')) {
-        navigate('/warning');
-      } else {
+      // 一级预警（【心理健康关怀】）跳转到调适工具页面
+      if (notification.title === '【心理健康关怀】') {
         navigate('/toolkit');
+      } else {
+        // 二级和三级预警跳转到干预任务页面
+        navigate('/intervention');
       }
     } else if (notification.type === 'intervention') {
       navigate('/intervention');

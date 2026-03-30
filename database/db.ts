@@ -448,8 +448,9 @@ export const warningConfigDb = {
           { type: 'risk_index', operator: '>=', value: 0.8, description: '风险指数≥0.8' }
         ],
         responses: [
-          { type: 'notification', target: 'psychologist', content: '通知心理负责人', description: '通知心理负责人' },
-          { type: 'intervention', target: 'psychologist', content: '启动干预流程', description: '启动干预流程' }
+          { type: 'message', target: 'user', content: '【紧急关怀】系统监测到您近期心理压力极大，建议您立即寻求专业心理支持。您可以预约校内咨询师或拨打24小时热线。', description: '向教师推送紧急关怀消息' },
+          { type: 'notification', target: 'manager', content: '预警信息（脱敏后，仅显示“建议关注”）', description: '通知教研组长/年级主任' },
+          { type: 'intervention', target: 'psychologist', content: '启动专业干预流程，自动创建干预任务', description: '通知学校心理负责人并创建干预任务' }
         ]
       }
     ];
@@ -830,21 +831,35 @@ export const interventionTaskDb = {
   // 获取所有任务
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM intervention_tasks ORDER BY created_at DESC');
-    const tasks = stmt.all() as Array<{ id: string; care_records?: string } & Record<string, any>>;
+    const tasks = stmt.all() as Array<{ id: string; care_records?: string; teacher_name?: string; assigned_to?: string; created_at?: string } & Record<string, any>>;
     return tasks.map(task => ({
-      ...task,
-      careRecords: JSON.parse(task.care_records || '[]')
+      id: task.id,
+      warningId: task.warning_id,
+      teacherId: task.teacher_id,
+      teacherName: task.teacher_name,
+      assignedTo: task.assigned_to,
+      status: task.status,
+      priority: task.priority,
+      careRecords: JSON.parse(task.care_records || '[]'),
+      createdAt: task.created_at
     }));
   },
 
   // 根据ID获取任务
   getById: (id: string) => {
     const stmt = db.prepare('SELECT * FROM intervention_tasks WHERE id = ?');
-    const task = stmt.get(id) as ({ id: string; care_records?: string } & Record<string, any>) | undefined;
+    const task = stmt.get(id) as ({ id: string; care_records?: string; teacher_name?: string; assigned_to?: string; created_at?: string } & Record<string, any>) | undefined;
     if (task) {
       return {
-        ...task,
-        careRecords: JSON.parse(task.care_records || '[]')
+        id: task.id,
+        warningId: task.warning_id,
+        teacherId: task.teacher_id,
+        teacherName: task.teacher_name,
+        assignedTo: task.assigned_to,
+        status: task.status,
+        priority: task.priority,
+        careRecords: JSON.parse(task.care_records || '[]'),
+        createdAt: task.created_at
       };
     }
     return null;

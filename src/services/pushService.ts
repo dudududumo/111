@@ -24,7 +24,7 @@ interface AssessmentProgress {
 export const getPushConfig = (): PushConfig => {
   const config = localStorage.getItem(PUSH_CONFIG_KEY);
   return config ? JSON.parse(config) : {
-    enabled: false,
+    enabled: true,
     time: '09:00',
     scales: ['scl90', 'sas'],
     reminderInterval: 30

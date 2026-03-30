@@ -170,6 +170,11 @@ export const userApi = {
   getPsychologists: async () => {
     return fetchApi("/users/psychologists");
   },
+
+  // 根据ID获取用户信息
+  getUserById: async (userId: string) => {
+    return fetchApi(`/users/${userId}`);
+  },
 };
 
 // ==================== 评估相关 API ====================
@@ -194,7 +199,7 @@ export const assessmentApi = {
     return fetchApi("/assessments/my");
   },
 
-  // 获取指定用户的评估历史（管理员专用）
+  // 获取用户测评记录
   getUserAssessments: async (userId: string) => {
     return fetchApi(`/assessments/user/${userId}`);
   },
@@ -250,6 +255,11 @@ export const warningApi = {
   // 获取我的预警
   getMyWarnings: async () => {
     return fetchApi("/warnings/my");
+  },
+
+  // 根据用户ID获取预警
+  getByUserId: async (userId: string) => {
+    return fetchApi(`/warnings/user/${userId}`);
   },
 
   // 更新预警状态

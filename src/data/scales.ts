@@ -118,18 +118,10 @@ export const SCL90_SCALE: Scale = {
     { id: 90, text: "感到自己的脑子有毛病", options: SCL90_OPTIONS },
   ],
   calculateResult: (scores) => {
-    // 反向计分处理
-    const reverseItems = [5, 19, 43, 68, 72]; // 项目编号（1-based）
-    const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
-    
-    const processedScores = scores.map((score, index) => {
-      const itemNumber = index + 1;
-      return reverseItems.includes(itemNumber) ? reverseMapping[score as keyof typeof reverseMapping] : score;
-    });
-    
-    const total = processedScores.reduce((a, b) => a + b, 0);
+    // 不进行反向计分处理，根据用户提供的评分标准，1=没有，2=很轻，3=中等，4=偏重，5=严重
+    const total = scores.reduce((a, b) => a + b, 0);
     const avg = total / 90;
-    const positiveItems = processedScores.filter(score => score >= 2).length;
+    const positiveItems = scores.filter(score => score >= 2).length;
     
     // Factor indices (1-based from PDF)
     const somatization = [1, 4, 12, 27, 40, 42, 48, 49, 52, 53, 56, 58];
@@ -143,7 +135,7 @@ export const SCL90_SCALE: Scale = {
     const psychoticism = [7, 16, 35, 62, 77, 84, 85, 87, 88, 90];
 
     const getFactorAvg = (indices: number[]) => {
-      const sum = indices.reduce((acc, idx) => acc + (processedScores[idx - 1] || 0), 0);
+      const sum = indices.reduce((acc, idx) => acc + (scores[idx - 1] || 0), 0);
       return sum / indices.length;
     };
 
