@@ -10,6 +10,7 @@ import {
   MapPin, 
   MessageSquare, 
   CheckCircle2, 
+  Play,
   Clock, 
   ChevronRight,
   ExternalLink,
@@ -20,7 +21,8 @@ import {
   Info,
   Tag,
   BookOpen,
-  ShieldCheck
+  ShieldCheck,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -30,6 +32,7 @@ import {
   GroupActivity, 
   MentalResource 
 } from "../types";
+import CustomModal from "../components/CustomModal";
 import { 
   BarChart, 
   Bar, 
@@ -88,12 +91,30 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   });
   const [teamResources, setTeamResources] = useState<any[]>([]);
   const [interventionTasks, setInterventionTasks] = useState<InterventionTask[]>([]);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [atmosphereData, setAtmosphereData] = useState([
     { name: '活力', value: 85, color: '#10b981' },
     { name: '支持', value: 78, color: '#3b82f6' },
     { name: '压力', value: 45, color: '#f59e0b' },
     { name: '凝聚力', value: 92, color: '#8b5cf6' },
   ]);
+  
+  // CustomModal状态
+  const [modalData, setModalData] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning" | "info" | "confirm";
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: ""
+  });
 
   // 计算团队氛围指数
   useEffect(() => {
@@ -357,7 +378,20 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       console.log(`任务 ${taskId} 状态已更新为 ${newStatus}`);
     } catch (error) {
       console.error('更新任务状态失败:', error);
-      alert('更新任务状态失败，请稍后重试');
+      showModal({
+        type: "error",
+        title: "更新失败",
+        message: "更新任务状态失败，请稍后重试"
+      });
+    }
+  };
+
+  // 模拟流转任务
+  const handleProgressTask = async (task: InterventionTask) => {
+    if (task.status === 'pending') {
+      await handleUpdateTaskStatus(task.id, 'in_progress');
+    } else if (task.status === 'in_progress') {
+      await handleUpdateTaskStatus(task.id, 'completed');
     }
   };
 
@@ -375,7 +409,11 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       console.log(`任务 ${taskId} 已指派给 ${assignedTo}`);
     } catch (error) {
       console.error('指派任务失败:', error);
-      alert('指派任务失败，请稍后重试');
+      showModal({
+        type: "error",
+        title: "指派失败",
+        message: "指派任务失败，请稍后重试"
+      });
     }
   };
 
@@ -393,7 +431,32 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       console.log(`任务 ${taskId} 已添加关怀记录`);
     } catch (error) {
       console.error('添加关怀记录失败:', error);
-      alert('添加关怀记录失败，请稍后重试');
+      showModal({
+        type: "error",
+        title: "添加失败",
+        message: "添加关怀记录失败，请稍后重试"
+      });
+    }
+  };
+
+  // 清空所有干预任务
+  const handleClearAllTasks = async () => {
+    try {
+      const { default: api } = await import('../services/api');
+      await api.intervention.deleteAllTasks();
+      setInterventionTasks([]);
+      showModal({
+        type: "success",
+        title: "清空成功",
+        message: "已清空所有干预任务！"
+      });
+    } catch (error) {
+      console.error('清空干预任务失败:', error);
+      showModal({
+        type: "error",
+        title: "清空失败",
+        message: "清空失败，请稍后重试"
+      });
     }
   };
 
@@ -560,6 +623,19 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     }).sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0)).slice(0, 3);
   };
 
+  // 显示弹窗的辅助函数
+  const showModal = (data: Omit<typeof modalData, "isOpen">) => {
+    setModalData({
+      ...data,
+      isOpen: true
+    });
+  };
+
+  // 关闭弹窗
+  const closeModal = () => {
+    setModalData(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
       {/* Header */}
@@ -589,8 +665,8 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
       {activeTab === 'network' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Peer & Team */}
-          <div className="lg:col-span-2 space-y-8">
+          {/* 所有人都可以看到同伴助力和团队助力 */}
+          <div className={`${profile?.role === UserRole.TEACHER ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-8`}>
             {/* Peer Support - 同伴助力 */}
             <section className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
               <div className="flex items-center justify-between mb-6">
@@ -769,118 +845,193 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
             </section>
           </div>
 
-          {/* Right Column: Organization & Platform */}
-          <div className="space-y-8">
-            {/* Organizational Support - 干预任务看板 */}
-            <section className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                    <Building2 size={24} />
-                  </div>
-                  <h2 className="text-xl font-bold text-stone-900">组织助力</h2>
-                </div>
-                {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) && (
-                  <button 
-                    onClick={() => window.location.href = '/admin-cockpit'}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-all flex items-center gap-2"
-                  >
-                    <ShieldCheck size={14} /> 任务管理
-                  </button>
-                )}
-              </div>
-              <p className="text-stone-500 text-sm mb-6">干预任务派发与跟踪看板。当触发三级预警时，系统自动创建干预任务并指派给心理教师。</p>
-              
-              {/* 任务统计卡片 */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                  <p className="text-xs font-bold text-purple-600 uppercase mb-1">待处理</p>
-                  <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'pending').length}</p>
-                  <p className="text-[10px] text-stone-500 mt-1">需要指派负责人</p>
-                </div>
-                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                  <p className="text-xs font-bold text-amber-600 uppercase mb-1">进行中</p>
-                  <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'in_progress').length}</p>
-                  <p className="text-[10px] text-stone-500 mt-1">正在跟进中</p>
-                </div>
-                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                  <p className="text-xs font-bold text-emerald-600 uppercase mb-1">已完成</p>
-                  <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'completed').length}</p>
-                  <p className="text-[10px] text-stone-500 mt-1">本周完成</p>
-                </div>
-              </div>
-
-              {/* 任务列表 */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-3">近期干预任务</h3>
-                {interventionTasks.length > 0 ? interventionTasks.slice(0, 3).map(task => (
-                  <div key={task.id} className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
-                          task.status === 'pending' ? 'bg-purple-100 text-purple-700' :
-                          task.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
-                          'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {task.status === 'pending' ? '待处理' : task.status === 'in_progress' ? '进行中' : '已完成'}
-                        </span>
-                        <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
-                          task.priority === 'high' ? 'bg-red-100 text-red-700' :
-                          task.priority === 'medium' ? 'bg-orange-100 text-orange-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {task.priority === 'high' ? '高优先级' : task.priority === 'medium' ? '中优先级' : '低优先级'}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-stone-400">{new Date(task.createdAt || '').toLocaleDateString()}</span>
+          {/* 只有管理员、心理专家、教研组长才能看到组织助力 */}
+          {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) && (
+            <div className="space-y-8">
+              {/* Organizational Support - 干预任务看板 */}
+              <section className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                      <Building2 size={24} />
                     </div>
-                    <p className="text-sm font-bold text-stone-900 mb-1">{task.teacherName || '匿名教师'}</p>
-                    <p className="text-xs text-stone-500 mb-2">指派给: {task.assignedTo ? '已指派' : '待指派'}</p>
-                    {task.careRecords && task.careRecords.length > 0 && (
-                      <div className="mt-2 p-2 bg-white rounded-lg border border-stone-100">
-                        <p className="text-[10px] text-stone-400 mb-1">最新关怀记录</p>
-                        <p className="text-xs text-stone-600 line-clamp-2">{task.careRecords[task.careRecords.length - 1].summary}</p>
-                      </div>
+                    <h2 className="text-xl font-bold text-stone-900">组织助力</h2>
+                  </div>
+                  <div className="flex gap-2">
+                    {profile?.role === UserRole.ADMIN && (
+                      <button 
+                        onClick={() => {
+                          showModal({
+                            type: "confirm",
+                            title: "确认清空",
+                            message: "确定要清空所有干预任务吗？此操作不可恢复！",
+                            confirmText: "确定清空",
+                            cancelText: "取消",
+                            showCancel: true,
+                            onConfirm: handleClearAllTasks
+                          });
+                        }}
+                        className="px-3 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-bold hover:bg-red-200 transition-all flex items-center gap-1"
+                      >
+                        <Trash2 size={14} /> 清空
+                      </button>
                     )}
-                  </div>
-                )) : (
-                  <p className="text-sm text-stone-400 py-8 text-center">暂无干预任务</p>
-                )}
-              </div>
-
-              {/* 响应时效统计 */}
-              <div className="mt-6 p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-bold text-stone-900">响应时效</p>
-                  <span className="text-xs text-purple-600 font-bold">平均 2.3 小时</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-stone-500 w-16">&lt; 1小时</span>
-                    <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: '45%' }} />
-                    </div>
-                    <span className="text-[10px] text-stone-500">45%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-stone-500 w-16">1-4小时</span>
-                    <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: '35%' }} />
-                    </div>
-                    <span className="text-[10px] text-stone-500">35%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-stone-500 w-16">&gt; 4小时</span>
-                    <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500 rounded-full" style={{ width: '20%' }} />
-                    </div>
-                    <span className="text-[10px] text-stone-500">20%</span>
+                    <button 
+                      onClick={() => window.location.href = '/warnings'}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-all flex items-center gap-2"
+                    >
+                      <ShieldCheck size={14} /> 红色预警
+                    </button>
                   </div>
                 </div>
-              </div>
-            </section>
+                <p className="text-stone-500 text-sm mb-6">干预任务派发与跟踪看板。当触发三级预警时，系统自动创建干预任务并指派给心理教师。</p>
+                
+                {/* 任务统计卡片 */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                    <p className="text-xs font-bold text-purple-600 uppercase mb-1">待处理</p>
+                    <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'pending').length}</p>
+                    <p className="text-[10px] text-stone-500 mt-1">需要指派负责人</p>
+                  </div>
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-600 uppercase mb-1">进行中</p>
+                    <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'in_progress').length}</p>
+                    <p className="text-[10px] text-stone-500 mt-1">正在跟进中</p>
+                  </div>
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <p className="text-xs font-bold text-emerald-600 uppercase mb-1">已完成</p>
+                    <p className="text-2xl font-bold text-stone-900">{interventionTasks.filter(t => t.status === 'completed').length}</p>
+                    <p className="text-[10px] text-stone-500 mt-1">本周完成</p>
+                  </div>
+                </div>
 
-            {/* Platform Support */}
+                {/* 任务列表 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest">近期干预任务</h3>
+                    <div className="flex gap-2">
+                      <span className="flex items-center gap-1 text-[10px] text-stone-400">
+                        <div className="w-2 h-2 rounded-full bg-purple-400"></div> 待处理
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] text-stone-400">
+                        <div className="w-2 h-2 rounded-full bg-amber-400"></div> 进行中
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {interventionTasks.length > 0 ? (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {interventionTasks.sort((a, b) => {
+                        // 优先级排序：待处理 > 进行中 > 已完成
+                        const statusOrder = { 'pending': 0, 'in_progress': 1, 'completed': 2 };
+                        return statusOrder[a.status] - statusOrder[b.status];
+                      }).map(task => (
+                        <div key={task.id} className="group relative p-5 bg-stone-50 rounded-3xl border border-stone-100 hover:bg-white hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                                  task.status === 'pending' ? 'bg-purple-100 text-purple-700' :
+                                  task.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {task.status === 'pending' ? '待处理' : task.status === 'in_progress' ? '进行中' : '已完成'}
+                                </span>
+                                {task.priority === 'high' && (
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-100 text-rose-700 flex items-center gap-1">
+                                    <ShieldCheck size={10} /> 紧急干预
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-base font-bold text-stone-900 mt-1">
+                                {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) ? task.teacherName : '匿名教师'}
+                              </p>
+                            </div>
+                            <span className="text-[10px] text-stone-400 font-medium">{new Date(task.createdAt || '').toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <p className="text-xs text-stone-500 mb-2 flex items-center gap-1">
+                                <UserPlus size={12} className="text-stone-300" />
+                                负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo || '待指派'}</span>
+                              </p>
+                              {task.careRecords && task.careRecords.length > 0 ? (
+                                <div className="p-3 bg-white/60 rounded-xl border border-stone-100/50">
+                                  <p className="text-[10px] text-stone-400 mb-1 flex items-center gap-1">
+                                    <MessageSquare size={10} /> 最新进展
+                                  </p>
+                                  <p className="text-xs text-stone-600 line-clamp-1 italic">"{task.careRecords[task.careRecords.length - 1].summary}"</p>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-stone-400 italic">暂无访谈记录，请及时启动线下干预</p>
+                              )}
+                            </div>
+                            
+                            {/* 任务流转按钮 */}
+                            {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) && task.status !== 'completed' && (
+                              <button 
+                                onClick={() => handleProgressTask(task)}
+                                className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+                                  task.status === 'pending' 
+                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-100 hover:bg-purple-700' 
+                                    : 'bg-emerald-500 text-white shadow-lg shadow-emerald-100 hover:bg-emerald-600'
+                                }`}
+                                title={task.status === 'pending' ? '接收并开始干预' : '标记干预已完成'}
+                              >
+                                {task.status === 'pending' ? <Play size={20} fill="currentColor" /> : <CheckCircle2 size={20} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-12 flex flex-col items-center justify-center bg-stone-50 rounded-[32px] border border-dashed border-stone-200">
+                      <div className="p-4 bg-white rounded-2xl shadow-sm text-stone-200 mb-4">
+                        <Clock size={32} />
+                      </div>
+                      <p className="text-sm text-stone-400">当前暂无待处理的干预任务</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 响应时效统计 */}
+                <div className="mt-6 p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-bold text-stone-900">响应时效</p>
+                    <span className="text-xs text-purple-600 font-bold">平均 2.3 小时</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-stone-500 w-16">&lt; 1小时</span>
+                      <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '45%' }} />
+                      </div>
+                      <span className="text-[10px] text-stone-500">45%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-stone-500 w-16">1-4小时</span>
+                      <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: '35%' }} />
+                      </div>
+                      <span className="text-[10px] text-stone-500">35%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-stone-500 w-16">&gt; 4小时</span>
+                      <div className="flex-1 h-2 bg-white rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full" style={{ width: '20%' }} />
+                      </div>
+                      <span className="text-[10px] text-stone-500">20%</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* 平台助力 - 所有人可见 */}
+          <div className={profile?.role === UserRole.TEACHER ? 'lg:col-span-3' : 'space-y-8'}>
             <section className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -1217,6 +1368,19 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 自定义弹窗 */}
+      <CustomModal
+        isOpen={modalData.isOpen}
+        onClose={closeModal}
+        type={modalData.type}
+        title={modalData.title}
+        message={modalData.message}
+        confirmText={modalData.confirmText}
+        cancelText={modalData.cancelText}
+        onConfirm={modalData.onConfirm}
+        showCancel={modalData.showCancel}
+      />
     </div>
   );
 };

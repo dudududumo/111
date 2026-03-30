@@ -266,6 +266,13 @@ export const warningApi = {
       method: "DELETE",
     });
   },
+
+  // 删除单个预警
+  delete: async (id: string) => {
+    return fetchApi(`/warnings/${id}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 // ==================== 预警配置 API ====================
@@ -330,6 +337,13 @@ export const notificationApi = {
   // 获取未读通知数量
   getUnreadCount: async () => {
     return fetchApi("/notifications/unread-count");
+  },
+
+  // 删除通知
+  delete: async (id: string) => {
+    return fetchApi(`/notifications/${id}`, {
+      method: "DELETE",
+    });
   },
 };
 
@@ -481,6 +495,13 @@ export const interventionApi = {
   // 根据预警ID获取关联的任务
   getTaskByWarningId: async (warningId: string) => {
     return fetchApi(`/intervention-tasks/by-warning/${warningId}`);
+  },
+
+  // 删除所有干预任务
+  deleteAllTasks: async () => {
+    return fetchApi("/intervention-tasks", {
+      method: "DELETE",
+    });
   },
 };
 

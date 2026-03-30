@@ -11,6 +11,7 @@ CREATE TABLE users (
     school TEXT,
     department TEXT,
     dept_id TEXT,
+    manager_id TEXT REFERENCES users(id),
     consent_accepted BOOLEAN DEFAULT FALSE,
     wearable_brand TEXT CHECK (wearable_brand IN ('Apple', 'Huawei', 'Xiaomi')),
     sync_frequency TEXT CHECK (sync_frequency IN ('hourly', 'daily', 'realtime')),
@@ -52,7 +53,7 @@ CREATE TABLE intervention_tasks (
     warning_id TEXT REFERENCES warnings(id) ON DELETE CASCADE,
     teacher_id TEXT NOT NULL REFERENCES users(id),
     teacher_name TEXT,
-    assigned_to TEXT NOT NULL REFERENCES users(id),
+    assigned_to TEXT REFERENCES users(id),
     status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed')),
     priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
     care_records TEXT,  -- JSON 数组

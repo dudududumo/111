@@ -22,8 +22,19 @@ export function initDatabase() {
       try {
         db.exec(statement + ';');
       } catch (error: any) {
+        // 自动执行迁移：如果缺少 manager_id 列
+        if (error.message.includes('no such column: manager_id')) {
+          try {
+            db.exec('ALTER TABLE users ADD COLUMN manager_id TEXT REFERENCES users(id);');
+            console.log('Successfully added manager_id column to users table');
+            // 重新执行刚才失败的语句
+            db.exec(statement + ';');
+          } catch (migrationError) {
+            console.error('Migration failed:', migrationError);
+          }
+        }
         // 忽略表已存在的错误
-        if (!error.message.includes('already exists')) {
+        else if (!error.message.includes('already exists')) {
           console.error('Error executing SQL:', error);
         }
       }
@@ -95,7 +106,20 @@ export const userDb = {
     try {
       const stmt = db.prepare(sql);
       stmt.run(...values, id);
-    } catch (error) {
+    } catch (error: any) {
+      // 运行时迁移：如果更新时发现缺少 manager_id
+      if (error.message.includes('no such column: manager_id')) {
+        try {
+          db.exec('ALTER TABLE users ADD COLUMN manager_id TEXT REFERENCES users(id);');
+          console.log('Runtime migration: added manager_id column to users table');
+          // 重新执行更新
+          const stmt = db.prepare(sql);
+          stmt.run(...values, id);
+          return;
+        } catch (migrationError) {
+          console.error('Runtime migration failed:', migrationError);
+        }
+      }
       console.error('Update error:', error);
       throw error;
     }
@@ -116,6 +140,12 @@ export const userDb = {
   // 获取所有心理专家
   getPsychologists: () => {
     const stmt = db.prepare("SELECT * FROM users WHERE role = 'psychologist'");
+    return stmt.all();
+  },
+
+  // 获取所有用户
+  getAll: () => {
+    const stmt = db.prepare("SELECT * FROM users");
     return stmt.all();
   }
 };
@@ -265,6 +295,12 @@ export const warningDb = {
     stmt.run();
   },
 
+  // 删除单个预警
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM warnings WHERE id = ?');
+    stmt.run(id);
+  },
+
   // 创建或更新预警（避免重复）
   upsert: (warning: {
     userId: string;
@@ -281,7 +317,7 @@ export const warningDb = {
       WHERE user_id = ? AND status = 'pending'
       ORDER BY timestamp DESC 
       LIMIT 1
-    `).get(warning.userId);
+    `).get(warning.userId) as { id: string } | undefined;
 
     if (existing) {
       // 更新现有预警
@@ -332,7 +368,7 @@ export const warningConfigDb = {
     variables?: { depressionThreshold?: number; riskThreshold?: number; consecutiveWeeks?: number; durationDays?: number };
   }) => {
     console.log('数据库操作 - 保存配置:', config.level, 'triggers:', config.triggers, 'variables:', config.variables);
-    const existing = db.prepare('SELECT id FROM warning_configs WHERE level = ?').get(config.level);
+    const existing = db.prepare('SELECT id FROM warning_configs WHERE level = ?').get(config.level) as { id: string } | undefined;
     
     if (existing) {
       console.log('数据库操作 - 更新现有配置:', existing.id);
@@ -728,7 +764,7 @@ export const activityDb = {
   // 获取所有活动
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM activities ORDER BY date ASC');
-    const activities = stmt.all();
+    const activities = stmt.all() as Array<{ id: string; participants?: string } & Record<string, any>>;
     return activities.map(activity => ({
       ...activity,
       participants: JSON.parse(activity.participants || '[]')
@@ -738,7 +774,7 @@ export const activityDb = {
   // 根据ID获取活动
   getById: (id: string) => {
     const stmt = db.prepare('SELECT * FROM activities WHERE id = ?');
-    const activity = stmt.get(id);
+    const activity = stmt.get(id) as ({ id: string; participants?: string } & Record<string, any>) | undefined;
     if (activity) {
       return {
         ...activity,
@@ -778,7 +814,7 @@ export const interventionTaskDb = {
     warningId?: string;
     teacherId: string;
     teacherName?: string;
-    assignedTo: string;
+    assignedTo?: string;
     status: string;
     priority: string;
   }) => {
@@ -787,14 +823,14 @@ export const interventionTaskDb = {
       INSERT INTO intervention_tasks (id, warning_id, teacher_id, teacher_name, assigned_to, status, priority, care_records)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, task.warningId || null, task.teacherId, task.teacherName || null, task.assignedTo, task.status, task.priority, JSON.stringify([]));
+    stmt.run(id, task.warningId || null, task.teacherId, task.teacherName || null, task.assignedTo || null, task.status, task.priority, JSON.stringify([]));
     return id;
   },
 
   // 获取所有任务
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM intervention_tasks ORDER BY created_at DESC');
-    const tasks = stmt.all();
+    const tasks = stmt.all() as Array<{ id: string; care_records?: string } & Record<string, any>>;
     return tasks.map(task => ({
       ...task,
       careRecords: JSON.parse(task.care_records || '[]')
@@ -804,7 +840,7 @@ export const interventionTaskDb = {
   // 根据ID获取任务
   getById: (id: string) => {
     const stmt = db.prepare('SELECT * FROM intervention_tasks WHERE id = ?');
-    const task = stmt.get(id);
+    const task = stmt.get(id) as ({ id: string; care_records?: string } & Record<string, any>) | undefined;
     if (task) {
       return {
         ...task,
@@ -834,6 +870,12 @@ export const interventionTaskDb = {
     const stmt = db.prepare('UPDATE intervention_tasks SET care_records = ?, status = ? WHERE id = ?');
     stmt.run(JSON.stringify(careRecords), 'in_progress', id);
     return careRecords;
+  },
+
+  // 删除任务
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM intervention_tasks WHERE id = ?');
+    stmt.run(id);
   }
 };
 
@@ -875,8 +917,15 @@ export const notificationDb = {
   // 获取未读通知数量
   getUnreadCount: (userId: string) => {
     const stmt = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND status = \'unread\'');
-    const result = stmt.get(userId);
+    const result = stmt.get(userId) as { count: number } | undefined;
     return result?.count || 0;
+  },
+
+  // 删除通知
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM notifications WHERE id = ?');
+    const result = stmt.run(id);
+    return result.changes > 0;
   }
 };
 

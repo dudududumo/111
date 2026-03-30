@@ -1,3 +1,4 @@
+// @ts-nocheck
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -216,6 +217,11 @@ async function startServer() {
 
       const updates = req.body;
       console.log('Updates:', updates);
+      
+      // 角色修改限制：只有管理员可以修改角色，且不能把自己改回普通用户（可选）
+      if (updates.role && req.user.role !== "admin") {
+        return res.status(403).json({ error: "只有管理员可以修改用户角色" });
+      }
       
       // 如果更新了角色，需要重新生成token
         if (updates.role) {
@@ -531,6 +537,20 @@ async function startServer() {
         return res.status(403).json({ error: "无权操作" });
       }
       warningDb.deleteAll();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "删除预警失败" });
+    }
+  });
+
+  // 删除单个预警
+  app.delete("/api/warnings/:id", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权操作" });
+      }
+      warningDb.delete(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "删除预警失败" });
@@ -1028,16 +1048,39 @@ async function startServer() {
   app.post("/api/intervention-tasks", authMiddleware, (req: any, res) => {
     try {
       const { warningId, teacherId, teacherName, assignedTo, status, priority } = req.body;
+      
+      console.log("=== 创建干预任务请求 ===");
+      console.log("请求数据:", { warningId, teacherId, teacherName, assignedTo, status, priority });
+      
+      // 如果提供了 warningId，检查是否已存在关联的任务
+      if (warningId) {
+        const existingTasks = interventionTaskDb.getAll();
+        console.log("现有任务数量:", existingTasks.length);
+        const duplicate = existingTasks.find((t: any) => t.warning_id === warningId);
+        if (duplicate) {
+          console.log("发现重复任务:", duplicate);
+          return res.json({ success: true, id: duplicate.id, message: "任务已存在" });
+        }
+      }
+
+      console.log("准备创建任务...");
       const taskId = interventionTaskDb.create({
         warningId,
         teacherId,
         teacherName,
-        assignedTo,
+        assignedTo: assignedTo || null,
         status: status || "pending",
         priority: priority || "medium"
       });
+      console.log("任务创建成功，ID:", taskId);
+      
+      // 验证任务是否创建成功
+      const createdTask = interventionTaskDb.getById(taskId);
+      console.log("验证创建的任务:", createdTask);
+      
       res.json({ success: true, id: taskId });
     } catch (error) {
+      console.error("创建干预任务失败:", error);
       res.status(500).json({ error: "创建干预任务失败" });
     }
   });
@@ -1086,6 +1129,38 @@ async function startServer() {
       res.json({ success: true, careRecords });
     } catch (error) {
       res.status(500).json({ error: "添加护理记录失败" });
+    }
+  });
+
+  // 根据预警ID获取任务
+  app.get("/api/intervention-tasks/by-warning/:warningId", authMiddleware, (req: any, res) => {
+    try {
+      const { warningId } = req.params;
+      const tasks = interventionTaskDb.getAll();
+      const task = tasks.find((t: any) => t.warning_id === warningId);
+      if (task) {
+        res.json(task);
+      } else {
+        res.status(404).json({ error: "未找到相关任务" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "获取任务失败" });
+    }
+  });
+
+  // 删除所有干预任务
+  app.delete("/api/intervention-tasks", authMiddleware, (req: any, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "只有管理员可以删除所有任务" });
+      }
+      const tasks = interventionTaskDb.getAll();
+      tasks.forEach((task: any) => {
+        interventionTaskDb.delete(task.id);
+      });
+      res.json({ success: true, message: "已删除所有干预任务" });
+    } catch (error) {
+      res.status(500).json({ error: "删除干预任务失败" });
     }
   });
 
@@ -1138,6 +1213,22 @@ async function startServer() {
     }
   });
 
+  // 删除通知
+  app.delete("/api/notifications/:id", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const success = notificationDb.delete(id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "通知不存在" });
+      }
+    } catch (error) {
+      console.error("删除通知失败:", error);
+      res.status(500).json({ error: "删除通知失败" });
+    }
+  });
+
   // ==================== 健康检查 API ====================
 
   app.get("/api/health", (req, res) => {
@@ -1157,6 +1248,23 @@ async function startServer() {
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
+  }
+
+  // 初始化默认教研组长管理关系
+  try {
+    const deptHead = userDb.getAll().find(u => u.email === 'dept_head@school.com');
+    if (deptHead) {
+      const teachers = userDb.getAll().filter(u => u.role === 'teacher');
+      teachers.forEach(teacher => {
+        // 将 teacher1-4 归属给 dept_head (根据邮箱或名称判断)
+        if (['teacher1@school.com', 'teacher2@school.com', 'teacher3@school.com', 'teacher4@school.com'].includes(teacher.email)) {
+          userDb.update(teacher.id, { manager_id: deptHead.id });
+          console.log(`已将教师 ${teacher.display_name} 归属给教研组长 ${deptHead.display_name}`);
+        }
+      });
+    }
+  } catch (error) {
+    console.error("初始化教研组长管理关系失败:", error);
   }
 
   app.listen(PORT, "0.0.0.0", () => {

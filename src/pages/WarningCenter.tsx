@@ -10,6 +10,7 @@ import {
   Search,
   Eye,
   CheckCircle,
+  CheckCircle as CheckCircle2,
   Clock,
   Info,
   Lock,
@@ -24,6 +25,7 @@ import api from "../services/api";
 import { Warning, UserRole, UserProfile } from "../types";
 import { analyzeTeacherRisk, triggerWarning } from "../services/riskEngineService";
 import { scanTeachersRisk, getWarningConfigs, RiskAnalysisResult, WarningTrigger, WarningResponse, WarningVariables } from "../services/redWarningService";
+import CustomModal from "../components/CustomModal";
 
 // 响应配置项类型
 interface ResponseConfigItem {
@@ -61,6 +63,23 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  
+  // CustomModal状态
+  const [modalData, setModalData] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning" | "info" | "confirm";
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: ""
+  });
 
   // 从数据库加载预警数据（真正的数据库持久化）
   useEffect(() => {
@@ -152,6 +171,17 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
 
   // 保存配置到数据库
   const handleSaveConfig = async () => {
+    // 权限校验：只有管理员可以保存配置
+    const userRole = profile?.role || UserRole.TEACHER;
+    if (userRole !== UserRole.ADMIN) {
+      showModal({
+        type: "error",
+        title: "权限不足",
+        message: "只有系统管理员可以修改预警阈值配置"
+      });
+      setShowConfig(false); // 强制关闭弹窗
+      return;
+    }
     try {
       console.log('开始保存配置到数据库...');
       console.log('当前 responseConfig 状态:', responseConfig.map(c => ({
@@ -181,7 +211,11 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       }
       
       console.log('所有配置保存成功！');
-      alert('配置保存成功！');
+      showModal({
+        type: "success",
+        title: "保存成功",
+        message: "配置保存成功！"
+      });
       setShowConfig(false);
       
       // 重新加载配置
@@ -214,7 +248,11 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       
     } catch (error) {
       console.error('保存配置失败:', error);
-      alert('保存配置失败，请重试！');
+      showModal({
+        type: "error",
+        title: "保存失败",
+        message: "保存配置失败，请重试！"
+      });
     }
   };
 
@@ -236,7 +274,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     y: 50 + (Math.sin(w.riskScore * 10) * 20), // More structured simulated secondary dimension
     z: w.level === 'level3' ? 100 : (w.level === 'level2' ? 60 : 30),
     level: w.level,
-    name: userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? w.teacherName : "匿名教师"
+    name: (userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) ? w.teacherName : "匿名教师"
   }));
 
   const pieData = [
@@ -257,7 +295,11 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       }
 
       if (existingTask && existingTask.id) {
-        alert('该预警已存在关联的干预任务，请前往干预任务看板查看。');
+        showModal({
+          type: "warning",
+          title: "任务已存在",
+          message: "该预警已存在关联的干预任务，请前往干预任务看板查看。"
+        });
         return;
       }
 
@@ -282,12 +324,22 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
         w.id === warning.id ? { ...w, status: 'active' as const } : w
       );
       setWarnings(updatedWarnings);
+      if (selectedWarning?.id === warning.id) {
+        setSelectedWarning({ ...selectedWarning, status: 'active' as const });
+      }
 
-      alert('干预任务已成功创建并下发至协作平台。');
-      setSelectedWarning(null);
+      showModal({
+        type: "success",
+        title: "干预已启动",
+        message: "协作干预流程已启动，已为您在橙色平台创建任务并通知相关负责人。"
+      });
     } catch (error) {
       console.error('Error triggering intervention:', error);
-      alert('创建干预任务失败，请稍后重试。');
+      showModal({
+        type: "error",
+        title: "创建失败",
+        message: "创建干预任务失败，请稍后重试。"
+      });
     }
   };
 
@@ -295,18 +347,31 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     console.log("标记为已处理:", id);
     
     try {
-      // 更新数据库中的预警状态
+      // 1. 更新数据库中的预警状态
       await api.warning.updateStatus(id, 'resolved');
       
-      // 更新本地状态
+      // 2. 尝试更新关联的干预任务状态（如果有）
+      try {
+        const task = await api.intervention.getTaskByWarningId(id);
+        if (task && task.id) {
+          await api.intervention.updateTaskStatus(task.id, 'completed');
+          console.log(`已同步完成关联的干预任务: ${task.id}`);
+        }
+      } catch (e) {
+        console.log('未找到关联的干预任务，无需同步');
+      }
+
+      // 3. 更新本地状态
       const updatedWarnings = warnings.map(warning => 
         warning.id === id ? { ...warning, status: 'resolved' as const } : warning
       );
       
       setWarnings(updatedWarnings);
-      setSelectedWarning(null);
+      if (selectedWarning?.id === id) {
+        setSelectedWarning({ ...selectedWarning, status: 'resolved' as const });
+      }
       
-      console.log("预警已标记为已处理:", id);
+      console.log("预警及关联任务已标记为已处理:", id);
     } catch (error) {
       console.error('更新预警状态失败:', error);
       // 降级方案：只更新本地状态
@@ -319,12 +384,41 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   };
 
   const runAnalysis = async () => {
+    // 权限校验：只有管理员可以执行扫描
+    const userRole = profile?.role || UserRole.TEACHER;
+    if (userRole !== UserRole.ADMIN) {
+      showModal({
+        type: "error",
+        title: "权限不足",
+        message: "只有系统管理员可以启动全校风险扫描"
+      });
+      return;
+    }
     setIsAnalyzing(true);
     try {
-      // 清理旧的预警数据
+      // 获取所有现有干预任务，找到关联的预警ID
+      const existingTasks = await api.intervention.getAllTasks();
+      const warningIdsWithTasks = new Set(
+        existingTasks
+          .filter((task: any) => task.warningId)
+          .map((task: any) => task.warningId)
+      );
+      console.log("发现", warningIdsWithTasks.size, "个预警有关联的干预任务，将保留这些预警");
+
+      // 只删除没有关联干预任务的旧预警数据
       try {
-        await api.warning.deleteAll();
-        console.log("已清理旧的预警数据");
+        const allWarnings = await api.warning.getAll();
+        const warningsToDelete = allWarnings.filter((w: any) => 
+          !warningIdsWithTasks.has(w.id)
+        );
+        
+        console.log("准备删除", warningsToDelete.length, "个无关联的旧预警");
+        
+        for (const warning of warningsToDelete) {
+          await api.warning.delete(warning.id);
+        }
+        
+        console.log("已清理无关联的旧预警数据");
       } catch (error) {
         console.error("清理旧预警数据失败:", error);
       }
@@ -335,7 +429,11 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       
       if (teachers.length === 0) {
         console.log("数据库中没有教师数据，无法进行风险扫描");
-        alert("数据库中没有教师数据，请先添加教师信息");
+        showModal({
+          type: "warning",
+          title: "缺少数据",
+          message: "数据库中没有教师数据，请先添加教师信息"
+        });
         return;
       }
       
@@ -369,7 +467,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       console.log("触发预警的数量:", results.filter(r => r.analysis.warningTriggered).length);
       
       // 将扫描结果转换为预警格式并更新到页面
-      const newWarnings: Warning[] = results
+      const newWarningsFromScan: Warning[] = results
         .filter(result => result.analysis.warningTriggered && result.warningId)
         .map((result, index) => ({
           id: result.warningId || `warning_${Date.now()}_${index}`,
@@ -384,13 +482,19 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
           timestamp: new Date().toISOString()
         }));
       
-      // 更新预警列表（完全替换，避免重复）
-      setWarnings(newWarnings);
-      console.log("预警列表已更新，共", newWarnings.length, "条预警");
+      // 获取所有现有的有关联任务的预警，保留它们
+      const existingWarningsWithTasks = warnings.filter(w => warningIdsWithTasks.has(w.id));
+      
+      // 合并新旧预警：保留有关联任务的旧预警 + 新扫描的预警
+      const finalWarnings = [...existingWarningsWithTasks, ...newWarningsFromScan];
+      
+      // 更新预警列表
+      setWarnings(finalWarnings);
+      console.log("预警列表已更新，共", finalWarnings.length, "条预警（其中", existingWarningsWithTasks.length, "条是保留的有关联任务的预警）");
       
       // 将预警数据保存到数据库
       console.log("开始将预警数据保存到数据库...");
-      for (const warning of newWarnings) {
+      for (const warning of newWarningsFromScan) {
         try {
           await api.warning.upsert({
             userId: warning.uid,
@@ -412,6 +516,19 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // 显示弹窗的辅助函数
+  const showModal = (data: Omit<typeof modalData, "isOpen">) => {
+    setModalData({
+      ...data,
+      isOpen: true
+    });
+  };
+
+  // 关闭弹窗
+  const closeModal = () => {
+    setModalData(prev => ({ ...prev, isOpen: false }));
   };
 
   return (
@@ -447,25 +564,32 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
             </div>
           </div>
           <div className="flex justify-end items-center gap-3">
-            <button 
-              onClick={runAnalysis}
-              disabled={isAnalyzing}
-              className={`flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold shadow-lg shadow-rose-100 transition-all hover:bg-rose-700 active:scale-95 ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isAnalyzing ? (
-                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                  <Activity size={20} />
-                </motion.div>
-              ) : <Play size={20} />}
-              {isAnalyzing ? "引擎分析中..." : "启动风险扫描"}
-            </button>
-            <button 
-              onClick={() => setShowConfig(true)}
-              className="p-3 bg-white border border-stone-200 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
-              title="响应机制配置"
-            >
-              <Settings size={20} />
-            </button>
+            {/* 只有系统管理员可以启动风险扫描 */}
+            {userRole === UserRole.ADMIN && (
+              <button 
+                onClick={runAnalysis}
+                disabled={isAnalyzing}
+                className={`flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-2xl font-bold shadow-lg shadow-rose-100 transition-all hover:bg-rose-700 active:scale-95 ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isAnalyzing ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                    <Activity size={20} />
+                  </motion.div>
+                ) : <Play size={20} />}
+                {isAnalyzing ? "引擎分析中..." : "启动风险扫描"}
+              </button>
+            )}
+            
+            {/* 只有系统管理员可以配置响应机制 */}
+            {userRole === UserRole.ADMIN && (
+              <button 
+                onClick={() => setShowConfig(true)}
+                className="p-3 bg-white border border-stone-200 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
+                title="响应机制配置"
+              >
+                <Settings size={20} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -536,8 +660,14 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                             <div className="flex flex-col gap-2">
                               <div className="flex items-center gap-3">
                                 <h3 className="font-bold text-stone-900 whitespace-nowrap">
-                                  {userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST ? warning.teacherName : "匿名教师"}
+                                  {(userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) ? warning.teacherName : "某匿名教师"}
                                 </h3>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                  warning.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' :
+                                  warning.status === 'active' ? 'bg-blue-100 text-blue-600' : 'bg-stone-100 text-stone-500'
+                                }`}>
+                                  {warning.status === 'resolved' ? '已处理' : warning.status === 'active' ? '进行中' : '待处理'}
+                                </span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-stone-400 flex items-center gap-1">
@@ -629,21 +759,47 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                               </div>
                             </div>
                             <div className="flex flex-col gap-3">
-                              {selectedWarning.status === 'pending' && (
+                              {/* 只有二级和三级预警显示启动协作干预，且只有有权限的人可以点 */}
+                              {selectedWarning.status === 'pending' && selectedWarning.level !== 'level1' && (userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) && (
                                 <button 
                                   onClick={() => handleTriggerIntervention(selectedWarning)}
-                                  className={`w-full py-3 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg ${selectedWarning.level === 'level3' ? 'bg-rose-600 text-white shadow-rose-100 hover:bg-rose-700' : selectedWarning.level === 'level2' ? 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600' : 'bg-blue-500 text-white shadow-blue-100 hover:bg-blue-600'}`}
+                                  className={`w-full py-3 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg ${selectedWarning.level === 'level3' ? 'bg-rose-600 text-white shadow-rose-100 hover:bg-rose-700' : 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600'}`}
                                 >
                                   <Play size={18} /> 启动协作干预
                                 </button>
                               )}
-                              {selectedWarning.status !== 'resolved' && (
+                              
+                              {/* 一级预警如果是 pending 状态，显示处理按钮 - 所有人都可以处理？或者只管理员？这里先按原逻辑，但加个提示 */}
+                              {selectedWarning.status === 'pending' && selectedWarning.level === 'level1' && (
+                                <button 
+                                  onClick={() => handleResolve(selectedWarning.id!)}
+                                  className="w-full py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+                                >
+                                  <CheckCircle size={18} /> 确认已读并标记处理
+                                </button>
+                              )}
+
+                              {/* 二级和三级已启动的状态显示 */}
+                              {selectedWarning.status === 'active' && (
+                                <div className="flex items-center justify-center gap-2 py-3 bg-stone-100 text-stone-500 rounded-2xl text-sm font-bold border border-stone-200">
+                                  <Clock size={18} /> 干预流程进行中
+                                </div>
+                              )}
+
+                              {/* 非已处理状态显示标记已处理按钮（一级已经在上面处理了），且只有有权限的人可以点 */}
+                              {selectedWarning.status !== 'resolved' && selectedWarning.level !== 'level1' && (userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) && (
                                 <button 
                                   onClick={() => handleResolve(selectedWarning.id!)}
                                   className="w-full py-3 bg-white text-stone-900 rounded-2xl text-sm font-bold hover:bg-stone-50 transition-colors flex items-center justify-center gap-2 border border-stone-200 shadow-sm"
                                 >
-                                  <CheckCircle size={18} /> 标记为已处理
+                                  <CheckCircle size={18} /> 标记为已完成
                                 </button>
+                              )}
+
+                              {selectedWarning.status === 'resolved' && (
+                                <div className="flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-2xl text-sm font-bold border border-emerald-100">
+                                  <CheckCircle2 size={18} /> 已处理完成
+                                </div>
                               )}
                             </div>
                           </div>
@@ -754,9 +910,9 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
         )}
       </div>
 
-      {/* Config Modal */}
+      {/* Config Modal - 只有管理员可见 */}
       <AnimatePresence>
-        {showConfig && (
+        {showConfig && userRole === UserRole.ADMIN && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
@@ -935,6 +1091,19 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 自定义弹窗 */}
+      <CustomModal
+        isOpen={modalData.isOpen}
+        onClose={closeModal}
+        type={modalData.type}
+        title={modalData.title}
+        message={modalData.message}
+        confirmText={modalData.confirmText}
+        cancelText={modalData.cancelText}
+        onConfirm={modalData.onConfirm}
+        showCancel={modalData.showCancel}
+      />
     </motion.div>
   );
 };

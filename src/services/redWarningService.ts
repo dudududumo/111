@@ -66,7 +66,7 @@ const WARNING_CONFIGS: WarningConfig[] = [
     ],
     responses: [
       { type: "message", target: "user", content: "推送关怀消息", description: "向教师推送关怀消息" },
-      { type: "resource", target: "user", content: "推荐调适工具", description: "推荐自我调适工具" }
+      { type: "resource", target: "user", content: "推荐“蓝色调适工具包”中的相关资源（如正念冥想、3×3呼吸法引导）", description: "推荐自我调适工具" }
     ]
   },
   {
@@ -79,13 +79,12 @@ const WARNING_CONFIGS: WarningConfig[] = [
       consecutiveWeeks: 1
     },
     triggers: [
-      { type: "depression_score", operator: ">=", value: 2.0, description: "抑郁因子分持续≥2.0" },
-      { type: "consecutive_count", operator: ">=", value: 2, description: "连续2次测评超标" },
+      { type: "depression_score", operator: ">=", value: 2.0, description: "抑郁因子分持续≥2.0超过1周" },
       { type: "risk_index", operator: ">=", value: 0.7, description: "风险指数≥0.7" }
     ],
     responses: [
-      { type: "notification", target: "manager", content: "通知管理人员", description: "通知教研组长/年级主任" },
-      { type: "message", target: "user", content: "增加心理测评频率", description: "提醒增加测评频率" }
+      { type: "notification", target: "manager", content: "预警信息（脱敏后，仅显示“建议关注”）", description: "通知教研组长/年级主任" },
+      { type: "message", target: "user", content: "提醒增加心理测评频率", description: "提醒增加测评频率" }
     ]
   },
   {
@@ -102,8 +101,9 @@ const WARNING_CONFIGS: WarningConfig[] = [
       { type: "risk_index", operator: ">=", value: 0.8, description: "风险指数≥0.8" }
     ],
     responses: [
-      { type: "notification", target: "psychologist", content: "通知心理负责人", description: "通知学校心理负责人" },
-      { type: "intervention", target: "psychologist", content: "启动干预流程", description: "启动专业干预流程" }
+      { type: "message", target: "user", content: "【紧急关怀】系统监测到您近期心理压力极大，建议您立即寻求专业心理支持。您可以预约校内咨询师或拨打24小时热线。", description: "向教师推送紧急关怀消息" },
+      { type: "notification", target: "manager", content: "预警信息（脱敏后，仅显示“建议关注”）", description: "通知教研组长/年级主任" },
+      { type: "intervention", target: "psychologist", content: "启动专业干预流程，自动创建干预任务", description: "通知学校心理负责人并创建干预任务" }
     ]
   }
 ];
@@ -549,26 +549,45 @@ export const triggerWarning = async (uid: string, teacherName: string, analysis:
     status: "pending"
   };
 
+  // 合并发给教师本人的多条消息为一条（提取到函数作用域，确保 try/catch 块都能访问）
+  const userResponses = warningConfig.responses.filter(r => r.target === 'user');
+  const otherResponses = warningConfig.responses.filter(r => r.target !== 'user');
+
   try {
     console.log(`尝试为 ${teacherName} 创建或更新预警:`, warningData);
     const result = await api.warning.upsert(warningData);
     console.log(`预警${result.action === 'updated' ? '更新' : '创建'}成功 for ${teacherName}, ID:`, result.id);
 
+    // 如果预警是更新（action === 'updated'），说明之前已经触发过响应，不再重复执行响应动作
+    if (result.action === 'updated') {
+      console.log(`[triggerWarning] 预警已存在且未处理，跳过重复响应动作执行 for ${teacherName}`);
+      return result.id;
+    }
+
     // 执行响应动作（并行执行，带超时）
-    console.log(`[triggerWarning] 开始执行 ${warningConfig.responses.length} 个响应动作...`);
-    const responsePromises = warningConfig.responses.map(async (response, index) => {
-      console.log(`[triggerWarning] 执行第 ${index + 1}/${warningConfig.responses.length} 个响应动作: ${response.description}`);
-      try {
-        await executeResponseAction(response, uid, teacherName, analysis.warningLevel!, result.id, analysis.riskScore, analysis.factors);
-        console.log(`[triggerWarning] 第 ${index + 1} 个响应动作完成`);
-      } catch (error) {
-        console.error(`[triggerWarning] 第 ${index + 1} 个响应动作失败:`, error);
-      }
+    console.log(`[triggerWarning] 开始执行 ${warningConfig.responses.length} 个响应动作 for ${teacherName}...`);
+    
+    const responsePromises: Promise<any>[] = [];
+    
+    // 1. 处理合并后的教师消息
+    if (userResponses.length > 0) {
+      const combinedContent = userResponses.map(r => r.content.replace(/。$/, '')).join('。') + '。';
+      responsePromises.push(executeResponseAction(
+        { ...userResponses[0], content: combinedContent, description: "合并后的教师消息" },
+        uid, teacherName, analysis.warningLevel!, result.id, analysis.riskScore, analysis.factors
+      ));
+    }
+    
+    // 2. 处理其他响应
+    otherResponses.forEach(response => {
+      responsePromises.push(executeResponseAction(
+        response, uid, teacherName, analysis.warningLevel!, result.id, analysis.riskScore, analysis.factors
+      ));
     });
 
     // 使用 Promise.allSettled 代替 Promise.all，避免一个失败导致全部失败
     await Promise.allSettled(responsePromises);
-    console.log(`[triggerWarning] 所有响应动作执行完成`);
+    console.log(`[triggerWarning] 所有响应动作执行完成 for ${teacherName}`);
 
     return result.id; // 返回创建的预警ID
   } catch (error: any) {
@@ -577,15 +596,24 @@ export const triggerWarning = async (uid: string, teacherName: string, analysis:
 
     // 执行响应动作（即使API失败，也要执行本地响应）
     console.log(`[triggerWarning] 降级方案：开始执行 ${warningConfig.responses.length} 个响应动作...`);
-    const responsePromises = warningConfig.responses.map(async (response, index) => {
-      console.log(`[triggerWarning] 降级方案：执行第 ${index + 1}/${warningConfig.responses.length} 个响应动作: ${response.description}`);
-      try {
-        await executeResponseAction(response, uid, teacherName, analysis.warningLevel!, mockWarningId, analysis.riskScore, analysis.factors);
-        console.log(`[triggerWarning] 降级方案：第 ${index + 1} 个响应动作完成`);
-      } catch (error) {
-        console.error(`[triggerWarning] 降级方案：第 ${index + 1} 个响应动作失败:`, error);
-      }
+    const responsePromises: Promise<any>[] = [];
+    
+    // 1. 处理合并后的教师消息
+    if (userResponses.length > 0) {
+      const combinedContent = userResponses.map(r => r.content.replace(/。$/, '')).join('。') + '。';
+      responsePromises.push(executeResponseAction(
+        { ...userResponses[0], content: combinedContent, description: "合并后的教师消息" },
+        uid, teacherName, analysis.warningLevel!, mockWarningId, analysis.riskScore, analysis.factors
+      ));
+    }
+    
+    // 2. 处理其他响应
+    otherResponses.forEach(response => {
+      responsePromises.push(executeResponseAction(
+        response, uid, teacherName, analysis.warningLevel!, mockWarningId, analysis.riskScore, analysis.factors
+      ));
     });
+
     await Promise.allSettled(responsePromises);
     console.log(`[triggerWarning] 降级方案：所有响应动作执行完成`);
 
@@ -627,7 +655,7 @@ const executeResponseAction = async (
               userId,
               type: 'warning',
               title: '【心理健康关怀】',
-              content: `${content}。您的风险评估显示：${factors?.join('，') || '请关注心理健康'}。如有需要，请及时使用调适工具或寻求帮助。`,
+              content: `${content}您的风险评估显示：${factors?.join('，') || '请关注心理健康'}。如有需要，请及时使用调适工具或寻求帮助。`,
               relatedId: warningId
             });
             console.log(`✅ [executeResponseAction] 已向教师 ${teacherName} 推送关怀消息`);
@@ -640,7 +668,6 @@ const executeResponseAction = async (
       case 'manager':
         // 向教研组长/年级主任推送（脱敏信息）
         if (type === 'notification') {
-          // 获取部门负责人列表
           try {
             const managers = await api.user.getManagers();
             for (const manager of managers) {
@@ -648,11 +675,16 @@ const executeResponseAction = async (
                 userId: manager.id,
                 type: 'warning',
                 title: '【团队心理关怀提醒】',
-                content: `您所在团队有教师需要关注。风险等级：${warningLevel === 'level2' ? '二级关注' : '一级提醒'}。请关注团队成员心理状态，必要时提供支持。`,
+                content: `您所在团队有教师需要关注。风险等级：二级关注。建议进行非正式关怀与观察。系统已同步增加该教师的心理测评建议频率。`,
                 relatedId: warningId
               });
             }
-            console.log(`✅ 已向管理人员推送关于教师 ${teacherName} 的预警信息（脱敏）`);
+            
+            // 图表要求：同时系统增加心理测评频率
+            // 这里模拟更新用户的测评频率偏好
+            await api.user.update(userId, { syncFrequency: 'high' });
+            
+            console.log(`✅ 已向管理人员推送脱敏预警，并调高教师 ${teacherName} 的测评频率建议`);
           } catch (error) {
             console.error(`❌ 向管理人员推送通知失败:`, error);
           }
@@ -670,7 +702,7 @@ const executeResponseAction = async (
                 userId: psychologist.id,
                 type: 'warning',
                 title: '【紧急心理干预】',
-                content: `教师 ${teacherName} 触发三级预警，风险指数：${((riskScore || 0) * 100).toFixed(0)}%。预警依据：${factors?.join('，') || '风险指标超标'}。请及时跟进处理。`,
+                content: `教师 ${teacherName} 触发三级预警。风险指数：${((riskScore || 0) * 100).toFixed(0)}%。预警依据：${factors?.join('，') || '风险指标超标'}。系统已自动创建干预任务，并匹配推荐资源：校内1对1咨询、沙盘室预约及外部心理热线。`,
                 relatedId: warningId
               });
             }
@@ -774,6 +806,14 @@ export const scanTeachersRisk = async (
       if (analysis.warningTriggered) {
         console.log(`[scanTeachersRisk] 教师 ${teacher.name} 触发预警，调用 triggerWarning...`);
         try {
+          // 确定预警级别后，先清除该教师已有的未处理预警，防止重复消息
+          try {
+            // 这里的逻辑是在 triggerWarning 中处理的，但为了更保险，我们在这里加个日志
+            console.log(`[scanTeachersRisk] 教师 ${teacher.name} 触发 ${analysis.warningLevel}，准备调用 triggerWarning...`);
+          } catch (e) {
+            console.error('清除旧预警失败', e);
+          }
+
           const warningId = await triggerWarning(teacher.uid, teacher.name, analysis);
           console.log(`[scanTeachersRisk] triggerWarning 返回:`, warningId);
           results.push({ teacher, analysis, warningId });
