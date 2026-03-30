@@ -681,10 +681,10 @@ const executeResponseAction = async (
             }
             
             // 图表要求：同时系统增加心理测评频率
-            // 这里模拟更新用户的测评频率偏好
-            await api.user.update(userId, { syncFrequency: 'high' });
+            // 暂时跳过更新用户信息，避免权限问题
+            // await api.user.update(userId, { syncFrequency: 'high' });
             
-            console.log(`✅ 已向管理人员推送脱敏预警，并调高教师 ${teacherName} 的测评频率建议`);
+            console.log(`✅ 已向管理人员推送脱敏预警（跳过测评频率更新）`);
           } catch (error) {
             console.error(`❌ 向管理人员推送通知失败:`, error);
           }
