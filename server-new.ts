@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb } from "./database/db.js";
+import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb } from "./database/db.js";
 
 dotenv.config();
 
@@ -1109,6 +1109,168 @@ async function startServer() {
       res.json({ success: true, participants });
     } catch (error) {
       res.status(500).json({ error: "取消报名失败" });
+    }
+  });
+
+  // 删除活动
+  app.delete("/api/activities/:id", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const activity = activityDb.getById(id);
+      
+      if (!activity) {
+        res.status(404).json({ error: "活动不存在" });
+        return;
+      }
+      
+      // 检查权限：只有创建者或管理员可以删除
+      if (activity.createdBy !== req.user.userId && req.user.role !== 'admin') {
+        res.status(403).json({ error: "无权删除此活动" });
+        return;
+      }
+      
+      activityDb.delete(id);
+      res.json({ success: true, message: "活动已删除" });
+    } catch (error) {
+      res.status(500).json({ error: "删除活动失败" });
+    }
+  });
+
+  // ==================== 心理资源相关 API ====================
+
+  // 获取所有资源
+  app.get("/api/resources", authMiddleware, (req, res) => {
+    try {
+      const resources = resourceDb.getAll();
+      res.json(resources);
+    } catch (error) {
+      res.status(500).json({ error: "获取资源失败" });
+    }
+  });
+
+  // 创建资源
+  app.post("/api/resources", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权创建资源" });
+      }
+      
+      const { title, type, category, description, tags, contact, location, imageUrl, isVerified, agreementSigned } = req.body;
+      const id = resourceDb.create({
+        title,
+        type,
+        category,
+        description,
+        tags,
+        contact,
+        location,
+        imageUrl,
+        isVerified,
+        agreementSigned
+      });
+      res.json({ success: true, id });
+    } catch (error) {
+      res.status(500).json({ error: "创建资源失败" });
+    }
+  });
+
+  // 更新资源
+  app.patch("/api/resources/:id", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权更新资源" });
+      }
+      
+      const { id } = req.params;
+      const resource = resourceDb.getById(id);
+      if (!resource) {
+        return res.status(404).json({ error: "资源不存在" });
+      }
+      
+      const { title, type, category, description, tags, contact, location, imageUrl, isVerified, agreementSigned } = req.body;
+      resourceDb.update(id, {
+        title,
+        type,
+        category,
+        description,
+        tags,
+        contact,
+        location,
+        imageUrl,
+        isVerified,
+        agreementSigned
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "更新资源失败" });
+    }
+  });
+
+  // 删除资源
+  app.delete("/api/resources/:id", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权删除资源" });
+      }
+      
+      const { id } = req.params;
+      const resource = resourceDb.getById(id);
+      if (!resource) {
+        return res.status(404).json({ error: "资源不存在" });
+      }
+      
+      resourceDb.delete(id);
+      res.json({ success: true, message: "资源已删除" });
+    } catch (error) {
+      res.status(500).json({ error: "删除资源失败" });
+    }
+  });
+
+  // 添加资源标签
+  app.post("/api/resources/:id/tags", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权修改资源标签" });
+      }
+      
+      const { id } = req.params;
+      const { tag } = req.body;
+      
+      const resource = resourceDb.getById(id);
+      if (!resource) {
+        return res.status(404).json({ error: "资源不存在" });
+      }
+      
+      const tags = resourceDb.addTag(id, tag);
+      res.json({ success: true, tags });
+    } catch (error) {
+      res.status(500).json({ error: "添加标签失败" });
+    }
+  });
+
+  // 删除资源标签
+  app.delete("/api/resources/:id/tags/:tag", authMiddleware, (req: any, res) => {
+    try {
+      // 检查权限
+      if (!["admin", "psychologist"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权修改资源标签" });
+      }
+      
+      const { id, tag } = req.params;
+      
+      const resource = resourceDb.getById(id);
+      if (!resource) {
+        return res.status(404).json({ error: "资源不存在" });
+      }
+      
+      const tags = resourceDb.removeTag(id, decodeURIComponent(tag));
+      res.json({ success: true, tags });
+    } catch (error) {
+      res.status(500).json({ error: "删除标签失败" });
     }
   });
 

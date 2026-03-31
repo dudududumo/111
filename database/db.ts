@@ -797,9 +797,10 @@ export const activityDb = {
   // 获取所有活动
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM activities ORDER BY date ASC');
-    const activities = stmt.all() as Array<{ id: string; participants?: string } & Record<string, any>>;
+    const activities = stmt.all() as Array<{ id: string; participants?: string; created_by?: string } & Record<string, any>>;
     return activities.map(activity => ({
       ...activity,
+      createdBy: activity.created_by,
       participants: JSON.parse(activity.participants || '[]')
     }));
   },
@@ -837,6 +838,13 @@ export const activityDb = {
     const stmt = db.prepare('UPDATE activities SET participants = ? WHERE id = ?');
     stmt.run(JSON.stringify(participants), id);
     return participants;
+  },
+
+  // 删除活动
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM activities WHERE id = ?');
+    stmt.run(id);
+    return true;
   }
 };
 
@@ -973,6 +981,124 @@ export const notificationDb = {
     const stmt = db.prepare('DELETE FROM notifications WHERE id = ?');
     const result = stmt.run(id);
     return result.changes > 0;
+  }
+};
+
+// 心理资源相关操作
+export const resourceDb = {
+  // 获取所有资源
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM mental_resources ORDER BY created_at DESC');
+    const resources = stmt.all() as Array<{ id: string; tags?: string } & Record<string, any>>;
+    return resources.map(resource => ({
+      ...resource,
+      tags: JSON.parse(resource.tags || '[]')
+    }));
+  },
+
+  // 根据ID获取资源
+  getById: (id: string) => {
+    const stmt = db.prepare('SELECT * FROM mental_resources WHERE id = ?');
+    const resource = stmt.get(id) as ({ id: string; tags?: string } & Record<string, any>) | undefined;
+    if (resource) {
+      return {
+        ...resource,
+        tags: JSON.parse(resource.tags || '[]')
+      };
+    }
+    return null;
+  },
+
+  // 创建资源
+  create: (resource: {
+    title: string;
+    type: string;
+    description?: string;
+    tags?: string[];
+    contact?: string;
+    location?: string;
+    imageUrl?: string;
+    isVerified?: boolean;
+    agreementSigned?: boolean;
+  }) => {
+    const id = uuidv4();
+    const stmt = db.prepare(`
+      INSERT INTO mental_resources (id, title, type, description, tags, contact, location, image_url, is_verified, agreement_signed)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      id,
+      resource.title,
+      resource.type,
+      resource.description || null,
+      JSON.stringify(resource.tags || []),
+      resource.contact || null,
+      resource.location || null,
+      resource.imageUrl || null,
+      resource.isVerified ? 1 : 0,
+      resource.agreementSigned ? 1 : 0
+    );
+    return id;
+  },
+
+  // 更新资源
+  update: (id: string, resource: {
+    title?: string;
+    type?: string;
+    description?: string;
+    tags?: string[];
+    contact?: string;
+    location?: string;
+    imageUrl?: string;
+    isVerified?: boolean;
+    agreementSigned?: boolean;
+  }) => {
+    const sets: string[] = [];
+    const values: any[] = [];
+
+    if (resource.title !== undefined) { sets.push('title = ?'); values.push(resource.title); }
+    if (resource.type !== undefined) { sets.push('type = ?'); values.push(resource.type); }
+    if (resource.description !== undefined) { sets.push('description = ?'); values.push(resource.description); }
+    if (resource.tags !== undefined) { sets.push('tags = ?'); values.push(JSON.stringify(resource.tags)); }
+    if (resource.contact !== undefined) { sets.push('contact = ?'); values.push(resource.contact); }
+    if (resource.location !== undefined) { sets.push('location = ?'); values.push(resource.location); }
+    if (resource.imageUrl !== undefined) { sets.push('image_url = ?'); values.push(resource.imageUrl); }
+    if (resource.isVerified !== undefined) { sets.push('is_verified = ?'); values.push(resource.isVerified ? 1 : 0); }
+    if (resource.agreementSigned !== undefined) { sets.push('agreement_signed = ?'); values.push(resource.agreementSigned ? 1 : 0); }
+
+    if (sets.length === 0) return false;
+
+    values.push(id);
+    const stmt = db.prepare(`UPDATE mental_resources SET ${sets.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
+    return true;
+  },
+
+  // 删除资源
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM mental_resources WHERE id = ?');
+    stmt.run(id);
+    return true;
+  },
+
+  // 添加标签
+  addTag: (id: string, tag: string) => {
+    const resource = resourceDb.getById(id);
+    if (!resource) return null;
+    const tags = [...new Set([...resource.tags, tag])];
+    const stmt = db.prepare('UPDATE mental_resources SET tags = ? WHERE id = ?');
+    stmt.run(JSON.stringify(tags), id);
+    return tags;
+  },
+
+  // 移除标签
+  removeTag: (id: string, tag: string) => {
+    const resource = resourceDb.getById(id);
+    if (!resource) return null;
+    const tags = resource.tags.filter((t: string) => t !== tag);
+    const stmt = db.prepare('UPDATE mental_resources SET tags = ? WHERE id = ?');
+    stmt.run(JSON.stringify(tags), id);
+    return tags;
   }
 };
 

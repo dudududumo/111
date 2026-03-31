@@ -134,14 +134,16 @@ CREATE TABLE activities (
 CREATE TABLE mental_resources (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('counseling', 'room', 'activity', 'external')),
+    type TEXT NOT NULL CHECK (type IN ('internal', 'external')),
+    category TEXT,
     description TEXT,
     tags TEXT,  -- JSON 数组
     contact TEXT,
     location TEXT,
     image_url TEXT,
     is_verified BOOLEAN DEFAULT FALSE,
-    agreement_signed BOOLEAN DEFAULT FALSE
+    agreement_signed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 生理数据表（从可穿戴设备同步）
