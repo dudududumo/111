@@ -86,23 +86,52 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
     const loadWarnings = async () => {
       try {
         console.log('正在从数据库加载预警数据...');
-        const response = await api.warning.getAll();
-        console.log('从数据库加载预警数据成功:', response.length || 0, '条');
-        console.log('数据库返回的数据:', response);
+        const [warningsResponse, tasksResponse] = await Promise.all([
+          api.warning.getAll(),
+          api.intervention.getAllTasks()
+        ]);
+        
+        console.log('从数据库加载预警数据成功:', warningsResponse.length || 0, '条');
+        console.log('从数据库加载干预任务成功:', tasksResponse.length || 0, '条');
+        console.log('数据库返回的数据:', warningsResponse);
+        
+        // 创建预警ID到干预任务的映射
+        const warningIdToTaskMap: Record<string, any> = {};
+        tasksResponse.forEach((task: any) => {
+          if (task.warningId) {
+            warningIdToTaskMap[task.warningId] = task;
+          }
+        });
         
         // 转换数据库格式为前端格式
-        const dbWarnings = (response || []).map(warning => ({
-          id: warning.id,
-          uid: warning.user_id,
-          teacherName: warning.display_name || warning.teacher_name || '',
-          level: warning.level === 'attention' ? 'level1' : 
-                 warning.level === 'intervention' ? 'level2' : 'level3',
-          riskScore: warning.risk_score,
-          factors: Array.isArray(warning.factors) ? warning.factors : [],
-          reason: warning.reason || '',
-          status: warning.status || 'pending',
-          timestamp: warning.created_at || new Date().toISOString()
-        }));
+        const dbWarnings = (warningsResponse || []).map((warning: any) => {
+          let status = warning.status || 'pending';
+          
+          // 对于三级预警，根据干预任务状态来决定
+          const isLevel3 = warning.level === 'emergency';
+          const task = warningIdToTaskMap[warning.id];
+          
+          if (isLevel3 && task) {
+            if (task.status === 'completed') {
+              status = 'resolved';
+            } else if (task.status === 'in_progress' || task.status === 'pending') {
+              status = 'active';
+            }
+          }
+          
+          return {
+            id: warning.id,
+            uid: warning.user_id,
+            teacherName: warning.display_name || warning.teacher_name || '',
+            level: warning.level === 'attention' ? 'level1' : 
+                   warning.level === 'intervention' ? 'level2' : 'level3',
+            riskScore: warning.risk_score,
+            factors: Array.isArray(warning.factors) ? warning.factors : [],
+            reason: warning.reason || '',
+            status,
+            timestamp: warning.created_at || new Date().toISOString()
+          };
+        });
         
         setWarnings(dbWarnings);
         console.log('转换后的预警数据:', dbWarnings.length, '条');
@@ -736,48 +765,53 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                               </div>
                             </div>
                             <div className="flex flex-col gap-3">
-                              {/* 只有二级和三级预警显示启动协作干预，且只有有权限的人可以点 */}
-                              {selectedWarning.status === 'pending' && selectedWarning.level !== 'level1' && (userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) && (
+                              {/* 一级预警：显示已读按钮（只有教师自己能看到） */}
+                              {selectedWarning.level === 'level1' && selectedWarning.status !== 'resolved' && profile?.uid === selectedWarning.uid && (
                                 <button 
-                                  onClick={() => handleTriggerIntervention(selectedWarning)}
-                                  className={`w-full py-3 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg ${selectedWarning.level === 'level3' ? 'bg-rose-600 text-white shadow-rose-100 hover:bg-rose-700' : 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600'}`}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await api.warning.markAsRead(selectedWarning.id!);
+                                      // 更新本地状态
+                                      const updatedWarnings = warnings.map(warning => 
+                                        warning.id === selectedWarning.id ? { ...warning, status: 'resolved' as const } : warning
+                                      );
+                                      setWarnings(updatedWarnings);
+                                      setSelectedWarning({ ...selectedWarning, status: 'resolved' });
+                                      showModal({
+                                        type: "success",
+                                        title: "已读确认",
+                                        message: "感谢您的关注！系统已记录您已阅读此提醒。"
+                                      });
+                                    } catch (error) {
+                                      console.error('标记已读失败:', error);
+                                      showModal({
+                                        type: "error",
+                                        title: "操作失败",
+                                        message: "标记已读失败，请稍后重试。"
+                                      });
+                                    }
+                                  }}
+                                  className="w-full py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
                                 >
-                                  <Play size={18} /> 启动协作干预
+                                  <CheckCircle size={18} /> 确认已读
                                 </button>
                               )}
                               
-                              {/* 一级预警如果是 pending 状态，显示处理按钮 - 所有人都可以处理？或者只管理员？这里先按原逻辑，但加个提示 */}
-                              {selectedWarning.status === 'pending' && selectedWarning.level === 'level1' && (
-                                <button 
-                                  onClick={() => handleResolve(selectedWarning.id!)}
-                                  className="w-full py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
-                                >
-                                  <CheckCircle size={18} /> 确认已读并标记处理
-                                </button>
-                              )}
-
-                              {/* 二级和三级已启动的状态显示 */}
-                              {selectedWarning.status === 'active' && (
-                                <div className="flex items-center justify-center gap-2 py-3 bg-stone-100 text-stone-500 rounded-2xl text-sm font-bold border border-stone-200">
-                                  <Clock size={18} /> 干预流程进行中
-                                </div>
-                              )}
-
-                              {/* 非已处理状态显示标记已处理按钮（一级已经在上面处理了），且只有有权限的人可以点 */}
-                              {selectedWarning.status !== 'resolved' && selectedWarning.level !== 'level1' && (userRole === UserRole.ADMIN || userRole === UserRole.PSYCHOLOGIST || userRole === UserRole.DEPT_HEAD) && (
-                                <button 
-                                  onClick={() => handleResolve(selectedWarning.id!)}
-                                  className="w-full py-3 bg-white text-stone-900 rounded-2xl text-sm font-bold hover:bg-stone-50 transition-colors flex items-center justify-center gap-2 border border-stone-200 shadow-sm"
-                                >
-                                  <CheckCircle size={18} /> 标记为已完成
-                                </button>
-                              )}
-
-                              {selectedWarning.status === 'resolved' && (
-                                <div className="flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-2xl text-sm font-bold border border-emerald-100">
-                                  <CheckCircle2 size={18} /> 已处理完成
-                                </div>
-                              )}
+                              {/* 显示响应状态 */}
+                              <div className={`p-4 rounded-2xl border ${
+                                selectedWarning.status === 'resolved' ? 'bg-emerald-50 border-emerald-100' :
+                                selectedWarning.status === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-stone-50 border-stone-100'
+                              }`}>
+                                <p className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">响应状态</p>
+                                <p className={`text-sm font-bold ${
+                                  selectedWarning.status === 'resolved' ? 'text-emerald-600' :
+                                  selectedWarning.status === 'active' ? 'text-blue-600' : 'text-stone-600'
+                                }`}>
+                                  {selectedWarning.status === 'resolved' ? '已处理完成' :
+                                   selectedWarning.status === 'active' ? '响应已自动执行' : '待系统自动响应'}
+                                </p>
+                              </div>
                             </div>
                           </div>
 

@@ -33,6 +33,17 @@ export function initDatabase() {
             console.error('Migration failed:', migrationError);
           }
         }
+        // 自动执行迁移：如果缺少 read_at 列（用于一级预警已读）
+        else if (error.message.includes('no such column: read_at')) {
+          try {
+            db.exec('ALTER TABLE warnings ADD COLUMN read_at TIMESTAMP;');
+            console.log('Successfully added read_at column to warnings table');
+            // 重新执行刚才失败的语句
+            db.exec(statement + ';');
+          } catch (migrationError) {
+            console.error('Migration failed:', migrationError);
+          }
+        }
         // 忽略表已存在的错误
         else if (!error.message.includes('already exists')) {
           console.error('Error executing SQL:', error);
@@ -40,6 +51,21 @@ export function initDatabase() {
       }
     }
   }
+  
+  // 检查并添加 read_at 列（如果还不存在）
+  try {
+    db.exec('SELECT read_at FROM warnings LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: read_at')) {
+      try {
+        db.exec('ALTER TABLE warnings ADD COLUMN read_at TIMESTAMP;');
+        console.log('Successfully added read_at column to warnings table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+  
   console.log('Database initialized successfully');
 }
 
@@ -191,7 +217,7 @@ export const assessmentDb = {
 
 // 预警相关操作
 export const warningDb = {
-  // 创建预警
+  // 创建预警 - 直接设置为 active 状态（自动响应）
   create: (warning: {
     userId: string;
     teacherName?: string;
@@ -203,15 +229,15 @@ export const warningDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO warnings (id, user_id, level, risk_score, factors, reason, status, response_log)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO warnings (id, user_id, teacher_name, level, risk_score, factors, reason, status, response_log)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const responseLog = JSON.stringify([{
-      action: `系统自动触发${warning.level === 'emergency' ? '三级紧急' : warning.level === 'intervention' ? '二级介入' : '一级关注'}预警`,
+      action: `系统自动触发${warning.level === 'level3' ? '三级紧急' : warning.level === 'level2' ? '二级关注' : '一级提醒'}预警并执行自动响应`,
       timestamp: new Date().toISOString(),
       actor: "LSTM 风险引擎"
     }]);
-    stmt.run(id, warning.userId, warning.level, warning.riskScore, JSON.stringify(warning.factors), warning.reason, warning.status || 'pending', responseLog);
+    stmt.run(id, warning.userId, warning.teacherName || null, warning.level, warning.riskScore, JSON.stringify(warning.factors), warning.reason, 'active', responseLog);
     return id;
   },
 
@@ -242,6 +268,12 @@ export const warningDb = {
   updateStatus: (id: string, status: string) => {
     const stmt = db.prepare('UPDATE warnings SET status = ? WHERE id = ?');
     stmt.run(status, id);
+  },
+
+  // 标记一级预警为已读
+  markAsRead: (id: string) => {
+    const stmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP, status = ? WHERE id = ?');
+    stmt.run('resolved', id);
   },
 
   // 获取用户的未解决预警

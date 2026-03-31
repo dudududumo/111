@@ -283,6 +283,13 @@ export const warningApi = {
       method: "DELETE",
     });
   },
+
+  // 标记一级预警为已读（用户自己操作）
+  markAsRead: async (id: string) => {
+    return fetchApi(`/warnings/${id}/mark-read`, {
+      method: "POST",
+    });
+  },
 };
 
 // ==================== 预警配置 API ====================

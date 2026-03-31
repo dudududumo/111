@@ -489,7 +489,7 @@ async function startServer() {
           riskScore,
           factors,
           reason,
-          status: status || 'pending'
+          status: status || 'active'
         });
         warningId = existingWarning.id;
         console.log(`更新现有预警 for ${teacherName}, ID: ${warningId}`);
@@ -498,11 +498,12 @@ async function startServer() {
         try {
           warningId = warningDb.create({
             userId,
+            teacherName,
             level,
             riskScore,
             factors,
             reason,
-            status: status || 'pending'
+            status: status || 'active'
           });
           console.log(`创建新预警 for ${teacherName}, ID: ${warningId}`);
         } catch (createError) {
@@ -510,11 +511,12 @@ async function startServer() {
           // 降级方案：使用 upsert 方法
           const result = warningDb.upsert({
             userId,
+            teacherName,
             level,
             riskScore,
             factors,
             reason,
-            status: status || 'pending'
+            status: status || 'active'
           });
           warningId = result.id;
           console.log(`使用 upsert 创建预警 for ${teacherName}, ID: ${warningId}`);
@@ -584,6 +586,30 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "删除预警失败" });
+    }
+  });
+
+  // 标记一级预警为已读（用户自己操作）
+  app.post("/api/warnings/:id/mark-read", authMiddleware, (req: any, res) => {
+    try {
+      // 获取预警
+      const warnings = warningDb.getAll();
+      const warning = warnings.find(w => w.id === req.params.id);
+      
+      if (!warning) {
+        return res.status(404).json({ error: "预警不存在" });
+      }
+      
+      // 检查权限：只有预警的创建者（教师本人）可以标记为已读
+      if (warning.user_id !== req.user.userId) {
+        return res.status(403).json({ error: "无权操作此预警" });
+      }
+      
+      // 标记为已读
+      warningDb.markAsRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "标记已读失败" });
     }
   });
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, CheckCircle, Clock, X, AlertTriangle, UserPlus, Sparkles, ChevronRight } from 'lucide-react';
-import { notificationApi } from '../services/api';
+import { notificationApi, default as api } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 
@@ -44,6 +44,25 @@ const NotificationDropdown: React.FC = () => {
     if (e) e.stopPropagation();
     try {
       await notificationApi.markAsRead(id);
+      
+      // 查找这个通知
+      const notification = notifications.find(n => n.id === id);
+      
+      // 如果是预警通知且有 related_id，同步标记对应的预警为已读
+      if (notification && notification.type === 'warning' && notification.related_id) {
+        // 判断是否是一级预警
+        const isLevel1 = notification.title === '【心理健康关怀】' || notification.content.includes('一级提醒');
+        
+        if (isLevel1) {
+          try {
+            await api.warning.markAsRead(notification.related_id);
+            console.log(`✅ 已同步标记预警 ${notification.related_id} 为已读`);
+          } catch (error) {
+            console.error('同步标记预警已读失败:', error);
+          }
+        }
+      }
+      
       // 更新本地状态
       setNotifications(prev => 
         prev.map(notification => 
@@ -96,11 +115,18 @@ const NotificationDropdown: React.FC = () => {
   const handleAction = (notification: Notification) => {
     // 根据通知类型进行跳转
     if (notification.type === 'warning') {
-      // 一级预警（【心理健康关怀】）跳转到调适工具页面
-      if (notification.title === '【心理健康关怀】') {
+      // 检查是否是一级提醒（一级提醒跳转到调适工具页面）
+      // 一级提醒的标志：
+      // 1. 标题是 "【心理健康关怀】"（教师收到的一级提醒）
+      // 2. 内容包含 "一级提醒"（管理人员收到的一级提醒）
+      const isLevel1 = notification.title === '【心理健康关怀】' || notification.content.includes('一级提醒');
+      
+      if (isLevel1) {
         navigate('/toolkit');
       } else {
         // 二级和三级预警跳转到干预任务页面
+        // 二级：标题是 "【心理健康关注】" 或内容包含 "二级关注"
+        // 三级：标题是 "【紧急心理关怀】" 或内容包含 "三级干预" 或 "紧急"
         navigate('/intervention');
       }
     } else if (notification.type === 'intervention') {

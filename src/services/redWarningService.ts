@@ -561,7 +561,7 @@ export const triggerWarning = async (uid: string, teacherName: string, analysis:
     riskScore: analysis.riskScore,
     factors: analysis.factors,
     reason: analysis.reason,
-    status: "pending"
+    status: "active"
   };
 
   // 合并发给教师本人的多条消息为一条（提取到函数作用域，确保 try/catch 块都能访问）
@@ -680,10 +680,18 @@ const executeResponseAction = async (
         // 向教师本人推送
         if (type === 'message' || type === 'resource') {
           try {
+            // 根据预警级别设置不同的标题
+            let notificationTitle = '【心理健康关怀】';
+            if (warningLevel === 'level2') {
+              notificationTitle = '【心理健康关注】';
+            } else if (warningLevel === 'level3') {
+              notificationTitle = '【紧急心理关怀】';
+            }
+            
             await api.notificationApi.create({
               userId,
               type: 'warning',
-              title: '【心理健康关怀】',
+              title: notificationTitle,
               content: `${content}您的风险评估显示：${factors?.join('，') || '请关注心理健康'}。如有需要，请及时使用调适工具或寻求帮助。`,
               relatedId: warningId
             });
