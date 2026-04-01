@@ -9,6 +9,8 @@ export interface User {
   role: UserRole;
   school?: string;
   department?: string;
+  deptId?: string;
+  managerId?: string;
   consentAccepted?: boolean;
   syncFrequency?: "hourly" | "daily" | "realtime";
 }

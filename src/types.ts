@@ -13,6 +13,7 @@ export interface UserProfile {
   school?: string;
   department?: string;
   deptId?: string; // For team support
+  managerId?: string; // For group/team membership
   createdAt: string;
   consentAccepted?: boolean;
   wearableBrand?: "Apple" | "Huawei" | "Xiaomi" | null;
@@ -153,6 +154,8 @@ export interface GroupActivity {
   date: string;
   location: string;
   createdBy: string;
+  createdByRole?: string;
+  visibility?: 'group' | 'school';
   participants: string[];
   maxParticipants?: number;
 }
@@ -162,7 +165,8 @@ export interface InterventionTask {
   warningId: string;
   teacherId: string;
   teacherName?: string;
-  assignedTo: string; // Psychologist or Admin UID
+  assignedTo?: string; // Psychologist or Admin UID
+  assignedToName?: string;
   status: 'pending' | 'in_progress' | 'completed';
   priority: 'high' | 'medium' | 'low';
   careRecords: {

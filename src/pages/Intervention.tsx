@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Users, 
   UserPlus, 
@@ -70,6 +70,7 @@ interface InterventionProps {
 const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   const [activeTab, setActiveTab] = useState<'network' | 'matching'>('network');
   const [activities, setActivities] = useState<GroupActivity[]>([]);
+  const [activityFilter, setActivityFilter] = useState<'all' | 'upcoming' | 'school' | 'group'>('all');
   const [resources, setResources] = useState<MentalResource[]>([]);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showResourceAdmin, setShowResourceAdmin] = useState(false);
@@ -81,7 +82,9 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     type: "tea" as any,
     description: "",
     date: "",
-    location: ""
+    location: "",
+    visibility: "group" as 'group' | 'school',
+    maxParticipants: 20
   });
   const [showResourceShare, setShowResourceShare] = useState(false);
   const [newResource, setNewResource] = useState({
@@ -99,6 +102,15 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     { name: '支持', value: 78 },
     { name: '压力', value: 45 },
     { name: '凝聚力', value: 92 },
+  ]);
+  
+  const teamAssistRef = useRef<HTMLDivElement>(null);
+  
+  const [schoolAtmosphereData, setSchoolAtmosphereData] = useState([
+    { name: '活力', group: 85, school: 78 },
+    { name: '支持', group: 78, school: 72 },
+    { name: '压力', group: 45, school: 52 },
+    { name: '凝聚力', group: 92, school: 85 },
   ]);
   
   const [showAddCareRecord, setShowAddCareRecord] = useState(false);
@@ -214,23 +226,6 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         const { default: api } = await import('../services/api');
         const tasks = await api.intervention.getAllTasks() as any[];
         setInterventionTasks(tasks as InterventionTask[]);
-
-        const userIds = new Set(tasks.map((task: any) => task.assignedTo).filter(Boolean));
-        const userMap: Record<string, { displayName: string }> = {};
-        
-        for (const userId of userIds) {
-          try {
-            const user = await api.user.getUserById(userId as string);
-            if (user) {
-              userMap[userId as string] = { displayName: user.display_name || user.displayName || userId };
-            }
-          } catch (error) {
-            console.error(`Error loading user ${userId}:`, error);
-            userMap[userId as string] = { displayName: userId as string };
-          }
-        }
-        
-        setUsers(userMap);
       } catch (error) {
         console.error("Error loading intervention tasks:", error);
         setInterventionTasks([]);
@@ -242,6 +237,39 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     const interval = setInterval(loadInterventionTasks, 30000);
     return () => clearInterval(interval);
   }, [profile]);
+
+  const getFilteredAndSortedActivities = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let filtered = [...activities];
+
+    if (activityFilter === 'upcoming') {
+      filtered = filtered.filter(a => new Date(a.date) >= today);
+    } else if (activityFilter === 'school') {
+      filtered = filtered.filter(a => a.visibility === 'school');
+    } else if (activityFilter === 'group') {
+      filtered = filtered.filter(a => a.visibility === 'group');
+    }
+
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      const isAEnded = dateA < today;
+      const isBEnded = dateB < today;
+
+      if (isAEnded && !isBEnded) return 1;
+      if (!isAEnded && isBEnded) return -1;
+
+      if (!isAEnded && !isBEnded) {
+        return dateA.getTime() - dateB.getTime();
+      } else {
+        return dateB.getTime() - dateA.getTime();
+      }
+    });
+
+    return filtered;
+  };
 
   // 加载资源数据
   useEffect(() => {
@@ -278,7 +306,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         body: JSON.stringify(newActivity)
       });
       setShowAddActivity(false);
-      setNewActivity({ title: "", type: "tea", description: "", date: "", location: "" });
+      setNewActivity({ title: "", type: "tea", description: "", date: "", location: "", visibility: "group", maxParticipants: 20 });
       const activities = await apiCall('/api/activities');
       setActivities(activities as GroupActivity[]);
     } catch (err) {
@@ -582,15 +610,15 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       
       {activeTab === 'network' ? (
         <div className="pb-6 sm:pb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
             {/* 左列 */}
-            <div className="space-y-6 lg:space-y-8">
+            <div className="space-y-6 lg:space-y-8 flex flex-col">
               {/* 同伴助力 */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 rounded-[32px] shadow-lg shadow-orange-200/50 border border-orange-100 hover:shadow-xl hover:shadow-orange-300/30 transition-all"
+                className="bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 rounded-[32px] shadow-lg shadow-orange-200/50 border border-orange-100 hover:shadow-xl hover:shadow-orange-300/30 transition-all shrink-0"
               >
                 <div className="p-4 sm:p-6 lg:p-8">
                   <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
@@ -631,22 +659,23 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                 </div>
               </motion.div>
 
-              {/* 团队助力 */}
+              {/* 团队助力 - 占用剩余空间 */}
               <motion.div
+                ref={teamAssistRef}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 rounded-[32px] shadow-lg shadow-orange-200/50 border border-orange-100 hover:shadow-xl hover:shadow-orange-300/30 transition-all"
+                className="bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 rounded-[32px] shadow-lg shadow-orange-200/50 border border-orange-100 hover:shadow-xl hover:shadow-orange-300/30 transition-all flex-1 flex flex-col min-h-0"
               >
-                <div className="p-4 sm:p-6 lg:p-8">
-                  <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+                <div className="p-4 sm:p-6 lg:p-8 flex flex-col h-full">
+                  <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 sm:p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl sm:rounded-2xl">
                         <Users size={20} className="sm:w-6 sm:h-6 text-white" />
                       </div>
                       <h2 className="text-lg sm:text-xl font-bold text-stone-900">团队助力</h2>
                     </div>
-                    {(profile?.role === UserRole.DEPT_HEAD || profile?.role === UserRole.ADMIN) && (
+                    {(profile?.role === UserRole.DEPT_HEAD || profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) && (
                       <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2 shrink-0">
                         <button
                           onClick={() => setShowAddActivity(true)}
@@ -664,87 +693,161 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                     )}
                   </div>
 
-                  <div>
-                    <div className="mb-4 sm:mb-6">
-                      <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest mb-3 sm:mb-4">本组氛围指数</h3>
-                      <div className="h-32 w-full bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 p-3 sm:p-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={atmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
-                            <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16} fill="#f97316">
-                              <LabelList dataKey="value" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                  <div className="overflow-y-auto flex-1 min-h-0 pr-1">
+                    {(profile?.managerId || profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) ? (
+                      <div className="mb-4 sm:mb-6">
+                        <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest mb-3 sm:mb-4">
+                          {profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST ? '本组 vs 全校 氛围对比' : '本组氛围指数'}
+                        </h3>
+                        <div className="h-32 w-full bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 p-3 sm:p-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            {profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST ? (
+                              <BarChart data={schoolAtmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
+                                <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                <Bar dataKey="group" radius={[0, 6, 6, 0]} barSize={12} fill="#f97316" name="本组">
+                                  <LabelList dataKey="group" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
+                                </Bar>
+                                <Bar dataKey="school" radius={[0, 6, 6, 0]} barSize={12} fill="#a8a29e" name="全校" />
+                              </BarChart>
+                            ) : (
+                              <BarChart data={atmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
+                                <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16} fill="#f97316">
+                                  <LabelList dataKey="value" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
+                                </Bar>
+                              </BarChart>
+                            )}
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-[10px] text-stone-400 italic mt-2">* 数据基于本组教师近期脱敏聚合分析</p>
                       </div>
-                      <p className="text-[10px] text-stone-400 italic mt-2">* 数据基于本组教师近期脱敏聚合分析</p>
-                    </div>
+                    ) : (
+                      <div className="mb-4 sm:mb-6">
+                        <div className="flex flex-col items-center justify-center py-8 bg-orange-50 rounded-xl sm:rounded-2xl border border-dashed border-orange-200">
+                          <div className="p-3 bg-white rounded-xl shadow-sm text-orange-200 mb-3">
+                            <Users size={20} />
+                          </div>
+                          <p className="text-xs text-stone-500 text-center">暂无团队氛围数据</p>
+                          <p className="text-[10px] text-stone-400 mt-1">加入教研组后可查看本组氛围数据</p>
+                        </div>
+                      </div>
+                    )}
 
                     <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest mb-3 sm:mb-4">近期团体活动</h3>
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest">近期团体活动</h3>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setActivityFilter('all')}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${activityFilter === 'all' ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                          >
+                            全部
+                          </button>
+                          <button
+                            onClick={() => setActivityFilter('upcoming')}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${activityFilter === 'upcoming' ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                          >
+                            进行中
+                          </button>
+                          <button
+                            onClick={() => setActivityFilter('school')}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${activityFilter === 'school' ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                          >
+                            全校
+                          </button>
+                          <button
+                            onClick={() => setActivityFilter('group')}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${activityFilter === 'group' ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                          >
+                            组内
+                          </button>
+                        </div>
+                      </div>
                       <div className="space-y-2 sm:space-y-3">
-                        {activities.length > 0 ? activities.map(activity => {
-                          const isJoined = activity.participants?.includes(profile?.uid || '');
-                          const isFull = activity.participants && activity.maxParticipants
-                            ? activity.participants.length >= activity.maxParticipants
-                            : false;
-                          const canDelete = activity.createdBy === profile?.uid || profile?.role === UserRole.ADMIN;
+                        {(() => {
+                          const filteredActivities = getFilteredAndSortedActivities();
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          
+                          return filteredActivities.length > 0 ? filteredActivities.map(activity => {
+                            const isJoined = activity.participants?.includes(profile?.uid || '');
+                            const isFull = activity.participants && activity.maxParticipants
+                              ? activity.participants.length >= activity.maxParticipants
+                              : false;
+                            const canDelete = activity.createdBy === profile?.uid || profile?.role === UserRole.ADMIN;
+                            const isEnded = new Date(activity.date) < today;
 
-                          return (
-                            <div key={activity.id} className="p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs sm:text-sm font-bold text-stone-900 mb-1">{activity.title}</p>
-                                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                                    <span className="text-[10px] text-stone-500 flex items-center gap-1"><Calendar size={10} className="sm:w-3 sm:h-3" /> {activity.date}</span>
-                                    <span className="text-[10px] text-stone-500 flex items-center gap-1"><MapPin size={10} className="sm:w-3 sm:h-3" /> {activity.location}</span>
-                                    <span className="text-[10px] text-stone-400 flex items-center gap-1"><Users size={10} className="sm:w-3 sm:h-3" /> {activity.participants?.length || 0} 人{activity.maxParticipants && ` / 限额 ${activity.maxParticipants} 人`}</span>
+                            return (
+                              <div key={activity.id} className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${isEnded ? 'bg-stone-50 border-stone-200 opacity-75' : 'bg-orange-50 border-orange-200'}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className={`text-xs sm:text-sm font-bold truncate ${isEnded ? 'text-stone-500' : 'text-stone-900'}`}>{activity.title}</p>
+                                      {isEnded && (
+                                        <span className="px-1 py-0.5 bg-stone-200 text-stone-600 rounded text-[9px] font-bold shrink-0">已结束</span>
+                                      )}
+                                      {activity.visibility === 'school' && (
+                                        <span className="px-1 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold shrink-0">全校</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                      <span className={`text-[10px] flex items-center gap-1 ${isEnded ? 'text-stone-400' : 'text-stone-500'}`}><Calendar size={10} className="sm:w-3 sm:h-3" /> {activity.date}</span>
+                                      <span className={`text-[10px] flex items-center gap-1 ${isEnded ? 'text-stone-400' : 'text-stone-500'}`}><MapPin size={10} className="sm:w-3 sm:h-3" /> {activity.location}</span>
+                                      <span className={`text-[10px] flex items-center gap-1 ${isEnded ? 'text-stone-400' : 'text-stone-400'}`}><Users size={10} className="sm:w-3 sm:h-3" /> {activity.participants?.length || 0} 人{activity.maxParticipants && ` / 限额 ${activity.maxParticipants} 人`}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                                    {isJoined ? (
+                                      <>
+                                        <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">
+                                          已报名
+                                        </span>
+                                        {!isEnded && (
+                                          <button
+                                            onClick={() => {
+                                              setCancelActivityId(activity.id!);
+                                              setShowCancelConfirm(true);
+                                            }}
+                                            className="px-1.5 py-0.5 text-[10px] text-stone-400 hover:text-red-500 transition-colors"
+                                          >
+                                            取消
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      !isEnded && (
+                                        <button
+                                          onClick={() => handleJoinActivity(activity.id!)}
+                                          disabled={isFull}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${isFull ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-white text-stone-900 border border-stone-200 hover:bg-stone-100'}`}
+                                        >
+                                          {isFull ? '已满' : '报名'}
+                                        </button>
+                                      )
+                                    )}
+                                    {canDelete && (
+                                      <button
+                                        onClick={() => handleDeleteActivity(activity.id!)}
+                                        className="p-1 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                                        title="删除活动"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                                  {isJoined ? (
-                                    <>
-                                      <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">
-                                        已报名
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          setCancelActivityId(activity.id!);
-                                          setShowCancelConfirm(true);
-                                        }}
-                                        className="px-1.5 py-0.5 text-[10px] text-stone-400 hover:text-red-500 transition-colors"
-                                      >
-                                        取消
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleJoinActivity(activity.id!)}
-                                      disabled={isFull}
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${isFull ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-white text-stone-900 border border-stone-200 hover:bg-stone-100'}`}
-                                    >
-                                      {isFull ? '已满' : '报名'}
-                                    </button>
-                                  )}
-                                  {canDelete && (
-                                    <button
-                                      onClick={() => handleDeleteActivity(activity.id!)}
-                                      className="p-1 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-                                      title="删除活动"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
-                                </div>
                               </div>
-                            </div>
+                            );
+                          }) : (
+                            <p className="text-xs sm:text-sm text-stone-400 py-6 sm:py-8 text-center">暂无近期活动</p>
                           );
-                        }) : (
-                          <p className="text-xs sm:text-sm text-stone-400 py-6 sm:py-8 text-center">暂无近期活动</p>
-                        )}
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -801,7 +904,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
                   <div>
                     <div className="flex items-center justify-between mb-2 sm:mb-3">
-                      <h3 className="text-[10px] sm:text-xs font-bold text-stone-400 uppercase tracking-widest">近期干预任务</h3>
+                      <h3 className="text-xs sm:text-sm font-bold text-stone-400 uppercase tracking-widest">近期干预任务</h3>
                       <div className="flex gap-2">
                         <span className="flex items-center gap-1 text-[10px] text-stone-400">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div> 待处理
@@ -845,7 +948,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                             <div className="space-y-2">
                               <p className="text-[10px] sm:text-xs text-stone-500 flex items-center gap-1">
                                 <UserPlus size={10} className="text-stone-300" />
-                                负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo ? (users[task.assignedTo]?.displayName || task.assignedTo) : '待指派'}</span>
+                                负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo ? (task.assignedToName || task.assignedTo) : '待指派'}</span>
                               </p>
 
                               {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) && (
@@ -907,7 +1010,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                   <div className="p-3 bg-orange-50 rounded-xl mb-3">
                     <ShieldCheck size={20} className="text-orange-300" />
                   </div>
-                  <p className="text-xs text-stone-500 text-center">组织干预任务仅对管理者和心理教师可见</p>
+                  <p className="text-xs text-stone-500 text-center">组织干预任务仅对教研组长、管理员和心理教师可见</p>
                   <p className="text-[10px] text-stone-400 mt-1">如有需要请联系学校心理中心</p>
                 </div>
               )}
@@ -922,7 +1025,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
               className="bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 rounded-[32px] shadow-lg shadow-orange-200/50 border border-orange-100 hover:shadow-xl hover:shadow-orange-300/30 transition-all"
             >
               <div className="p-4 sm:p-6 lg:p-8">
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 sm:p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl sm:rounded-2xl">
                       <Globe size={20} className="sm:w-6 sm:h-6 text-white" />
@@ -932,7 +1035,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                   {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) && (
                     <button 
                       onClick={() => setShowResourceAdmin(!showResourceAdmin)}
-                      className="text-[10px] font-bold text-stone-400 hover:text-stone-600 flex items-center gap-1"
+                      className="text-xs font-bold text-stone-400 hover:text-stone-600 flex items-center gap-1"
                     >
                       <Filter size={12} /> {showResourceAdmin ? '退出管理' : '标签管理'}
                     </button>
@@ -943,14 +1046,14 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                   <div className="space-y-4">
                     <p className="text-[10px] text-orange-600 mb-4">管理员模式：支持资源标签管理，优化智能推荐算法。</p>
                     {resources.map(resource => (
-                      <div key={resource.id} className="p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200">
-                        <p className="text-xs sm:text-sm font-bold text-stone-900 mb-2">{resource.title}</p>
-                        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      <div key={resource.id} className="p-4 bg-orange-50 rounded-2xl border border-orange-200">
+                        <p className="text-xs font-bold text-stone-900 mb-2">{resource.title}</p>
+                        <div className="flex flex-wrap gap-2">
                           {resource.tags.map(tag => (
-                            <span key={tag} className="flex items-center gap-1 px-2 py-0.5 bg-white border border-orange-300 rounded text-[10px] font-bold text-orange-600">
+                            <span key={tag} className="flex items-center gap-1 px-2 py-1 bg-white border border-orange-300 rounded text-[10px] font-bold text-orange-600">
                               {tag} 
                               <X 
-                                size={10} 
+                                size={8} 
                                 className="cursor-pointer hover:text-red-500" 
                                 onClick={() => handleRemoveTag(resource.id, tag)}
                               />
@@ -962,7 +1065,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                               value={newTagInputs[resource.id] || ''}
                               onChange={(e) => setNewTagInputs(prev => ({ ...prev, [resource.id]: e.target.value }))}
                               placeholder="新标签"
-                              className="w-16 sm:w-20 px-2 py-0.5 text-[10px] border border-orange-300 rounded focus:outline-none focus:border-orange-500"
+                              className="w-16 px-2 py-1 text-[10px] border border-orange-300 rounded focus:outline-none focus:border-orange-500"
                               onKeyPress={(e) => {
                                 if (e.key === 'Enter' && newTagInputs[resource.id]?.trim()) {
                                   handleAddTag(resource.id, newTagInputs[resource.id].trim());
@@ -977,9 +1080,9 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                                   setNewTagInputs(prev => ({ ...prev, [resource.id]: '' }));
                                 }
                               }}
-                              className="px-2 py-0.5 bg-orange-500 text-white rounded text-[10px] font-bold hover:bg-orange-600 transition-all"
+                              className="px-2 py-1 bg-orange-500 text-white rounded text-[10px] font-bold hover:bg-orange-600 transition-all"
                             >
-                              +
+                              + 添加标签
                             </button>
                           </div>
                         </div>
@@ -987,76 +1090,128 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {resources.length === 0 ? (
-                      <div className="py-8 flex flex-col items-center justify-center bg-orange-50 rounded-2xl border border-dashed border-orange-200">
-                        <div className="p-3 bg-white rounded-xl shadow-sm text-orange-200 mb-3">
-                          <Globe size={24} />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      {resources.filter(r => r.type === 'internal' && (r.title.includes('咨询') || r.tags.includes('心理咨询'))).map(resource => (
+                        <div key={resource.id} className="group p-3 bg-orange-50 rounded-2xl border border-orange-200 hover:shadow-md transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-stone-900">{resource.title}</p>
+                                {resource.isVerified && (
+                                  <ShieldCheck size={14} className="text-orange-500" />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
+                            </div>
+                            <ExternalLink size={14} className="text-stone-300 group-hover:text-orange-500" />
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {resource.tags.map(tag => (
+                              <span key={tag} className="px-2 py-0.5 bg-white text-[9px] font-bold text-orange-600 rounded border border-orange-100">{tag}</span>
+                            ))}
+                          </div>
                         </div>
-                        <p className="text-sm text-stone-500">暂无心理资源</p>
-                        <p className="text-[10px] text-stone-400 mt-1">请联系管理员添加资源</p>
+                      ))}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {resources.filter(r => r.type === 'internal' && (r.title.includes('沙盘') || r.tags.includes('沙盘'))).map(resource => (
+                        <div key={resource.id} className="group p-3 bg-orange-50 rounded-2xl border border-orange-200 hover:shadow-md transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-stone-900">{resource.title}</p>
+                                {resource.isVerified && (
+                                  <ShieldCheck size={14} className="text-orange-500" />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
+                            </div>
+                            <ExternalLink size={14} className="text-stone-300 group-hover:text-orange-500" />
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {resource.tags.map(tag => (
+                              <span key={tag} className="px-2 py-0.5 bg-white text-[9px] font-bold text-orange-600 rounded border border-orange-100">{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div 
+                      className="group p-3 bg-orange-50 rounded-2xl border border-orange-200 hover:shadow-md transition-all cursor-pointer"
+                      onClick={() => {
+                        teamAssistRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-stone-900">团体活动报名</p>
+                          </div>
+                          <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">查看并报名近期团队活动</p>
+                        </div>
+                        <ExternalLink size={14} className="text-stone-300 group-hover:text-orange-500" />
                       </div>
-                    ) : (
-                      <>
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-bold text-orange-600 uppercase tracking-widest">校内心理健康资源</h3>
-                          {resources.filter(r => r.type === 'internal').length === 0 ? (
-                            <p className="text-xs text-stone-400 py-4 text-center">暂无校内资源</p>
-                          ) : (
-                            resources.filter(r => r.type === 'internal').map(resource => (
-                              <div key={resource.id} className="group p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 hover:shadow-md transition-all">
-                                <div className="flex items-start justify-between">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-xs sm:text-sm font-bold text-stone-900">{resource.title}</p>
-                                      {resource.isVerified && (
-                                        <ShieldCheck size={12} className="text-orange-500 shrink-0" />
-                                      )}
-                                    </div>
-                                    <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
-                                  </div>
-                                  <ExternalLink size={12} className="text-stone-300 group-hover:text-orange-500 shrink-0 ml-2" />
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className="px-2 py-0.5 bg-white text-[9px] font-bold text-orange-600 rounded border border-orange-100">团体活动</span>
+                        <span className="px-2 py-0.5 bg-white text-[9px] font-bold text-orange-600 rounded border border-orange-100">报名</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 mt-6">
+                      <h3 className="text-sm font-bold text-blue-600 flex items-center gap-2">
+                        <ShieldCheck size={16} className="text-blue-500" />
+                        外部专业服务渠道
+                      </h3>
+                      <div className="space-y-2">
+                        {resources.filter(r => r.type === 'external' && (r.title.includes('医院') || r.tags.includes('医院'))).map(resource => (
+                          <div key={resource.id} className="group p-3 bg-blue-50 rounded-2xl border border-blue-200 hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-bold text-stone-900">{resource.title}</p>
+                                  {resource.isVerified && (
+                                    <ShieldCheck size={14} className="text-blue-500" />
+                                  )}
                                 </div>
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {resource.tags.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 bg-white text-[10px] font-bold text-orange-600 rounded border border-orange-100">{tag}</span>
-                                  ))}
-                                </div>
+                                <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
                               </div>
-                            ))
-                          )}
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-bold text-orange-600 uppercase tracking-widest">外部专业服务渠道</h3>
-                          {resources.filter(r => r.type === 'external').length === 0 ? (
-                            <p className="text-xs text-stone-400 py-4 text-center">暂无外部资源</p>
-                          ) : (
-                            resources.filter(r => r.type === 'external').map(resource => (
-                              <div key={resource.id} className="group p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 hover:shadow-md transition-all">
-                                <div className="flex items-start justify-between">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-xs sm:text-sm font-bold text-stone-900">{resource.title}</p>
-                                      {resource.isVerified && (
-                                        <ShieldCheck size={12} className="text-orange-500 shrink-0" />
-                                      )}
-                                    </div>
-                                    <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
-                                  </div>
-                                  <ExternalLink size={12} className="text-stone-300 group-hover:text-orange-500 shrink-0 ml-2" />
+                              <ExternalLink size={14} className="text-stone-300 group-hover:text-blue-500" />
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {resource.tags.map(tag => (
+                                <span key={tag} className="px-2 py-0.5 bg-white text-[9px] font-bold text-blue-600 rounded border border-blue-100">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        {resources.filter(r => r.type === 'external' && (r.title.includes('热线') || r.tags.includes('热线'))).map(resource => (
+                          <div key={resource.id} className="group p-3 bg-blue-50 rounded-2xl border border-blue-200 hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-bold text-stone-900">{resource.title}</p>
+                                  {resource.isVerified && (
+                                    <ShieldCheck size={14} className="text-blue-500" />
+                                  )}
                                 </div>
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {resource.tags.map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 bg-white text-[10px] font-bold text-orange-600 rounded border border-orange-100">{tag}</span>
-                                  ))}
-                                </div>
+                                <p className="text-[10px] text-stone-500 mt-1 line-clamp-1">{resource.description}</p>
                               </div>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
+                              <ExternalLink size={14} className="text-stone-300 group-hover:text-blue-500" />
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {resource.tags.map(tag => (
+                                <span key={tag} className="px-2 py-0.5 bg-white text-[9px] font-bold text-blue-600 rounded border border-blue-100">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1191,6 +1346,25 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-stone-400 uppercase">日期</label>
                     <input type="date" value={newActivity.date} onChange={(e) => setNewActivity({...newActivity, date: e.target.value})} className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase">可见范围</label>
+                    {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) ? (
+                      <select value={newActivity.visibility} onChange={(e) => setNewActivity({...newActivity, visibility: e.target.value as 'group' | 'school'})} className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none">
+                        <option value="group">本组可见</option>
+                        <option value="school">全校可见</option>
+                      </select>
+                    ) : (
+                      <div className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl text-sm text-stone-600">
+                        本组可见
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase">最大人数</label>
+                    <input type="number" value={newActivity.maxParticipants} onChange={(e) => setNewActivity({...newActivity, maxParticipants: parseInt(e.target.value) || 20})} className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none" />
                   </div>
                 </div>
                 <div className="space-y-2">

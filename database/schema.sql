@@ -126,7 +126,24 @@ CREATE TABLE activities (
     date TEXT NOT NULL,
     location TEXT,
     created_by TEXT NOT NULL REFERENCES users(id),
+    created_by_role TEXT NOT NULL CHECK (created_by_role IN ('teacher', 'admin', 'psychologist', 'dept_head')),
+    visibility TEXT NOT NULL CHECK (visibility IN ('group', 'school')) DEFAULT 'group',
+    max_participants INTEGER,
     participants TEXT,  -- JSON 数组
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 团队资源分享表
+CREATE TABLE team_resources (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    content TEXT,
+    file_url TEXT,
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_by_role TEXT NOT NULL CHECK (created_by_role IN ('teacher', 'admin', 'psychologist', 'dept_head')),
+    visibility TEXT NOT NULL CHECK (visibility IN ('group', 'school')) DEFAULT 'group',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -134,6 +134,10 @@ const App: React.FC = () => {
             displayName: currentUser.displayName,
             email: currentUser.email,
             role: currentUser.role as UserRole,
+            school: currentUser.school,
+            department: currentUser.department,
+            deptId: currentUser.deptId,
+            managerId: currentUser.managerId,
             consentAccepted: currentUser.consentAccepted,
             syncFrequency: currentUser.syncFrequency,
             createdAt: new Date().toISOString()
@@ -255,6 +259,10 @@ const App: React.FC = () => {
         displayName: result.displayName,
         email: result.email,
         role: result.role as UserRole,
+        school: result.school,
+        department: result.department,
+        deptId: result.deptId,
+        managerId: result.managerId,
         syncFrequency: result.syncFrequency,
         createdAt: new Date().toISOString()
       });
@@ -279,6 +287,10 @@ const App: React.FC = () => {
         displayName: result.displayName,
         email: result.email,
         role: result.role as UserRole,
+        school: result.school,
+        department: result.department,
+        deptId: result.deptId,
+        managerId: result.managerId,
         syncFrequency: result.syncFrequency,
         createdAt: new Date().toISOString()
       });

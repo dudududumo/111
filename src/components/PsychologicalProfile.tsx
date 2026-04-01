@@ -234,8 +234,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                   cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
-                  activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: '#ffffff' }}
-                  trigger="both"
+                  trigger="click"
                 />
                 <Area type="monotone" dataKey="hrv" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHrv)" />
                 <Area type="monotone" dataKey="hr" stroke="#f43f5e" strokeWidth={2} strokeDasharray="5 5" fill="transparent" />
@@ -266,8 +265,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                   cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
-                  activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: '#ffffff' }}
-                  trigger="both"
+                  trigger="click"
                 />
                 <Area type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} fill="#10b981" fillOpacity={0.1} />
               </AreaChart>
@@ -326,7 +324,7 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                   cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
-                  trigger="both"
+                  trigger="click"
                 />
                 <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={20}>
                   {workloadData.map((entry, index) => (

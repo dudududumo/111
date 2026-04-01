@@ -2,9 +2,12 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const dbPath = path.join(path.dirname(new URL(import.meta.url).pathname), 'school_mental_health.db');
-const db = new Database(dbPath);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dbPath = path.join(__dirname, 'school_mental_health.db');
+export const db = new Database(dbPath);
 
 // 启用外键约束
 db.pragma('journal_mode = WAL');
@@ -12,7 +15,6 @@ db.pragma('foreign_keys = ON');
 
 // 初始化数据库（执行 schema.sql）
 export function initDatabase() {
-  const __dirname = path.dirname(new URL(import.meta.url).pathname);
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   
   // 分割 SQL 语句并执行
@@ -64,6 +66,21 @@ export function initDatabase() {
         console.error('Migration failed:', migrationError);
       }
     }
+  }
+  
+  // 迁移：将管理员和心理医生创建的活动设置为全校可见
+  try {
+    const updateStmt = db.prepare(`
+      UPDATE activities 
+      SET visibility = 'school' 
+      WHERE created_by_role IN ('admin', 'psychologist') AND visibility = 'group'
+    `);
+    const result = updateStmt.run();
+    if (result.changes > 0) {
+      console.log(`Successfully updated ${result.changes} activities to school-wide visibility`);
+    }
+  } catch (migrationError) {
+    console.error('Migration failed:', migrationError);
   }
   
   console.log('Database initialized successfully');
@@ -250,6 +267,43 @@ export const warningDb = {
       ORDER BY warnings.timestamp DESC
     `);
     return stmt.all();
+  },
+
+  // 获取用户可见的预警
+  getByUser: (userId: string, userRole: string, userDeptId?: string) => {
+    let stmt;
+    let warnings;
+    if (userRole === 'admin' || userRole === 'psychologist') {
+      // 管理员和心理医生可以看到所有预警
+      stmt = db.prepare(`
+        SELECT warnings.*, users.display_name
+        FROM warnings
+        JOIN users ON warnings.user_id = users.id
+        ORDER BY warnings.timestamp DESC
+      `);
+      warnings = stmt.all();
+    } else if (userRole === 'dept_head') {
+      // 教研组长只能看到自己组的预警（通过 manager_id 关联）
+      stmt = db.prepare(`
+        SELECT warnings.*, users.display_name
+        FROM warnings
+        JOIN users ON warnings.user_id = users.id
+        WHERE users.manager_id = ?
+        ORDER BY warnings.timestamp DESC
+      `);
+      warnings = stmt.all(userId);
+    } else {
+      // 普通教师只能看到自己的预警
+      stmt = db.prepare(`
+        SELECT warnings.*, users.display_name
+        FROM warnings
+        JOIN users ON warnings.user_id = users.id
+        WHERE warnings.user_id = ?
+        ORDER BY warnings.timestamp DESC
+      `);
+      warnings = stmt.all(userId);
+    }
+    return warnings;
   },
 
   // 获取用户的预警（关联用户信息）
@@ -783,24 +837,90 @@ export const activityDb = {
     date: string;
     location: string;
     createdBy: string;
+    createdByRole: string;
+    visibility: string;
+    maxParticipants?: number;
     participants: string[];
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO activities (id, group_id, title, type, description, date, location, created_by, participants)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO activities (id, group_id, title, type, description, date, location, created_by, created_by_role, visibility, max_participants, participants)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, activity.groupId, activity.title, activity.type, activity.description, activity.date, activity.location, activity.createdBy, JSON.stringify(activity.participants));
+    stmt.run(
+      id,
+      activity.groupId,
+      activity.title,
+      activity.type,
+      activity.description,
+      activity.date,
+      activity.location,
+      activity.createdBy,
+      activity.createdByRole,
+      activity.visibility,
+      activity.maxParticipants || null,
+      JSON.stringify(activity.participants)
+    );
     return id;
+  },
+
+  // 获取用户可见的活动
+  getByUser: (userId: string, userRole: string, userDeptId?: string, userManagerId?: string) => {
+    let stmt;
+    let activities;
+    if (userRole === 'admin' || userRole === 'psychologist') {
+      // 管理员和心理医生可以看到所有活动
+      stmt = db.prepare('SELECT * FROM activities ORDER BY date ASC');
+      activities = stmt.all() as Array<{ 
+        id: string; 
+        participants?: string; 
+        created_by?: string;
+        created_by_role?: string;
+      } & Record<string, any>>;
+    } else if (userRole === 'dept_head') {
+      // 教研组长可以看到自己创建的组内活动 + 所有全校可见活动
+      stmt = db.prepare(`
+        SELECT * FROM activities 
+        WHERE visibility = 'school' OR (visibility = 'group' AND created_by = ?)
+        ORDER BY date ASC
+      `);
+      activities = stmt.all(userId) as Array<{ 
+        id: string; 
+        participants?: string; 
+        created_by?: string;
+        created_by_role?: string;
+      } & Record<string, any>>;
+    } else {
+      // 普通教师可以看到自己组长创建的组内活动 + 所有全校可见活动
+      stmt = db.prepare(`
+        SELECT * FROM activities 
+        WHERE visibility = 'school' OR (visibility = 'group' AND created_by = ?)
+        ORDER BY date ASC
+      `);
+      activities = stmt.all(userManagerId || '') as Array<{ 
+        id: string; 
+        participants?: string; 
+        created_by?: string;
+        created_by_role?: string;
+      } & Record<string, any>>;
+    }
+    
+    return activities.map(activity => ({
+      ...activity,
+      createdBy: activity.created_by,
+      createdByRole: activity.created_by_role,
+      participants: JSON.parse(activity.participants || '[]')
+    }));
   },
 
   // 获取所有活动
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM activities ORDER BY date ASC');
-    const activities = stmt.all() as Array<{ id: string; participants?: string; created_by?: string } & Record<string, any>>;
+    const activities = stmt.all() as Array<{ id: string; participants?: string; created_by?: string; created_by_role?: string } & Record<string, any>>;
     return activities.map(activity => ({
       ...activity,
       createdBy: activity.created_by,
+      createdByRole: activity.created_by_role,
       participants: JSON.parse(activity.participants || '[]')
     }));
   },
@@ -808,10 +928,12 @@ export const activityDb = {
   // 根据ID获取活动
   getById: (id: string) => {
     const stmt = db.prepare('SELECT * FROM activities WHERE id = ?');
-    const activity = stmt.get(id) as ({ id: string; participants?: string } & Record<string, any>) | undefined;
+    const activity = stmt.get(id) as ({ id: string; participants?: string; created_by?: string; created_by_role?: string } & Record<string, any>) | undefined;
     if (activity) {
       return {
         ...activity,
+        createdBy: activity.created_by,
+        createdByRole: activity.created_by_role,
         participants: JSON.parse(activity.participants || '[]')
       };
     }
@@ -840,9 +962,115 @@ export const activityDb = {
     return participants;
   },
 
+  // 更新活动
+  update: (id: string, updates: Partial<{
+    title: string;
+    type: string;
+    description: string;
+    date: string;
+    location: string;
+    visibility: string;
+    maxParticipants?: number;
+  }>) => {
+    const fields = Object.keys(updates).map(key => {
+      if (key === 'maxParticipants') return 'max_participants = ?';
+      return key + ' = ?';
+    }).join(', ');
+    const values = Object.values(updates);
+    values.push(id);
+    
+    const stmt = db.prepare(`UPDATE activities SET ${fields} WHERE id = ?`);
+    stmt.run(...values);
+    return activityDb.getById(id);
+  },
+
   // 删除活动
   delete: (id: string) => {
     const stmt = db.prepare('DELETE FROM activities WHERE id = ?');
+    stmt.run(id);
+    return true;
+  }
+};
+
+// 团队资源相关操作
+export const teamResourceDb = {
+  // 创建资源
+  create: (resource: {
+    groupId: string;
+    title: string;
+    description?: string;
+    content?: string;
+    fileUrl?: string;
+    createdBy: string;
+    createdByRole: string;
+    visibility: string;
+  }) => {
+    const id = uuidv4();
+    const stmt = db.prepare(`
+      INSERT INTO team_resources (id, group_id, title, description, content, file_url, created_by, created_by_role, visibility)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      id,
+      resource.groupId,
+      resource.title,
+      resource.description || null,
+      resource.content || null,
+      resource.fileUrl || null,
+      resource.createdBy,
+      resource.createdByRole,
+      resource.visibility
+    );
+    return id;
+  },
+
+  // 获取用户可见的资源
+  getByUser: (userId: string, userRole: string, userDeptId?: string) => {
+    let stmt;
+    let resources;
+    if (userRole === 'admin' || userRole === 'psychologist') {
+      // 管理员和心理医生可以看到所有资源
+      stmt = db.prepare('SELECT * FROM team_resources ORDER BY created_at DESC');
+      resources = stmt.all() as Array<{ 
+        id: string; 
+        created_by?: string;
+        created_by_role?: string;
+      } & Record<string, any>>;
+    } else {
+      // 普通教师和教研组长只能看到本组资源 + 全校可见的资源
+      stmt = db.prepare(`
+        SELECT * FROM team_resources 
+        WHERE visibility = 'school' OR group_id = ?
+        ORDER BY created_at DESC
+      `);
+      resources = stmt.all(userDeptId || '') as Array<{ 
+        id: string; 
+        created_by?: string;
+        created_by_role?: string;
+      } & Record<string, any>>;
+    }
+    
+    return resources.map(resource => ({
+      ...resource,
+      createdBy: resource.created_by,
+      createdByRole: resource.created_by_role
+    }));
+  },
+
+  // 获取所有资源
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM team_resources ORDER BY created_at DESC');
+    const resources = stmt.all() as Array<{ id: string; created_by?: string; created_by_role?: string } & Record<string, any>>;
+    return resources.map(resource => ({
+      ...resource,
+      createdBy: resource.created_by,
+      createdByRole: resource.created_by_role
+    }));
+  },
+
+  // 删除资源
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM team_resources WHERE id = ?');
     stmt.run(id);
     return true;
   }
@@ -872,17 +1100,27 @@ export const interventionTaskDb = {
   getAll: () => {
     const stmt = db.prepare('SELECT * FROM intervention_tasks ORDER BY created_at DESC');
     const tasks = stmt.all() as Array<{ id: string; care_records?: string; teacher_name?: string; assigned_to?: string; created_at?: string } & Record<string, any>>;
-    return tasks.map(task => ({
-      id: task.id,
-      warningId: task.warning_id,
-      teacherId: task.teacher_id,
-      teacherName: task.teacher_name,
-      assignedTo: task.assigned_to,
-      status: task.status,
-      priority: task.priority,
-      careRecords: JSON.parse(task.care_records || '[]'),
-      createdAt: task.created_at
-    }));
+    return tasks.map(task => {
+      let assignedToName = null;
+      if (task.assigned_to) {
+        const assignedUser = userDb.findById(task.assigned_to) as { display_name?: string } | undefined;
+        if (assignedUser) {
+          assignedToName = assignedUser.display_name;
+        }
+      }
+      return {
+        id: task.id,
+        warningId: task.warning_id,
+        teacherId: task.teacher_id,
+        teacherName: task.teacher_name,
+        assignedTo: task.assigned_to,
+        assignedToName,
+        status: task.status,
+        priority: task.priority,
+        careRecords: JSON.parse(task.care_records || '[]'),
+        createdAt: task.created_at
+      };
+    });
   },
 
   // 根据ID获取任务

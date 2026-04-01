@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb } from "./database/db.js";
+import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb } from "./database/db.js";
 
 dotenv.config();
 
@@ -153,7 +153,12 @@ async function startServer() {
 
       // 生成 JWT
       const token = jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
+        { 
+          userId: user.id, 
+          email: user.email, 
+          role: user.role,
+          managerId: user.manager_id
+        },
         JWT_SECRET,
         { expiresIn: "7d" }
       );
@@ -188,6 +193,8 @@ async function startServer() {
         role: user.role,
         school: user.school,
         department: user.department,
+        deptId: user.dept_id,
+        managerId: user.manager_id,
         consentAccepted: user.consent_accepted,
         wearableBrand: user.wearable_brand,
         syncFrequency: user.sync_frequency,
@@ -536,7 +543,7 @@ async function startServer() {
       if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
         return res.status(403).json({ error: "无权访问" });
       }
-      const warnings = warningDb.getAll();
+      const warnings = warningDb.getByUser(req.user.userId, req.user.role, req.user.deptId);
       res.json(warnings.map(w => ({
         ...w,
         factors: JSON.parse(w.factors),
@@ -1055,7 +1062,13 @@ async function startServer() {
   // 创建活动
   app.post("/api/activities", authMiddleware, (req: any, res) => {
     try {
-      const { title, type, description, date, location } = req.body;
+      const { title, type, description, date, location, visibility, maxParticipants } = req.body;
+      
+      let activityVisibility = visibility || 'group';
+      if (req.user.role === 'admin' || req.user.role === 'psychologist') {
+        activityVisibility = 'school';
+      }
+      
       const activityId = activityDb.create({
         groupId: req.user.deptId || "general",
         title,
@@ -1064,6 +1077,9 @@ async function startServer() {
         date,
         location,
         createdBy: req.user.userId,
+        createdByRole: req.user.role,
+        visibility: activityVisibility,
+        maxParticipants,
         participants: [req.user.userId]
       });
       res.json({ success: true, id: activityId });
@@ -1072,10 +1088,10 @@ async function startServer() {
     }
   });
 
-  // 获取所有活动
-  app.get("/api/activities", authMiddleware, (req, res) => {
+  // 获取用户可见的活动
+  app.get("/api/activities", authMiddleware, (req: any, res) => {
     try {
-      const activities = activityDb.getAll();
+      const activities = activityDb.getByUser(req.user.userId, req.user.role, req.user.deptId, req.user.managerId);
       res.json(activities);
     } catch (error) {
       res.status(500).json({ error: "获取活动失败" });
@@ -1133,6 +1149,57 @@ async function startServer() {
       res.json({ success: true, message: "活动已删除" });
     } catch (error) {
       res.status(500).json({ error: "删除活动失败" });
+    }
+  });
+
+  // ==================== 团队资源相关 API ====================
+
+  // 创建团队资源
+  app.post("/api/team-resources", authMiddleware, (req: any, res) => {
+    try {
+      const { title, description, content, fileUrl, visibility } = req.body;
+      const resourceId = teamResourceDb.create({
+        groupId: req.user.deptId || "general",
+        title,
+        description,
+        content,
+        fileUrl,
+        createdBy: req.user.userId,
+        createdByRole: req.user.role,
+        visibility: visibility || 'group'
+      });
+      res.json({ success: true, id: resourceId });
+    } catch (error) {
+      res.status(500).json({ error: "创建资源失败" });
+    }
+  });
+
+  // 获取用户可见的团队资源
+  app.get("/api/team-resources", authMiddleware, (req: any, res) => {
+    try {
+      const resources = teamResourceDb.getByUser(req.user.userId, req.user.role, req.user.deptId);
+      res.json(resources);
+    } catch (error) {
+      res.status(500).json({ error: "获取资源失败" });
+    }
+  });
+
+  // 删除团队资源
+  app.delete("/api/team-resources/:id", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // 检查权限：只有创建者或管理员可以删除
+      // 这里简化处理，暂时只让管理员删除
+      if (req.user.role !== 'admin') {
+        res.status(403).json({ error: "无权删除此资源" });
+        return;
+      }
+      
+      teamResourceDb.delete(id);
+      res.json({ success: true, message: "资源已删除" });
+    } catch (error) {
+      res.status(500).json({ error: "删除资源失败" });
     }
   });
 
