@@ -163,6 +163,21 @@ CREATE TABLE mental_resources (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 资源预约表
+CREATE TABLE resource_appointments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    resource_id TEXT NOT NULL REFERENCES mental_resources(id) ON DELETE CASCADE,
+    resource_title TEXT NOT NULL,
+    appointment_date TEXT,
+    appointment_time TEXT,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')) DEFAULT 'pending',
+    notes TEXT,
+    admin_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 生理数据表（从可穿戴设备同步）
 CREATE TABLE physiological_data (
     id TEXT PRIMARY KEY,  -- UUID

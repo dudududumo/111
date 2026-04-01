@@ -83,7 +83,105 @@ export function initDatabase() {
     console.error('Migration failed:', migrationError);
   }
   
+  // 迁移：为 mental_resources 表添加 category 列
+  try {
+    db.exec('SELECT category FROM mental_resources LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: category')) {
+      try {
+        db.exec('ALTER TABLE mental_resources ADD COLUMN category TEXT;');
+        console.log('Successfully added category column to mental_resources table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+  
   console.log('Database initialized successfully');
+  
+  // 初始化默认心理资源（如果还没有资源）
+  const existingResources = db.prepare('SELECT COUNT(*) as count FROM mental_resources').get() as { count: number };
+  if (existingResources.count === 0) {
+    console.log('Creating default mental resources...');
+    const defaultResources = [
+      {
+        title: '校内心理咨询师预约',
+        type: 'internal',
+        category: 'counselor',
+        description: '专业心理咨询师一对一咨询服务，帮助您解决工作、生活中的心理困扰。每次咨询时长50分钟，请提前预约。',
+        tags: ['心理咨询', '一对一', '专业支持', '工作压力', '情绪管理'],
+        contact: 'psychologist@school.com',
+        location: '心理健康中心 301室',
+        isVerified: true,
+        agreementSigned: true
+      },
+      {
+        title: '沙盘室预约',
+        type: 'internal',
+        category: 'sandplay',
+        description: '通过沙盘游戏进行心理表达和探索，适合不善于用语言表达情绪的老师。提供安全、放松的自我探索空间。',
+        tags: ['沙盘游戏', '非语言表达', '情绪释放', '自我探索', '放松减压'],
+        contact: 'sandplay@school.com',
+        location: '心理健康中心 205室',
+        isVerified: true,
+        agreementSigned: true
+      },
+      {
+        title: '团体活动报名',
+        type: 'internal',
+        category: 'group',
+        description: '定期举办茶话会、团体沙盘、心理工作坊等团体活动。在团体中分享、学习、成长，建立支持网络。',
+        tags: ['团体活动', '同伴支持', '茶话会', '工作坊', '社交'],
+        contact: 'group@school.com',
+        location: '教师之家 多功能厅',
+        isVerified: true,
+        agreementSigned: true
+      },
+      {
+        title: '市精神卫生中心',
+        type: 'external',
+        category: 'hospital',
+        description: '经学校审核合作的专业医疗机构，提供心理科门诊服务。严重心理问题可转介至此，享受绿色通道。',
+        tags: ['医院', '精神科', '药物治疗', '专业医疗', '转介服务'],
+        contact: '021-64387250',
+        location: '宛平南路600号',
+        isVerified: true,
+        agreementSigned: true
+      },
+      {
+        title: '24小时心理援助热线',
+        type: 'external',
+        category: 'hotline',
+        description: '全天候免费心理咨询热线，由专业机构运营。紧急心理困扰可随时拨打，专业咨询师在线接听。',
+        tags: ['热线', '24小时', '免费', '紧急支持', '即时帮助'],
+        contact: '400-161-9995',
+        location: '全国热线',
+        isVerified: true,
+        agreementSigned: true
+      }
+    ];
+    
+    for (const resource of defaultResources) {
+      const id = uuidv4();
+      const stmt = db.prepare(`
+        INSERT INTO mental_resources (id, title, type, category, description, tags, contact, location, is_verified, agreement_signed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        id,
+        resource.title,
+        resource.type,
+        resource.category,
+        resource.description,
+        JSON.stringify(resource.tags),
+        resource.contact,
+        resource.location,
+        resource.isVerified ? 1 : 0,
+        resource.agreementSigned ? 1 : 0
+      );
+    }
+    console.log(`Created ${defaultResources.length} default mental resources`);
+  }
 }
 
 // 用户相关操作
@@ -1337,6 +1435,80 @@ export const resourceDb = {
     const stmt = db.prepare('UPDATE mental_resources SET tags = ? WHERE id = ?');
     stmt.run(JSON.stringify(tags), id);
     return tags;
+  }
+};
+
+// 资源预约相关操作
+export const appointmentDb = {
+  // 创建预约
+  create: (appointment: {
+    userId: string;
+    resourceId: string;
+    resourceTitle: string;
+    appointmentDate?: string;
+    appointmentTime?: string;
+    notes?: string;
+  }) => {
+    const id = uuidv4();
+    const stmt = db.prepare(`
+      INSERT INTO resource_appointments (id, user_id, resource_id, resource_title, appointment_date, appointment_time, notes, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+    `);
+    stmt.run(
+      id,
+      appointment.userId,
+      appointment.resourceId,
+      appointment.resourceTitle,
+      appointment.appointmentDate || null,
+      appointment.appointmentTime || null,
+      appointment.notes || null
+    );
+    return id;
+  },
+
+  // 获取用户的所有预约
+  getByUserId: (userId: string) => {
+    const stmt = db.prepare('SELECT * FROM resource_appointments WHERE user_id = ? ORDER BY created_at DESC');
+    return stmt.all(userId);
+  },
+
+  // 获取所有预约（管理员用）
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM resource_appointments ORDER BY created_at DESC');
+    return stmt.all();
+  },
+
+  // 根据ID获取预约
+  getById: (id: string) => {
+    const stmt = db.prepare('SELECT * FROM resource_appointments WHERE id = ?');
+    return stmt.get(id);
+  },
+
+  // 更新预约状态
+  updateStatus: (id: string, status: string, adminNotes?: string) => {
+    const stmt = db.prepare(`
+      UPDATE resource_appointments 
+      SET status = ?, admin_notes = ?, updated_at = datetime('now') 
+      WHERE id = ?
+    `);
+    stmt.run(status, adminNotes || null, id);
+  },
+
+  // 取消预约
+  cancel: (id: string, userId: string) => {
+    const appointment = appointmentDb.getById(id) as { user_id: string } | undefined;
+    if (!appointment || appointment.user_id !== userId) return false;
+    
+    const stmt = db.prepare('UPDATE resource_appointments SET status = ?, updated_at = datetime(\'now\') WHERE id = ?');
+    stmt.run('cancelled', id);
+    return true;
+  },
+
+  // 删除预约
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM resource_appointments WHERE id = ?');
+    stmt.run(id);
+    return true;
   }
 };
 

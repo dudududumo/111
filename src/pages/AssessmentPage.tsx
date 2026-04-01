@@ -588,7 +588,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
                 <ClipboardCheck className="text-emerald-500" size={24} />
-                绿色测评：心晴驿站
+                绿色测评：心理数据中心
               </h1>
               <p className="text-stone-500 mt-1">专业心理测评系统，科学评估您的心理状态</p>
             </div>

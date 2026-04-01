@@ -1066,7 +1066,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
               <Wind className="text-blue-500" size={24} />
-              蓝色调适：心晴驿站
+              蓝色调适：心晴调适驿站
             </h1>
             <p className="text-stone-500 mt-1">数字化心理工具包与匿名支持社区</p>
           </div>

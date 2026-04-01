@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb } from "./database/db.js";
+import { initDatabase, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb } from "./database/db.js";
 
 dotenv.config();
 
@@ -1525,6 +1525,275 @@ async function startServer() {
     } catch (error) {
       console.error("删除通知失败:", error);
       res.status(500).json({ error: "删除通知失败" });
+    }
+  });
+
+  // ==================== 资源预约相关 API ====================
+
+  // 创建预约
+  app.post("/api/appointments", authMiddleware, (req: any, res) => {
+    try {
+      const { resourceId, resourceTitle, appointmentDate, appointmentTime, notes } = req.body;
+      
+      if (!resourceId || !resourceTitle) {
+        return res.status(400).json({ error: "缺少必填字段" });
+      }
+
+      const appointmentId = appointmentDb.create({
+        userId: req.user.userId,
+        resourceId,
+        resourceTitle,
+        appointmentDate,
+        appointmentTime,
+        notes
+      });
+
+      // 创建通知给管理员/心理专家
+      const admins = userDb.getAll().filter((u: any) => ['admin', 'psychologist'].includes(u.role));
+      admins.forEach((admin: any) => {
+        notificationDb.create({
+          userId: admin.id,
+          type: 'appointment',
+          title: '新的资源预约',
+          content: `用户预约了 ${resourceTitle}，请尽快处理。`,
+          relatedId: appointmentId
+        });
+      });
+
+      res.json({ success: true, id: appointmentId });
+    } catch (error) {
+      console.error("创建预约失败:", error);
+      res.status(500).json({ error: "创建预约失败" });
+    }
+  });
+
+  // 获取用户的预约
+  app.get("/api/appointments/my", authMiddleware, (req: any, res) => {
+    try {
+      const appointments = appointmentDb.getByUserId(req.user.userId);
+      res.json(appointments);
+    } catch (error) {
+      console.error("获取预约失败:", error);
+      res.status(500).json({ error: "获取预约失败" });
+    }
+  });
+
+  // 获取所有预约（管理员用）
+  app.get("/api/appointments", authMiddleware, (req: any, res) => {
+    try {
+      if (!['admin', 'psychologist'].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权查看所有预约" });
+      }
+      const appointments = appointmentDb.getAll();
+      res.json(appointments);
+    } catch (error) {
+      console.error("获取预约失败:", error);
+      res.status(500).json({ error: "获取预约失败" });
+    }
+  });
+
+  // 更新预约状态
+  app.patch("/api/appointments/:id/status", authMiddleware, (req: any, res) => {
+    try {
+      if (!['admin', 'psychologist'].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权更新预约状态" });
+      }
+      
+      const { id } = req.params;
+      const { status, adminNotes } = req.body;
+      
+      const appointment = appointmentDb.getById(id);
+      if (!appointment) {
+        return res.status(404).json({ error: "预约不存在" });
+      }
+
+      appointmentDb.updateStatus(id, status, adminNotes);
+      
+      // 通知用户预约状态更新
+      const apt = appointment as { user_id: string; resource_title: string };
+      notificationDb.create({
+        userId: apt.user_id,
+        type: 'appointment_update',
+        title: '预约状态更新',
+        content: `您对 ${apt.resource_title} 的预约状态已更新为：${status === 'confirmed' ? '已确认' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : '待处理'}`,
+        relatedId: id
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("更新预约状态失败:", error);
+      res.status(500).json({ error: "更新预约状态失败" });
+    }
+  });
+
+  // 取消预约
+  app.post("/api/appointments/:id/cancel", authMiddleware, (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const success = appointmentDb.cancel(id, req.user.userId);
+      
+      if (!success) {
+        return res.status(403).json({ error: "无权取消此预约" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("取消预约失败:", error);
+      res.status(500).json({ error: "取消预约失败" });
+    }
+  });
+
+  // 获取预约日历数据（心理医生用）
+  app.get("/api/appointments/calendar", authMiddleware, (req: any, res) => {
+    try {
+      if (!['admin', 'psychologist'].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权查看预约日历" });
+      }
+      
+      const { startDate, endDate } = req.query;
+      const allAppointments = appointmentDb.getAll();
+      
+      // 过滤日期范围
+      let filteredAppointments = allAppointments;
+      if (startDate && endDate) {
+        filteredAppointments = allAppointments.filter((apt: any) => {
+          return apt.appointment_date >= startDate && apt.appointment_date <= endDate;
+        });
+      }
+      
+      // 按日期分组
+      const calendarData: Record<string, any[]> = {};
+      filteredAppointments.forEach((apt: any) => {
+        const date = apt.appointment_date || 'pending';
+        if (!calendarData[date]) {
+          calendarData[date] = [];
+        }
+        // 获取用户信息
+        const user = userDb.findById(apt.user_id);
+        calendarData[date].push({
+          id: apt.id,
+          time: apt.appointment_time,
+          status: apt.status,
+          notes: apt.notes,
+          adminNotes: apt.admin_notes,
+          resourceTitle: apt.resource_title,
+          userName: user?.display_name || '未知用户',
+          userContact: user?.email || '',
+          createdAt: apt.created_at
+        });
+      });
+      
+      // 对每个日期的时间排序
+      Object.keys(calendarData).forEach(date => {
+        calendarData[date].sort((a, b) => {
+          if (!a.time) return 1;
+          if (!b.time) return -1;
+          return a.time.localeCompare(b.time);
+        });
+      });
+      
+      res.json(calendarData);
+    } catch (error) {
+      console.error("获取预约日历失败:", error);
+      res.status(500).json({ error: "获取预约日历失败" });
+    }
+  });
+
+  // 获取预约统计数据
+  app.get("/api/appointments/stats", authMiddleware, (req: any, res) => {
+    try {
+      if (!['admin', 'psychologist'].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权查看预约统计" });
+      }
+      
+      const allAppointments = appointmentDb.getAll();
+      const today = new Date().toISOString().split('T')[0];
+      
+      const stats = {
+        total: allAppointments.length,
+        pending: allAppointments.filter((apt: any) => apt.status === 'pending').length,
+        confirmed: allAppointments.filter((apt: any) => apt.status === 'confirmed').length,
+        completed: allAppointments.filter((apt: any) => apt.status === 'completed').length,
+        cancelled: allAppointments.filter((apt: any) => apt.status === 'cancelled').length,
+        today: allAppointments.filter((apt: any) => apt.appointment_date === today).length,
+        thisWeek: allAppointments.filter((apt: any) => {
+          const aptDate = new Date(apt.appointment_date);
+          const now = new Date();
+          const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+          const weekEnd = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+          return aptDate >= weekStart && aptDate <= weekEnd;
+        }).length
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      console.error("获取预约统计失败:", error);
+      res.status(500).json({ error: "获取预约统计失败" });
+    }
+  });
+
+  // ==================== 用户画像和推荐 API ====================
+
+  // 获取当前用户画像（基于评估数据）
+  app.get("/api/user-profile/analysis", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      
+      // 获取用户最新的评估数据
+      const assessments = assessmentDb.getByUserId(userId);
+      const latestAssessment = assessments[0];
+      
+      // 获取用户使用记录
+      const toolUsage = toolUsageDb.getByUserId(userId);
+      
+      // 获取用户偏好
+      const user = userDb.findById(userId);
+      const preferences = JSON.parse(user?.preferences || '[]');
+      
+      // 分析评估数据
+      let mentalState = '正常';
+      let stressSources: string[] = [];
+      let riskLevel = 'green';
+      
+      if (latestAssessment) {
+        const scores = JSON.parse(latestAssessment.scores);
+        riskLevel = latestAssessment.risk_level;
+        
+        // 根据风险等级判断心理状态
+        if (riskLevel === 'red') mentalState = '高风险';
+        else if (riskLevel === 'orange') mentalState = '中度焦虑/抑郁';
+        else if (riskLevel === 'yellow') mentalState = '轻度焦虑/抑郁';
+        else if (riskLevel === 'blue') mentalState = '亚健康';
+        
+        // 分析压力源（基于量表维度）
+        if (scores['工作压力'] > 2) stressSources.push('工作压力');
+        if (scores['家校沟通'] > 2) stressSources.push('家校沟通');
+        if (scores['人际关系'] > 2) stressSources.push('人际关系');
+        if (scores['职业发展'] > 2) stressSources.push('职业发展');
+      }
+      
+      // 分析使用偏好
+      const preferredTools = toolUsage.reduce((acc: Record<string, number>, usage: any) => {
+        acc[usage.tool_id] = (acc[usage.tool_id] || 0) + 1;
+        return acc;
+      }, {});
+      
+      const topTools = Object.entries(preferredTools)
+        .sort((a: any, b: any) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([tool]) => tool);
+      
+      res.json({
+        mentalState,
+        riskLevel,
+        stressSources: stressSources.length > 0 ? stressSources : ['一般性压力'],
+        preferences: preferences.length > 0 ? preferences : ['线下活动', '团体支持'],
+        interests: topTools.length > 0 ? topTools : ['心理成长', '压力管理'],
+        lastAssessment: latestAssessment?.timestamp || null
+      });
+    } catch (error) {
+      console.error("获取用户画像失败:", error);
+      res.status(500).json({ error: "获取用户画像失败" });
     }
   });
 
