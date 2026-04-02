@@ -1449,6 +1449,17 @@ export const appointmentDb = {
     appointmentTime?: string;
     notes?: string;
   }) => {
+    // 检查是否存在同一资源、同一日期、同一时间段的预约
+    if (appointment.appointmentDate && appointment.appointmentTime) {
+      const existingAppointment = db.prepare(
+        'SELECT * FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND appointment_time = ? AND status IN ("pending", "confirmed", "completed")'
+      ).get(appointment.resourceId, appointment.appointmentDate, appointment.appointmentTime);
+      
+      if (existingAppointment) {
+        throw new Error('该时段已被预约');
+      }
+    }
+    
     const id = uuidv4();
     const stmt = db.prepare(`
       INSERT INTO resource_appointments (id, user_id, resource_id, resource_title, appointment_date, appointment_time, notes, status)

@@ -363,12 +363,14 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       const matchReasons: string[] = [];
 
       // 1. 基于压力源匹配（权重30%）
-      profileData.stressSources?.forEach((source: string) => {
-        if (resource.tags?.includes(source) || resource.description?.includes(source)) {
-          score += 30;
-          matchReasons.push(`针对${source}`);
-        }
-      });
+      const stressMatches = profileData.stressSources?.filter((source: string) => 
+        resource.tags?.includes(source) || resource.description?.includes(source)
+      ) || [];
+      if (stressMatches.length > 0) {
+        const stressScore = 30 * (1 - Math.pow(0.5, stressMatches.length));
+        score += stressScore;
+        matchReasons.push(`针对${stressMatches[0]}`);
+      }
 
       // 2. 基于心理状态匹配（权重25%）
       if (resource.tags?.includes(profileData.mentalState) || 
@@ -378,39 +380,55 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
       }
 
       // 3. 基于偏好匹配（权重20%）
-      profileData.preferences?.forEach((pref: string) => {
-        if (resource.tags?.includes(pref) || resource.description?.includes(pref)) {
-          score += 20;
-          matchReasons.push(`符合${pref}偏好`);
-        }
-      });
+      const prefMatches = profileData.preferences?.filter((pref: string) => 
+        resource.tags?.includes(pref) || resource.description?.includes(pref)
+      ) || [];
+      if (prefMatches.length > 0) {
+        const prefScore = 20 * (1 - Math.pow(0.6, prefMatches.length));
+        score += prefScore;
+        matchReasons.push(`符合${prefMatches[0]}偏好`);
+      }
 
       // 4. 基于兴趣匹配（权重15%）
-      profileData.interests?.forEach((interest: string) => {
-        if (resource.tags?.includes(interest) || resource.description?.includes(interest)) {
-          score += 15;
-          matchReasons.push(`匹配${interest}兴趣`);
-        }
-      });
+      const interestMatches = profileData.interests?.filter((interest: string) => 
+        resource.tags?.includes(interest) || resource.description?.includes(interest)
+      ) || [];
+      if (interestMatches.length > 0) {
+        const interestScore = 15 * (1 - Math.pow(0.7, interestMatches.length));
+        score += interestScore;
+        matchReasons.push(`匹配${interestMatches[0]}兴趣`);
+      }
 
       // 5. 基于风险等级调整
       if (profileData.riskLevel === 'red' && resource.type === 'external') {
-        score += 10; // 高风险推荐外部专业服务
+        score += 15; // 高风险推荐外部专业服务
         matchReasons.push('专业医疗支持');
-      }
-      if (profileData.riskLevel === 'orange' && resource.tags?.includes('心理咨询')) {
-        score += 10;
+      } else if (profileData.riskLevel === 'orange' && resource.tags?.includes('心理咨询')) {
+        score += 12;
         matchReasons.push('建议专业咨询');
+      } else if (profileData.riskLevel === 'yellow' && resource.tags?.includes('心理调适')) {
+        score += 10;
+        matchReasons.push('适合轻度关怀');
       }
 
       // 6. 认证资源加分
       if (resource.isVerified) {
-        score += 5;
+        score += 8;
       }
+
+      // 7. 资源类型加成
+      if (resource.type === 'internal') {
+        score += 5; // 内部资源优先
+      }
+
+      // 8. 资源热度加成（基于使用次数）
+      // if (resource.usageCount) {
+      //   score += Math.min(10, resource.usageCount * 0.5);
+      // }
 
       return {
         ...resource,
-        matchScore: Math.min(100, score),
+        matchScore: Math.min(100, Math.round(score)),
         matchReasons: matchReasons.slice(0, 3)
       };
     });
