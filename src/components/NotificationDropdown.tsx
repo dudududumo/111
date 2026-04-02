@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CheckCircle, Clock, X, AlertTriangle, UserPlus, Sparkles, ChevronRight } from 'lucide-react';
+import { Bell, CheckCircle, Clock, X, AlertTriangle, UserPlus, Sparkles, ChevronRight, Calendar } from 'lucide-react';
 import { notificationApi, default as api } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -131,6 +131,9 @@ const NotificationDropdown: React.FC = () => {
       }
     } else if (notification.type === 'intervention') {
       navigate('/intervention');
+    } else if (notification.type === 'appointment' || notification.type === 'appointment_update') {
+      // 预约相关通知跳转到干预页面，因为预约管理在干预页面
+      navigate('/intervention');
     }
 
     setSelectedNotification(null);
@@ -142,6 +145,7 @@ const NotificationDropdown: React.FC = () => {
       return <AlertTriangle className="text-amber-500" size={18} />;
     }
     if (type === 'intervention') return <UserPlus className="text-blue-500" size={18} />;
+    if (type === 'appointment' || type === 'appointment_update') return <Calendar className="text-orange-500" size={18} />;
     return <Sparkles className="text-emerald-500" size={18} />;
   };
 

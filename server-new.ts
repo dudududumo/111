@@ -1549,13 +1549,14 @@ async function startServer() {
       });
 
       // 创建通知给管理员/心理专家
+      const user = userDb.findById(req.user.userId);
       const admins = userDb.getAll().filter((u: any) => ['admin', 'psychologist'].includes(u.role));
       admins.forEach((admin: any) => {
         notificationDb.create({
           userId: admin.id,
           type: 'appointment',
           title: '新的资源预约',
-          content: `用户预约了 ${resourceTitle}，请尽快处理。`,
+          content: `${user?.name || '用户'} 预约了 ${resourceTitle}，请尽快处理。`,
           relatedId: appointmentId
         });
       });
