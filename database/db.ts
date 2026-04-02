@@ -1520,6 +1520,15 @@ export const appointmentDb = {
     const stmt = db.prepare('DELETE FROM resource_appointments WHERE id = ?');
     stmt.run(id);
     return true;
+  },
+
+  // 获取指定资源在指定日期的已占用时段
+  getOccupiedSlots: (resourceId: string, date: string) => {
+    const stmt = db.prepare(
+      'SELECT appointment_time FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND status IN ("pending", "confirmed", "completed")'
+    );
+    const slots = stmt.all(resourceId, date) as Array<{ appointment_time: string }>;
+    return slots.map(slot => slot.appointment_time).filter(Boolean);
   }
 };
 

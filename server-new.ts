@@ -1644,6 +1644,24 @@ async function startServer() {
     }
   });
 
+  // 获取已被占用的时段
+  app.get("/api/appointments/occupied-slots", authMiddleware, (req: any, res) => {
+    try {
+      const { resourceId, date } = req.query;
+      
+      if (!resourceId || !date) {
+        return res.json([]);
+      }
+      
+      // 查询该资源在指定日期的所有已占用时段
+      const occupiedSlots = appointmentDb.getOccupiedSlots(resourceId, date);
+      res.json(occupiedSlots);
+    } catch (error) {
+      console.error("获取占用时段失败:", error);
+      res.status(500).json({ error: "获取占用时段失败" });
+    }
+  });
+
   // 获取预约日历数据（心理医生用）
   app.get("/api/appointments/calendar", authMiddleware, (req: any, res) => {
     try {

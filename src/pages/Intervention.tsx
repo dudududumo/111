@@ -152,11 +152,9 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   const [myAppointments, setMyAppointments] = useState<any[]>([]);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState<MentalResource | null>(null);
-  const [appointmentForm, setAppointmentForm] = useState({
-    date: '',
-    time: '',
-    notes: ''
-  });
+  const [appointmentForm, setAppointmentForm] = useState({ date: '', time: '', notes: '' });
+  const [occupiedTimeSlots, setOccupiedTimeSlots] = useState<string[]>([]);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   
   // 预约管理相关状态（心理医生用）
   const [showAppointmentManager, setShowAppointmentManager] = useState(false);
@@ -474,6 +472,25 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         title: "预约失败",
         message: "提交预约时出错，请稍后重试。"
       });
+    }
+  };
+
+  // 获取已被占用的时段
+  const fetchOccupiedTimeSlots = async (resourceId: string, date: string) => {
+    if (!resourceId || !date) {
+      setOccupiedTimeSlots([]);
+      return;
+    }
+
+    setLoadingTimeSlots(true);
+    try {
+      const response = await apiCall(`/api/appointments/occupied-slots?resourceId=${resourceId}&date=${date}`);
+      setOccupiedTimeSlots(response || []);
+    } catch (error) {
+      console.error('获取占用时段失败:', error);
+      setOccupiedTimeSlots([]);
+    } finally {
+      setLoadingTimeSlots(false);
     }
   };
 
@@ -2053,7 +2070,13 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                     <input 
                       type="date" 
                       value={appointmentForm.date} 
-                      onChange={(e) => setAppointmentForm({...appointmentForm, date: e.target.value})}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setAppointmentForm({...appointmentForm, date: newDate, time: ''});
+                        if (selectedResource) {
+                          fetchOccupiedTimeSlots(selectedResource.id, newDate);
+                        }
+                      }}
                       min={new Date().toISOString().split('T')[0]}
                       className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm"
                     />
@@ -2066,12 +2089,24 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                       className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm"
                     >
                       <option value="">选择时间</option>
-                      <option value="09:00">09:00</option>
-                      <option value="10:00">10:00</option>
-                      <option value="11:00">11:00</option>
-                      <option value="14:00">14:00</option>
-                      <option value="15:00">15:00</option>
-                      <option value="16:00">16:00</option>
+                      <option value="09:00" disabled={occupiedTimeSlots.includes('09:00')}>
+                        09:00 {occupiedTimeSlots.includes('09:00') && '(已预约)'}
+                      </option>
+                      <option value="10:00" disabled={occupiedTimeSlots.includes('10:00')}>
+                        10:00 {occupiedTimeSlots.includes('10:00') && '(已预约)'}
+                      </option>
+                      <option value="11:00" disabled={occupiedTimeSlots.includes('11:00')}>
+                        11:00 {occupiedTimeSlots.includes('11:00') && '(已预约)'}
+                      </option>
+                      <option value="14:00" disabled={occupiedTimeSlots.includes('14:00')}>
+                        14:00 {occupiedTimeSlots.includes('14:00') && '(已预约)'}
+                      </option>
+                      <option value="15:00" disabled={occupiedTimeSlots.includes('15:00')}>
+                        15:00 {occupiedTimeSlots.includes('15:00') && '(已预约)'}
+                      </option>
+                      <option value="16:00" disabled={occupiedTimeSlots.includes('16:00')}>
+                        16:00 {occupiedTimeSlots.includes('16:00') && '(已预约)'}
+                      </option>
                     </select>
                   </div>
                 </div>
