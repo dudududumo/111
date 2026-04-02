@@ -233,41 +233,36 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h3 className="text-xl font-bold text-stone-900">核心指标趋势曲线</h3>
-            <p className="text-sm text-stone-500 mt-1">展示全校平均焦虑分与 HRV 均值的动态变化趋势</p>
+            <p className="text-sm text-stone-500 mt-1">展示压力指数、倦怠指数和工具使用率的时序变化</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-purple-500" />
-              <span className="text-xs text-stone-500">平均焦虑分</span>
+              <span className="text-xs text-stone-500">压力指数</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-500" />
-              <span className="text-xs text-stone-500">HRV 均值</span>
+              <div className="h-3 w-3 rounded-full bg-rose-500" />
+              <span className="text-xs text-stone-500">倦怠指数</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-emerald-500" />
+              <span className="text-xs text-stone-500">工具使用率</span>
             </div>
           </div>
         </div>
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={cockpitData.trends}>
-              <defs>
-                <linearGradient id="colorAnxiety" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#a855f7" stopOpacity={0.1}/>
-                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
+            <LineChart data={cockpitData.trends}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
               <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
               <Tooltip 
                 contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
               />
-              <Area type="monotone" dataKey="anxiety" stroke="#a855f7" strokeWidth={3} fillOpacity={1} fill="url(#colorAnxiety)" />
-              <Area type="monotone" dataKey="hrv" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorHrv)" />
-            </AreaChart>
+              <Line type="monotone" dataKey="pressure" stroke="#a855f7" strokeWidth={3} dot={{ r: 4, fill: '#a855f7' }} name="压力指数" />
+              <Line type="monotone" dataKey="burnout" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#ef4444' }} name="倦怠指数" />
+              <Line type="monotone" dataKey="toolUsageRate" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} name="工具使用率" />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -345,17 +340,34 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
               <BarChart data={cockpitData.resourceEfficiency}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                 <XAxis dataKey="tool" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
+                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
+                <YAxis yAxisId="right" domain={[0, 100]} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value, name) => {
+                    if (name === '改善指数') {
+                      return [`${value}%`, name];
+                    }
+                    return [value, name];
+                  }}
                 />
                 <Legend verticalAlign="top" align="right" height={36}/>
-                <Bar dataKey="usage" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="使用频次" />
-                <Bar dataKey="improvement" fill="#10b981" radius={[4, 4, 0, 0]} name="改善指数" />
+                <Bar yAxisId="left" dataKey="usage" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="使用频次 (次)" />
+                <Bar yAxisId="right" dataKey="improvement" fill="#10b981" radius={[4, 4, 0, 0]} name="改善指数 (%)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[10px] text-stone-400 italic mt-4">* 改善指数基于用户使用工具前后的即时情绪反馈聚合计算</p>
+          <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100 space-y-3">
+            <h4 className="text-xs font-bold text-stone-700">算法说明</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px] text-stone-600 leading-relaxed">
+              <div>
+                <span className="font-bold text-stone-800">使用频次：</span>统计该工具在选定时间范围内的总使用次数。
+              </div>
+              <div>
+                <span className="font-bold text-stone-800">改善指数：</span>计算公式：(感觉"好多了"的次数 / 总使用次数) × 100%。
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

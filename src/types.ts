@@ -220,8 +220,9 @@ export interface CockpitData {
   resourceEngagement: number;
   trends: {
     date: string;
-    anxiety: number;
-    hrv: number;
+    pressure: number;
+    burnout: number;
+    toolUsageRate: number;
   }[];
   riskHeatmap: {
     grade: string;

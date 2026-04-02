@@ -1901,9 +1901,10 @@ async function startServer() {
         ? Math.round((completedTasks.length / allInterventionTasks.length) * 100) 
         : 0;
 
+      const dateFilterClause = dateFilter ? `WHERE ${dateFilter.replace('AND ', '')}` : '';
       const allToolUsage = db.prepare(`
         SELECT * FROM tool_usage 
-        WHERE user_id IN ('${teacherIds || ''}') ${dateFilter}
+        ${dateFilterClause}
       `).all();
 
       const uniqueToolUsers = new Set(allToolUsage.map((u: any) => u.user_id));
@@ -1952,31 +1953,35 @@ async function startServer() {
           AND date(timestamp) = date('${date.toISOString().split('T')[0]}')
         `).all();
 
-        let avgAnxiety = 40;
-        let avgHrv = 65;
+        let pressureIndex = 40;
+        let burnoutIndex = 35;
+        let toolUsageRate = 20;
         
         if (dayAssessments.length > 0) {
-          const anxietyScores = dayAssessments.map((a: any) => {
+          const pressureScores = dayAssessments.map((a: any) => {
             const scores = JSON.parse(a.scores);
-            return scores['焦虑'] || scores['焦虑因子'] || 40;
+            return scores['工作压力'] || scores['压力'] || 40;
           });
-          avgAnxiety = Math.round(anxietyScores.reduce((sum, s) => sum + s, 0) / anxietyScores.length);
+          pressureIndex = Math.round(pressureScores.reduce((sum, s) => sum + s, 0) / pressureScores.length);
+          
+          const burnoutScores = dayAssessments.map((a: any) => {
+            const scores = JSON.parse(a.scores);
+            return scores['职业倦怠'] || scores['倦怠'] || 35;
+          });
+          burnoutIndex = Math.round(burnoutScores.reduce((sum, s) => sum + s, 0) / burnoutScores.length);
         }
         
-        const dayPhysiologicalData = allPhysiologicalData.filter((p: any) => {
-          const pDate = new Date(p.recorded_at).toISOString().split('T')[0];
-          return pDate === date.toISOString().split('T')[0];
+        const dayToolUsage = allToolUsage.filter((u: any) => {
+          const uDate = new Date(u.timestamp).toISOString().split('T')[0];
+          return uDate === date.toISOString().split('T')[0];
         });
         
-        if (dayPhysiologicalData.length > 0) {
-          const hrvValues = dayPhysiologicalData.map((p: any) => {
-            const hrvArray = JSON.parse(p.hrv || '[]');
-            return hrvArray.length > 0 ? hrvArray.reduce((sum: number, val: number) => sum + val, 0) / hrvArray.length : 65;
-          });
-          avgHrv = Math.round(hrvValues.reduce((sum, s) => sum + s, 0) / hrvValues.length);
+        if (filteredTeachers.length > 0) {
+          const uniqueUsers = new Set(dayToolUsage.map((u: any) => u.user_id));
+          toolUsageRate = Math.round((uniqueUsers.size / filteredTeachers.length) * 100);
         }
         
-        trends.push({ date: dateStr, anxiety: avgAnxiety, hrv: avgHrv });
+        trends.push({ date: dateStr, pressure: pressureIndex, burnout: burnoutIndex, toolUsageRate: toolUsageRate });
       }
 
       const grades = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
@@ -2055,14 +2060,38 @@ async function startServer() {
         'emotion_diary': '情绪日记',
         'breathing': '呼吸训练',
         'community': '匿名社区',
-        'lecture': '专家讲座'
+        'lecture': '专家讲座',
+        'emotional-pause': '情绪暂停角',
+        'diary': '情绪日记',
+        'anxiety-box': '焦虑盒子',
+        'cards': '每日卡片',
+        'boundaries': '边界设定',
+        'pause': '情绪暂停角',
+        'quadrants': '四象限活动',
+        'community_comment': '社区评论',
+        'community_like': '社区点赞'
       };
 
-      const resourceEfficiency = Object.entries(toolStats)
-        .map(([toolId, stats]) => {
+      const validToolIds = Object.keys(toolNames);
+
+      // 合并相同工具名称的数据
+      const mergedToolStats = Object.entries(toolStats)
+        .filter(([toolId]) => validToolIds.includes(toolId))
+        .reduce((acc: Record<string, { usage: number; improvements: number }>, [toolId, stats]) => {
+          const toolName = toolNames[toolId] || toolId;
+          if (!acc[toolName]) {
+            acc[toolName] = { usage: 0, improvements: 0 };
+          }
+          acc[toolName].usage += stats.usage;
+          acc[toolName].improvements += stats.improvements;
+          return acc;
+        }, {});
+
+      const resourceEfficiency = Object.entries(mergedToolStats)
+        .map(([toolName, stats]) => {
           const improvementRate = stats.usage > 0 ? Math.round((stats.improvements / stats.usage) * 100) : 0;
           return {
-            tool: toolNames[toolId] || toolId,
+            tool: toolName,
             usage: stats.usage,
             improvement: improvementRate
           };

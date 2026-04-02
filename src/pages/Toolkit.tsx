@@ -143,7 +143,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
       Object.entries(toolUsageStartTime).forEach(([tool, startTime]) => {
         const duration = Date.now() - startTime;
         if (duration > 1000) { // 只记录超过1秒的使用
-          trackToolUsage(tool, duration);
+          // 只调用 logToolUsage 函数来记录工具使用，不默认设置 feeling 参数
+          logToolUsage(tool, Math.round(duration / 1000));
         }
       });
       setToolUsageStartTime({});
@@ -195,7 +196,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     }
   };
 
-  const trackToolUsage = async (tool: string, duration: number) => {
+  const trackToolUsage = async (tool: string, duration: number, feeling?: string) => {
     if (profile) {
       try {
         const token = localStorage.getItem('token');
@@ -207,7 +208,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
           },
           body: JSON.stringify({
             toolId: tool,
-            duration: Math.round(duration / 1000) // 转换为秒
+            duration: Math.round(duration / 1000), // 转换为秒
+            feeling: feeling // 不默认设置为 'better'
           })
         });
 
@@ -600,18 +602,9 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     });
   };
 
-  const logToolUsage = async (toolId: string, duration?: number, feeling?: 'better' | 'same' | 'worse') => {
+  const logToolUsage = async (toolId: string, duration?: number, feeling: 'better' | 'same' | 'worse' = 'better') => {
     if (!profile) return;
     try {
-      const data: any = {
-        uid: profile.uid,
-        toolId,
-        timestamp: new Date().toISOString()
-      };
-      
-      if (duration !== undefined) data.duration = duration;
-      if (feeling !== undefined) data.feeling = feeling;
-
       await fetch('/api/tool-usage', {
         method: 'POST',
         headers: {
@@ -685,7 +678,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     if (!isPauseActive || pauseTimer <= 0) {
       if (pauseTimer === 0) {
         setIsPauseActive(false);
-        logToolUsage('emotional-pause', 60, 'better');
+        logToolUsage('pause', 60, 'better');
       }
       return;
     }
@@ -738,6 +731,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
         })));
       }
       setNewTaskTitle("");
+      // 记录工具使用，不默认设置 feeling 参数
+      logToolUsage('quadrants', undefined);
     } catch (err) {
       console.error("Failed to add task:", err instanceof Error ? err.message : String(err));
     }
@@ -1222,10 +1217,10 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                       <p className="text-stone-500 italic">“在刺激和反应之间，有一个空间。在那个空间里，我们有选择反应的自由和力量。”</p>
                       {pauseTimer === 0 && (
                         <button 
-                          onClick={() => { setPauseTimer(60); setActiveTool(null); }}
+                          onClick={() => { setPauseTimer(60); setActiveTool(null); logToolUsage('pause', 60); }}
                           className="px-8 py-3 bg-stone-900 text-white rounded-xl font-bold"
                         >
-                          我感觉好多了
+                          完成
                         </button>
                       )}
                     </div>
