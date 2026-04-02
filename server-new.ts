@@ -751,19 +751,37 @@ async function startServer() {
       warningLevel = "attention";
     }
 
-    // 如果触发预警，自动创建
+    // 如果触发预警，检查是否已存在未解决的预警
     if (warningTriggered && warningLevel) {
       const user = userDb.findById(userId);
-      warningDb.create({
-        userId,
-        teacherName: user?.display_name,
-        level: warningLevel,
-        riskScore,
-        factors,
-        reason: consecutiveHighDepression
-          ? "抑郁因子连续超标触发紧急预警"
-          : `LSTM 综合风险指数 (${(riskScore * 100).toFixed(0)}%) 超过阈值`
-      });
+      
+      // 检查是否已存在未解决的预警
+      const existingWarnings = warningDb.getPendingByUserId(userId);
+      
+      if (existingWarnings.length > 0) {
+        // 更新现有预警
+        const existingWarning = existingWarnings[0];
+        warningDb.update(existingWarning.id, {
+          level: warningLevel,
+          riskScore,
+          factors,
+          reason: consecutiveHighDepression
+            ? "抑郁因子连续超标触发紧急预警"
+            : `LSTM 综合风险指数 (${(riskScore * 100).toFixed(0)}%) 超过阈值`
+        });
+      } else {
+        // 创建新预警
+        warningDb.create({
+          userId,
+          teacherName: user?.display_name,
+          level: warningLevel,
+          riskScore,
+          factors,
+          reason: consecutiveHighDepression
+            ? "抑郁因子连续超标触发紧急预警"
+            : `LSTM 综合风险指数 (${(riskScore * 100).toFixed(0)}%) 超过阈值`
+        });
+      }
     }
 
     res.json({

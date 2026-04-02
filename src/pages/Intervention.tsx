@@ -1191,6 +1191,19 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                                 负责专家: <span className="text-stone-700 font-medium ml-1">{task.assignedTo ? (task.assignedToName || task.assignedTo) : '待指派'}</span>
                               </p>
 
+                              {/* 显示关怀记录 */}
+                              {task.careRecords && task.careRecords.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-[10px] font-bold text-stone-600">访谈记录:</p>
+                                  {task.careRecords.map((record, index) => (
+                                    <div key={index} className="p-2 bg-white rounded-lg border border-stone-100">
+                                      <p className="text-[9px] text-stone-400">{record.date}</p>
+                                      <p className="text-[10px] text-stone-700">{record.summary}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) && (
                                 <div className="flex items-center gap-2 pt-2 border-t border-orange-100">
                                   {task.status !== 'completed' && (
