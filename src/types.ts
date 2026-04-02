@@ -19,6 +19,7 @@ export interface UserProfile {
   wearableBrand?: "Apple" | "Huawei" | "Xiaomi" | null;
   syncFrequency?: "hourly" | "daily" | "realtime";
   preferences?: string[]; // For resource matching
+  teachingExperience?: number; // 教龄（年）
 }
 
 export interface Assessment {
@@ -231,6 +232,24 @@ export interface CockpitData {
     tool: string;
     usage: number;
     improvement: number;
+  }[];
+  drillDownData: {
+    label: string;
+    grade: string;
+    subject: string;
+    experience: string;
+    count: number;
+    score: number;
+    warning: string;
+    usage: string;
+    effect: string;
+  }[];
+  trackingData: DeidentifiedTracking[];
+  suggestions: {
+    type: string;
+    title: string;
+    rootCause: string;
+    suggestion: string;
   }[];
 }
 

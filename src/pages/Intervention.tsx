@@ -466,11 +466,12 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         title: "预约提交成功",
         message: `您已成功提交对"${selectedResource.title}"的预约申请，管理员会尽快处理并通知您。`
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.error || error?.message || "提交预约时出错，请稍后重试。";
       showModal({
         type: "error",
         title: "预约失败",
-        message: "提交预约时出错，请稍后重试。"
+        message: errorMessage
       });
     }
   };

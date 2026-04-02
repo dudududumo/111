@@ -11,12 +11,14 @@ CREATE TABLE users (
     school TEXT,
     department TEXT,
     dept_id TEXT,
+    grade TEXT,  -- 年级
     manager_id TEXT REFERENCES users(id),
     consent_accepted BOOLEAN DEFAULT FALSE,
     wearable_brand TEXT CHECK (wearable_brand IN ('Apple', 'Huawei', 'Xiaomi')),
     sync_frequency TEXT CHECK (sync_frequency IN ('hourly', 'daily', 'realtime')),
     preferences TEXT,  -- JSON 数组
     favorite_tools TEXT,  -- JSON 数组，收藏的工具
+    teaching_experience INTEGER,  -- 教龄（年）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

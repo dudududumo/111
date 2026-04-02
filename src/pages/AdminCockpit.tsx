@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile, CockpitData, DeidentifiedTracking } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -39,6 +39,7 @@ import {
 
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { cockpitApi } from "../services/api";
 
 interface AdminCockpitProps {
   profile: UserProfile | null;
@@ -51,59 +52,58 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
   const [selectedExperience, setSelectedExperience] = useState("all");
   const [showReportModal, setShowReportModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Mock Data for Cockpit
-  const cockpitData: CockpitData = {
-    overallIndex: 78.4,
-    warningCount: 12,
-    interventionRate: 92.5,
-    resourceEngagement: 84.2,
-    trends: [
-      { date: "03-01", anxiety: 42, hrv: 65 },
-      { date: "03-03", anxiety: 45, hrv: 62 },
-      { date: "03-05", anxiety: 38, hrv: 68 },
-      { date: "03-07", anxiety: 40, hrv: 66 },
-      { date: "03-09", anxiety: 48, hrv: 58 },
-      { date: "03-11", anxiety: 44, hrv: 61 },
-      { date: "03-13", anxiety: 41, hrv: 64 },
-    ],
-    riskHeatmap: [
-      { grade: "初一", subject: "语文", riskLevel: 15 },
-      { grade: "初一", subject: "数学", riskLevel: 25 },
-      { grade: "初一", subject: "英语", riskLevel: 20 },
-      { grade: "初二", subject: "语文", riskLevel: 30 },
-      { grade: "初二", subject: "数学", riskLevel: 45 },
-      { grade: "初二", subject: "英语", riskLevel: 35 },
-      { grade: "初三", subject: "语文", riskLevel: 65 },
-      { grade: "初三", subject: "数学", riskLevel: 85 },
-      { grade: "初三", subject: "英语", riskLevel: 75 },
-    ],
-    resourceEfficiency: [
-      { tool: "正念冥想", usage: 120, improvement: 15 },
-      { tool: "情绪日记", usage: 85, improvement: 12 },
-      { tool: "呼吸训练", usage: 150, improvement: 18 },
-      { tool: "匿名社区", usage: 200, improvement: 10 },
-      { tool: "专家讲座", usage: 45, improvement: 22 },
-    ]
+  const [cockpitData, setCockpitData] = useState<CockpitData>({
+    overallIndex: 75,
+    warningCount: 0,
+    interventionRate: 0,
+    resourceEngagement: 0,
+    trends: [],
+    riskHeatmap: [],
+    resourceEfficiency: [],
+    drillDownData: [],
+    trackingData: [],
+    suggestions: []
+  });
+
+  // const [drillDownData, setDrillDownData] = useState<any[]>([]);
+  // const [trackingData, setTrackingData] = useState<DeidentifiedTracking[]>([]);
+  // const [suggestions, setSuggestions] = useState<any[]>([]);
+
+  const grades = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"];
+  const subjects = ["语文", "数学", "英语", "科学", "道法", "音乐", "体育", "美术"];
+
+  useEffect(() => {
+    fetchCockpitData();
+  }, [timeRange, selectedGroup, selectedSubject, selectedExperience]);
+
+  const fetchCockpitData = async () => {
+    try {
+      setLoading(true);
+      const data = await cockpitApi.getOverview({
+        timeRange,
+        grade: selectedGroup,
+        subject: selectedSubject,
+        experience: selectedExperience
+      });
+      
+      setCockpitData(data);
+    } catch (error) {
+      console.error("获取驾驶舱数据失败:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const drillDownData = [
-    { label: "初三数学组", grade: "初三", subject: "数学", experience: "骨干", count: 12, score: 62, warning: "25%", usage: "92%", effect: "+18%" },
-    { label: "青年教师 (教龄<3年)", grade: "all", subject: "all", experience: "青年", count: 45, score: 68, warning: "18%", usage: "95%", effect: "+22%" },
-    { label: "英语学科组", grade: "all", subject: "英语", experience: "all", count: 38, score: 75, warning: "8%", usage: "78%", effect: "+12%" },
-    { label: "资深教师 (教龄>10年)", grade: "all", subject: "all", experience: "资深", count: 120, score: 82, warning: "5%", usage: "65%", effect: "+8%" },
-    { label: "初一语文组", grade: "初一", subject: "语文", experience: "all", count: 15, score: 88, warning: "2%", usage: "80%", effect: "+5%" },
-    { label: "初二英语组", grade: "初二", subject: "英语", experience: "all", count: 14, score: 72, warning: "12%", usage: "85%", effect: "+10%" },
-  ];
-
   const filteredDrillDown = useMemo(() => {
-    return drillDownData.filter(item => {
+    return cockpitData.drillDownData.filter(item => {
       const gradeMatch = selectedGroup === "all" || item.grade === selectedGroup || item.grade === "all";
       const subjectMatch = selectedSubject === "all" || item.subject === selectedSubject || item.subject === "all";
       const expMatch = selectedExperience === "all" || item.experience === selectedExperience || item.experience === "all";
       return gradeMatch && subjectMatch && expMatch;
     });
-  }, [selectedGroup, selectedSubject, selectedExperience]);
+  }, [selectedGroup, selectedSubject, selectedExperience, cockpitData.drillDownData]);
 
   const handleGenerateReport = async () => {
     setIsGenerating(true);
@@ -115,7 +115,9 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        allowTaint: true,
+        removeContainer: true
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -125,48 +127,16 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`心理健康评估报告_${new Date().toLocaleDateString()}.pdf`);
+      pdf.save(`心理健康评估报告_${new Date().toISOString().split('T')[0]}.pdf`);
 
       setIsGenerating(false);
       setShowReportModal(false);
     } catch (error) {
       console.error("PDF generation failed:", error);
       setIsGenerating(false);
-      alert("报告生成失败，请稍后重试。");
+      alert("报告生成失败，请稍后重试。错误信息：" + (error instanceof Error ? error.message : String(error)));
     }
   };
-
-  const trackingData: DeidentifiedTracking[] = [
-    {
-      id: "T-0892",
-      interventionType: "1对1咨询",
-      preScore: 45,
-      postScore: 78,
-      timeline: [
-        { day: 1, score: 45 },
-        { day: 7, score: 52 },
-        { day: 14, score: 65 },
-        { day: 21, score: 72 },
-        { day: 28, score: 78 },
-      ]
-    },
-    {
-      id: "T-1245",
-      interventionType: "团体沙盘",
-      preScore: 52,
-      postScore: 70,
-      timeline: [
-        { day: 1, score: 52 },
-        { day: 7, score: 55 },
-        { day: 14, score: 62 },
-        { day: 21, score: 68 },
-        { day: 28, score: 70 },
-      ]
-    }
-  ];
-
-  const grades = ["初一", "初二", "初三"];
-  const subjects = ["语文", "数学", "英语"];
 
   const getHeatmapColor = (level: number) => {
     if (level < 30) return "bg-emerald-100 text-emerald-700";
@@ -174,6 +144,17 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
     if (level < 70) return "bg-amber-100 text-amber-700";
     return "bg-rose-100 text-rose-700";
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-stone-500">正在加载数据...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -346,7 +327,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
           <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100 flex items-start gap-3">
             <Info size={16} className="text-stone-400 mt-0.5" />
             <p className="text-xs text-stone-500 leading-relaxed">
-              热力图显示：<span className="font-bold text-rose-600">初三数学组</span> 风险指数最高（85%），主要关联近期高强度的教学任务与升学压力。
+              热力图显示风险分布情况，颜色越深表示风险越高。建议重点关注高风险年级和学科的教师心理健康状况。
             </p>
           </div>
         </div>
@@ -391,7 +372,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {trackingData.map((track, i) => (
+          {cockpitData.trackingData.map((track, i) => (
             <div key={track.id} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -440,9 +421,12 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
                 className="pl-10 pr-8 py-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-purple-500/20"
               >
                 <option value="all">所有年级</option>
-                <option value="初一">初一</option>
-                <option value="初二">初二</option>
-                <option value="初三">初三</option>
+                <option value="一年级">一年级</option>
+                <option value="二年级">二年级</option>
+                <option value="三年级">三年级</option>
+                <option value="四年级">四年级</option>
+                <option value="五年级">五年级</option>
+                <option value="六年级">六年级</option>
               </select>
               <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
@@ -457,6 +441,11 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
                 <option value="语文">语文</option>
                 <option value="数学">数学</option>
                 <option value="英语">英语</option>
+                <option value="科学">科学</option>
+                <option value="道法">道法</option>
+                <option value="音乐">音乐</option>
+                <option value="体育">体育</option>
+                <option value="美术">美术</option>
               </select>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
@@ -468,9 +457,10 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
                 className="pl-10 pr-8 py-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-purple-500/20"
               >
                 <option value="all">所有教龄</option>
-                <option value="青年">1-3年 (青年)</option>
-                <option value="骨干">4-10年 (骨干)</option>
-                <option value="资深">10年以上 (资深)</option>
+                <option value="0-2">0-2年 (入职适应期)：新锐教师</option>
+                <option value="3-5">3-5年 (专业成长期)：菁英教师</option>
+                <option value="6-15">6-15年 (经验成熟期)：骨干教师</option>
+                <option value="16+">16年以上 (资深发展期)：领航教师</option>
               </select>
               <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
@@ -537,39 +527,25 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <motion.div 
-                whileHover={{ y: -5 }}
-                className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2 w-2 rounded-full bg-rose-400" />
-                  <p className="text-sm font-bold">异常识别：初三年级风险持续偏高</p>
-                </div>
-                <p className="text-xs text-purple-50 leading-relaxed mb-4">
-                  <span className="font-bold">根因分析：</span> 关联环境数据显示，该年级人均周课时超 22 节，且非教学行政任务占比达 35%。
-                </p>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-                  <p className="text-[10px] font-bold text-purple-200 uppercase mb-1">管理建议</p>
-                  <p className="text-xs text-white">建议下周起精简初三年级行政会议，并由校工会组织专项“减压工作坊”。</p>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                whileHover={{ y: -5 }}
-                className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2 w-2 rounded-full bg-blue-400" />
-                  <p className="text-sm font-bold">效能优化：心理工具使用率下降</p>
-                </div>
-                <p className="text-xs text-purple-50 leading-relaxed mb-4">
-                  <span className="font-bold">根因分析：</span> 调研显示教师普遍反馈“正念冥想”单次时长过长，不适应课间碎片化时间。
-                </p>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-                  <p className="text-[10px] font-bold text-purple-200 uppercase mb-1">管理建议</p>
-                  <p className="text-xs text-white">建议在“蓝色调适”模块中引入 3-5 分钟的“极速解压”音频，并进行全校推送。</p>
-                </div>
-              </motion.div>
+              {cockpitData.suggestions.map((suggestion, index) => (
+                <motion.div 
+                  key={index}
+                  whileHover={{ y: -5 }}
+                  className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`h-2 w-2 rounded-full ${suggestion.type === 'risk' ? 'bg-rose-400' : suggestion.type === 'efficiency' ? 'bg-blue-400' : suggestion.type === 'intervention' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                    <p className="text-sm font-bold">{suggestion.title}</p>
+                  </div>
+                  <p className="text-xs text-purple-50 leading-relaxed mb-4">
+                    <span className="font-bold">根因分析：</span> {suggestion.rootCause}
+                  </p>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/10">
+                    <p className="text-[10px] font-bold text-purple-200 uppercase mb-1">管理建议</p>
+                    <p className="text-xs text-white">{suggestion.suggestion}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         </div>
@@ -611,8 +587,8 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-widest">报告时间范围</label>
                     <div className="relative">
                       <select className="w-full pl-10 pr-4 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold appearance-none outline-none focus:ring-2 focus:ring-purple-500/20">
-                        <option>2024年第一季度</option>
-                        <option>2024年3月</option>
+                        <option>2026年第一季度</option>
+                        <option>2026年3月</option>
                         <option>本学期至今</option>
                       </select>
                       <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
@@ -624,7 +600,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
                     <div className="relative">
                       <select className="w-full pl-10 pr-4 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold appearance-none outline-none focus:ring-2 focus:ring-purple-500/20">
                         <option>全校教师</option>
-                        <option>初三年级组</option>
+                        <option>六年级年级组</option>
                         <option>青年教师 (教龄 &lt; 3年)</option>
                       </select>
                       <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />

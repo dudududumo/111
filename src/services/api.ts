@@ -522,7 +522,26 @@ export const interventionApi = {
   },
 };
 
+// ==================== 驾驶舱 API ====================
 
+export const cockpitApi = {
+  // 获取驾驶舱概览数据
+  getOverview: async (params?: {
+    timeRange?: string;
+    grade?: string;
+    subject?: string;
+    experience?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.timeRange) queryParams.append('timeRange', params.timeRange);
+    if (params?.grade) queryParams.append('grade', params.grade);
+    if (params?.subject) queryParams.append('subject', params.subject);
+    if (params?.experience) queryParams.append('experience', params.experience);
+    
+    const queryString = queryParams.toString();
+    return fetchApi(`/cockpit/overview${queryString ? `?${queryString}` : ''}`);
+  },
+};
 
 export default {
   auth: authApi,
@@ -538,4 +557,5 @@ export default {
   toolUsage: toolUsageApi,
   intervention: interventionApi,
   notificationApi: notificationApi,
+  cockpit: cockpitApi,
 };

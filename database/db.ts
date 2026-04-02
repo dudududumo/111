@@ -96,7 +96,35 @@ export function initDatabase() {
       }
     }
   }
-  
+
+  // 迁移：为 users 表添加 teaching_experience 列
+  try {
+    db.exec('SELECT teaching_experience FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: teaching_experience')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN teaching_experience INTEGER;');
+        console.log('Successfully added teaching_experience column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 users 表添加 grade 列
+  try {
+    db.exec('SELECT grade FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: grade')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN grade TEXT;');
+        console.log('Successfully added grade column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
   console.log('Database initialized successfully');
   
   // 初始化默认心理资源（如果还没有资源）
@@ -194,13 +222,14 @@ export const userDb = {
     role: string;
     school?: string;
     department?: string;
+    grade?: string;
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO users (id, email, display_name, password_hash, role, school, department)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, display_name, password_hash, role, school, department, grade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, user.email, user.displayName, user.passwordHash || null, user.role, user.school || null, user.department || null);
+    stmt.run(id, user.email, user.displayName, user.passwordHash || null, user.role, user.school || null, user.department || null, user.grade || null);
     return id;
   },
 
@@ -253,6 +282,19 @@ export const userDb = {
         try {
           db.exec('ALTER TABLE users ADD COLUMN manager_id TEXT REFERENCES users(id);');
           console.log('Runtime migration: added manager_id column to users table');
+          // 重新执行更新
+          const stmt = db.prepare(sql);
+          stmt.run(...values, id);
+          return;
+        } catch (migrationError) {
+          console.error('Runtime migration failed:', migrationError);
+        }
+      }
+      // 运行时迁移：如果更新时发现缺少 grade
+      else if (error.message.includes('no such column: grade')) {
+        try {
+          db.exec('ALTER TABLE users ADD COLUMN grade TEXT;');
+          console.log('Runtime migration: added grade column to users table');
           // 重新执行更新
           const stmt = db.prepare(sql);
           stmt.run(...values, id);
@@ -428,13 +470,13 @@ export const warningDb = {
     stmt.run('resolved', id);
   },
 
-  // 获取用户的未解决预警
+  // 获取用户的未解决预警（包括 pending 和 active 状态）
   getPendingByUserId: (userId: string) => {
     const stmt = db.prepare(`
       SELECT warnings.*, users.display_name
       FROM warnings
       JOIN users ON warnings.user_id = users.id
-      WHERE warnings.user_id = ? AND warnings.status = 'pending'
+      WHERE warnings.user_id = ? AND warnings.status IN ('pending', 'active')
       ORDER BY warnings.timestamp DESC
     `);
     return stmt.all(userId);
@@ -495,10 +537,10 @@ export const warningDb = {
     reason: string;
     status?: string;
   }) => {
-    // 检查是否已存在该用户的未解决预警
+    // 检查是否已存在该用户的未解决预警（包括 pending 和 active 状态）
     const existing = db.prepare(`
       SELECT id FROM warnings 
-      WHERE user_id = ? AND status = 'pending'
+      WHERE user_id = ? AND status IN ('pending', 'active')
       ORDER BY timestamp DESC 
       LIMIT 1
     `).get(warning.userId) as { id: string } | undefined;
@@ -1452,7 +1494,7 @@ export const appointmentDb = {
     // 检查是否存在同一资源、同一日期、同一时间段的预约
     if (appointment.appointmentDate && appointment.appointmentTime) {
       const existingAppointment = db.prepare(
-        'SELECT * FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND appointment_time = ? AND status IN ("pending", "confirmed", "completed")'
+        'SELECT * FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND appointment_time = ? AND status IN (\'pending\', \'confirmed\', \'completed\')'
       ).get(appointment.resourceId, appointment.appointmentDate, appointment.appointmentTime);
       
       if (existingAppointment) {
@@ -1525,7 +1567,7 @@ export const appointmentDb = {
   // 获取指定资源在指定日期的已占用时段
   getOccupiedSlots: (resourceId: string, date: string) => {
     const stmt = db.prepare(
-      'SELECT appointment_time FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND status IN ("pending", "confirmed", "completed")'
+      'SELECT appointment_time FROM resource_appointments WHERE resource_id = ? AND appointment_date = ? AND status IN (\'pending\', \'confirmed\', \'completed\')'
     );
     const slots = stmt.all(resourceId, date) as Array<{ appointment_time: string }>;
     return slots.map(slot => slot.appointment_time).filter(Boolean);
