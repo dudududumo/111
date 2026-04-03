@@ -246,6 +246,11 @@ export interface CockpitData {
     effect: string;
   }[];
   trackingData: DeidentifiedTracking[];
+  interventionTypeChartData: {
+    type: string;
+    avgImprovement: number;
+    count: number;
+  }[];
   suggestions: {
     type: string;
     title: string;
@@ -259,8 +264,5 @@ export interface DeidentifiedTracking {
   interventionType: string;
   preScore: number;
   postScore: number;
-  timeline: {
-    day: number;
-    score: number;
-  }[];
+  improvement: number;
 }

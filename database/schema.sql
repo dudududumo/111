@@ -83,6 +83,16 @@ CREATE TABLE tool_usage (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 工具评分表
+CREATE TABLE tool_ratings (
+    id TEXT PRIMARY KEY,  -- UUID
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tool_id TEXT NOT NULL,
+    rating REAL NOT NULL CHECK (rating >= 0 AND rating <= 5),  -- 0-5星，支持半星
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tool_id)
+);
+
 -- 个人任务表（工具箱中的任务）
 CREATE TABLE user_tasks (
     id TEXT PRIMARY KEY,
@@ -225,5 +235,7 @@ CREATE INDEX idx_warnings_status ON warnings(status);
 CREATE INDEX idx_warnings_level ON warnings(level);
 CREATE INDEX idx_diary_entries_user_id ON diary_entries(user_id);
 CREATE INDEX idx_tool_usage_user_id ON tool_usage(user_id);
+CREATE INDEX idx_tool_ratings_user_id ON tool_ratings(user_id);
+CREATE INDEX idx_tool_ratings_tool_id ON tool_ratings(tool_id);
 CREATE INDEX idx_community_posts_author ON community_posts(author_id);
 CREATE INDEX idx_community_comments_post ON community_comments(post_id);

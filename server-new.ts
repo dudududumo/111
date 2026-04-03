@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb } from "./database/db.js";
+import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, toolRatingDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb } from "./database/db.js";
 
 dotenv.config();
 
@@ -880,6 +880,64 @@ async function startServer() {
       res.json(usages);
     } catch (error) {
       res.status(500).json({ error: "获取工具使用记录失败" });
+    }
+  });
+
+  // ==================== 工具评分 API ====================
+
+  // 创建或更新工具评分
+  app.post("/api/tool-ratings", authMiddleware, (req: any, res) => {
+    try {
+      const { toolId, rating } = req.body;
+      
+      if (!toolId || rating === undefined) {
+        return res.status(400).json({ error: "缺少 toolId 或 rating 参数" });
+      }
+      
+      if (rating < 0 || rating > 5) {
+        return res.status(400).json({ error: "评分必须在0-5之间" });
+      }
+      
+      const ratingId = toolRatingDb.upsert({
+        userId: req.user.userId,
+        toolId,
+        rating
+      });
+      
+      res.json({ success: true, id: ratingId });
+    } catch (error) {
+      console.error('记录工具评分失败:', error);
+      res.status(500).json({ error: "记录工具评分失败", details: error.message });
+    }
+  });
+
+  // 获取当前用户的所有工具评分
+  app.get("/api/tool-ratings/my", authMiddleware, (req: any, res) => {
+    try {
+      const ratings = toolRatingDb.getByUserId(req.user.userId);
+      res.json(ratings);
+    } catch (error) {
+      res.status(500).json({ error: "获取工具评分失败" });
+    }
+  });
+
+  // 获取当前用户对特定工具的评分
+  app.get("/api/tool-ratings/my/:toolId", authMiddleware, (req: any, res) => {
+    try {
+      const rating = toolRatingDb.getByUserAndTool(req.user.userId, req.params.toolId);
+      res.json(rating || null);
+    } catch (error) {
+      res.status(500).json({ error: "获取工具评分失败" });
+    }
+  });
+
+  // 获取所有工具的平均评分（管理员接口）
+  app.get("/api/tool-ratings/average", authMiddleware, (req: any, res) => {
+    try {
+      const avgRatings = toolRatingDb.getAverageRatings();
+      res.json(avgRatings);
+    } catch (error) {
+      res.status(500).json({ error: "获取平均评分失败" });
     }
   });
 
@@ -1953,22 +2011,22 @@ async function startServer() {
           AND date(timestamp) = date('${date.toISOString().split('T')[0]}')
         `).all();
 
-        let pressureIndex = 40;
-        let burnoutIndex = 35;
+        let avgAnxietyScore = 40;
+        let avgDepressionScore = 35;
         let toolUsageRate = 20;
         
         if (dayAssessments.length > 0) {
-          const pressureScores = dayAssessments.map((a: any) => {
+          const anxietyScores = dayAssessments.map((a: any) => {
             const scores = JSON.parse(a.scores);
-            return scores['工作压力'] || scores['压力'] || 40;
+            return scores['焦虑'] || scores['GAD-7总分'] || scores['SAS总分'] || 40;
           });
-          pressureIndex = Math.round(pressureScores.reduce((sum, s) => sum + s, 0) / pressureScores.length);
+          avgAnxietyScore = Math.round(anxietyScores.reduce((sum, s) => sum + s, 0) / anxietyScores.length);
           
-          const burnoutScores = dayAssessments.map((a: any) => {
+          const depressionScores = dayAssessments.map((a: any) => {
             const scores = JSON.parse(a.scores);
-            return scores['职业倦怠'] || scores['倦怠'] || 35;
+            return scores['抑郁'] || scores['PHQ-9总分'] || scores['SDS总分'] || 35;
           });
-          burnoutIndex = Math.round(burnoutScores.reduce((sum, s) => sum + s, 0) / burnoutScores.length);
+          avgDepressionScore = Math.round(depressionScores.reduce((sum, s) => sum + s, 0) / depressionScores.length);
         }
         
         const dayToolUsage = allToolUsage.filter((u: any) => {
@@ -1981,7 +2039,7 @@ async function startServer() {
           toolUsageRate = Math.round((uniqueUsers.size / filteredTeachers.length) * 100);
         }
         
-        trends.push({ date: dateStr, pressure: pressureIndex, burnout: burnoutIndex, toolUsageRate: toolUsageRate });
+        trends.push({ date: dateStr, anxiety: avgAnxietyScore, depression: avgDepressionScore, toolUsageRate: toolUsageRate });
       }
 
       const grades = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
@@ -2042,54 +2100,60 @@ async function startServer() {
         });
       });
 
-      const toolStats = allToolUsage.reduce((acc: Record<string, { usage: number; improvements: number; userMoods: number[] }>, usage: any) => {
+      const toolStats = allToolUsage.reduce((acc: Record<string, { usage: number }>, usage: any) => {
         if (!acc[usage.tool_id]) {
-          acc[usage.tool_id] = { usage: 0, improvements: 0, userMoods: [] };
+          acc[usage.tool_id] = { usage: 0 };
         }
         acc[usage.tool_id].usage += 1;
-        
-        if (usage.feeling === 'better') {
-          acc[usage.tool_id].improvements += 1;
-        }
         
         return acc;
       }, {});
 
       const toolNames: Record<string, string> = {
-        'mindfulness': '正念冥想',
-        'emotion_diary': '情绪日记',
-        'breathing': '呼吸训练',
-        'community': '匿名社区',
-        'lecture': '专家讲座',
-        'emotional-pause': '情绪暂停角',
-        'diary': '情绪日记',
-        'anxiety-box': '焦虑盒子',
-        'cards': '每日卡片',
-        'boundaries': '边界设定',
+        'mindfulness': '正念冥想音频库',
+        'breathing': '3×3 呼吸引导',
         'pause': '情绪暂停角',
-        'quadrants': '四象限活动',
-        'community_comment': '社区评论',
-        'community_like': '社区点赞'
+        'anxiety-box': '焦虑收纳箱',
+        'quadrants': '四象限工作法',
+        'diary': '情绪日记本',
+        'cards': '积极心理卡片',
+        'boundaries': '沟通边界卡模拟'
       };
 
       const validToolIds = Object.keys(toolNames);
 
-      // 合并相同工具名称的数据
+      // 获取所有工具的平均评分
+      const avgRatings = toolRatingDb.getAverageRatings();
+      const ratingsMap: Record<string, { avg_rating: number; rating_count: number }> = {};
+      avgRatings.forEach((r: any) => {
+        ratingsMap[r.tool_id] = { avg_rating: parseFloat(r.avg_rating), rating_count: r.rating_count };
+      });
+
+      // 合并相同工具名称的数据，同时处理评分
       const mergedToolStats = Object.entries(toolStats)
         .filter(([toolId]) => validToolIds.includes(toolId))
-        .reduce((acc: Record<string, { usage: number; improvements: number }>, [toolId, stats]) => {
+        .reduce((acc: Record<string, { usage: number; total_rating: number; rating_count: number }>, [toolId, stats]) => {
           const toolName = toolNames[toolId] || toolId;
           if (!acc[toolName]) {
-            acc[toolName] = { usage: 0, improvements: 0 };
+            acc[toolName] = { usage: 0, total_rating: 0, rating_count: 0 };
           }
           acc[toolName].usage += stats.usage;
-          acc[toolName].improvements += stats.improvements;
+          
+          // 如果该工具ID有评分，添加到该工具名称的总评分中
+          if (ratingsMap[toolId]) {
+            acc[toolName].total_rating += ratingsMap[toolId].avg_rating * ratingsMap[toolId].rating_count;
+            acc[toolName].rating_count += ratingsMap[toolId].rating_count;
+          }
+          
           return acc;
         }, {});
 
       const resourceEfficiency = Object.entries(mergedToolStats)
         .map(([toolName, stats]) => {
-          const improvementRate = stats.usage > 0 ? Math.round((stats.improvements / stats.usage) * 100) : 0;
+          // 计算平均评分（0-5星），如果没有评分则使用默认值2.5星（50%）
+          const avgRating = stats.rating_count > 0 ? stats.total_rating / stats.rating_count : 2.5;
+          // 将0-5星转换为0-100%的改善指数
+          const improvementRate = Math.round((avgRating / 5) * 100);
           return {
             tool: toolName,
             usage: stats.usage,
@@ -2101,7 +2165,7 @@ async function startServer() {
 
       const trackingData: any[] = [];
       
-      // 首先尝试从已完成的干预任务中获取数据
+      // 只从已完成的干预任务中获取真实数据，必须同时有干预前和干预后的评估
       completedTasks.forEach((task: any, index) => {
         const teacherId = task.teacher_id;
         
@@ -2121,69 +2185,15 @@ async function startServer() {
           LIMIT 1
         `).all(teacherId, task.created_at);
         
-        let preScore = 50;
-        let postScore = 70;
-        
-        if (preInterventionAssessments.length > 0) {
-          const scores = JSON.parse(preInterventionAssessments[0].scores);
-          const avgScore = Object.values(scores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(scores).length;
-          preScore = Math.round(100 - avgScore * 10);
-        }
-        
-        if (postInterventionAssessments.length > 0) {
-          const scores = JSON.parse(postInterventionAssessments[0].scores);
-          const avgScore = Object.values(scores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(scores).length;
-          postScore = Math.round(100 - avgScore * 10);
-        }
-        
-        const careRecords = task.care_records ? JSON.parse(task.care_records) : [];
-        const interventionType = careRecords.length > 0 ? careRecords[0].summary?.split('：')[0] || '1对1咨询' : '1对1咨询';
-        
-        trackingData.push({
-          id: `T-${String(index + 1000).padStart(4, '0')}`,
-          interventionType,
-          preScore,
-          postScore,
-          timeline: [
-            { day: 1, score: preScore },
-            { day: 7, score: Math.round(preScore + (postScore - preScore) * 0.2) },
-            { day: 14, score: Math.round(preScore + (postScore - preScore) * 0.5) },
-            { day: 21, score: Math.round(preScore + (postScore - preScore) * 0.8) },
-            { day: 28, score: postScore },
-          ]
-        });
-      });
-
-      // 如果没有完成的任务，从所有干预任务中获取数据
-      if (trackingData.length === 0 && allInterventionTasks.length > 0) {
-        allInterventionTasks.slice(0, 2).forEach((task: any, index) => {
-          const teacherId = task.teacher_id;
+        if (preInterventionAssessments.length > 0 && postInterventionAssessments.length > 0) {
+          const preScores = JSON.parse(preInterventionAssessments[0].scores);
+          const postScores = JSON.parse(postInterventionAssessments[0].scores);
           
-          const recentAssessments = db.prepare(`
-            SELECT * FROM assessments 
-            WHERE user_id = ? 
-            ORDER BY timestamp DESC
-            LIMIT 2
-          `).all(teacherId);
+          const preAvgScore = Object.values(preScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(preScores).length;
+          const postAvgScore = Object.values(postScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(postScores).length;
           
-          let preScore = 50;
-          let postScore = 65;
-          
-          if (recentAssessments.length >= 2) {
-            const preScores = JSON.parse(recentAssessments[1].scores);
-            const postScores = JSON.parse(recentAssessments[0].scores);
-            
-            const preAvgScore = Object.values(preScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(preScores).length;
-            const postAvgScore = Object.values(postScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(postScores).length;
-            
-            preScore = Math.round(100 - preAvgScore * 10);
-            postScore = Math.round(100 - postAvgScore * 10);
-          } else if (recentAssessments.length === 1) {
-            const scores = JSON.parse(recentAssessments[0].scores);
-            const avgScore = Object.values(scores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(scores).length;
-            postScore = Math.round(100 - avgScore * 10);
-            preScore = postScore - 15; // 假设干预前分数较低
-          }
+          const preScore = Math.round(100 - preAvgScore * 10);
+          const postScore = Math.round(100 - postAvgScore * 10);
           
           const careRecords = task.care_records ? JSON.parse(task.care_records) : [];
           const interventionType = careRecords.length > 0 ? careRecords[0].summary?.split('：')[0] || '1对1咨询' : '1对1咨询';
@@ -2193,63 +2203,34 @@ async function startServer() {
             interventionType,
             preScore,
             postScore,
-            timeline: [
-              { day: 1, score: preScore },
-              { day: 7, score: Math.round(preScore + (postScore - preScore) * 0.2) },
-              { day: 14, score: Math.round(preScore + (postScore - preScore) * 0.5) },
-              { day: 21, score: Math.round(preScore + (postScore - preScore) * 0.8) },
-              { day: 28, score: postScore },
-            ]
+            improvement: postScore - preScore
           });
-        });
-      }
+        }
+      });
 
-      // 如果仍然没有数据，基于所有教师的评估数据生成
-      if (trackingData.length === 0 && allAssessments.length > 0) {
-        // 按教师分组，获取每个教师的最近两次评估
-        const teacherAssessments: Record<string, any[]> = {};
-        allAssessments.forEach((assessment: any) => {
-          if (!teacherAssessments[assessment.user_id]) {
-            teacherAssessments[assessment.user_id] = [];
-          }
-          teacherAssessments[assessment.user_id].push(assessment);
-        });
-        
-        // 对每个教师的评估按时间排序
-        Object.values(teacherAssessments).forEach(assessments => {
-          assessments.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        });
-        
-        // 选择前两个有多次评估的教师
-        const validTeachers = Object.entries(teacherAssessments)
-          .filter(([_, assessments]) => assessments.length >= 2)
-          .slice(0, 2);
-        
-        validTeachers.forEach(([teacherId, assessments], index) => {
-          const preScores = JSON.parse(assessments[1].scores);
-          const postScores = JSON.parse(assessments[0].scores);
-          
-          const preAvgScore = Object.values(preScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(preScores).length;
-          const postAvgScore = Object.values(postScores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(postScores).length;
-          
-          const preScore = Math.round(100 - preAvgScore * 10);
-          const postScore = Math.round(100 - postAvgScore * 10);
-          
-          trackingData.push({
-            id: `T-${String(index + 1000).padStart(4, '0')}`,
-            interventionType: '综合干预',
-            preScore,
-            postScore,
-            timeline: [
-              { day: 1, score: preScore },
-              { day: 7, score: Math.round(preScore + (postScore - preScore) * 0.2) },
-              { day: 14, score: Math.round(preScore + (postScore - preScore) * 0.5) },
-              { day: 21, score: Math.round(preScore + (postScore - preScore) * 0.8) },
-              { day: 28, score: postScore },
-            ]
-          });
-        });
-      }
+      // 按干预类型分组统计平均改善幅度
+      const interventionTypeStats: Record<string, { totalImprovement: number; count: number; avgImprovement: number }> = {};
+      
+      trackingData.forEach((item: any) => {
+        const type = item.interventionType;
+        if (!interventionTypeStats[type]) {
+          interventionTypeStats[type] = { totalImprovement: 0, count: 0, avgImprovement: 0 };
+        }
+        interventionTypeStats[type].totalImprovement += item.improvement;
+        interventionTypeStats[type].count += 1;
+      });
+      
+      Object.keys(interventionTypeStats).forEach(type => {
+        interventionTypeStats[type].avgImprovement = Math.round(
+          interventionTypeStats[type].totalImprovement / interventionTypeStats[type].count
+        );
+      });
+      
+      const interventionTypeChartData = Object.keys(interventionTypeStats).map(type => ({
+        type,
+        avgImprovement: interventionTypeStats[type].avgImprovement,
+        count: interventionTypeStats[type].count
+      }));
 
       const drillDownData: any[] = [];
       
@@ -2614,6 +2595,7 @@ async function startServer() {
         riskHeatmap,
         resourceEfficiency,
         trackingData,
+        interventionTypeChartData,
         drillDownData,
         suggestions
       });

@@ -34,7 +34,8 @@ import {
   AreaChart,
   Area,
   Cell,
-  Legend
+  Legend,
+  LabelList
 } from "recharts";
 
 import jsPDF from "jspdf";
@@ -53,6 +54,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showAllTracking, setShowAllTracking] = useState(false);
 
   const [cockpitData, setCockpitData] = useState<CockpitData>({
     overallIndex: 75,
@@ -64,6 +66,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
     resourceEfficiency: [],
     drillDownData: [],
     trackingData: [],
+    interventionTypeChartData: [],
     suggestions: []
   });
 
@@ -233,16 +236,16 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h3 className="text-xl font-bold text-stone-900">核心指标趋势曲线</h3>
-            <p className="text-sm text-stone-500 mt-1">展示压力指数、倦怠指数和工具使用率的时序变化</p>
+            <p className="text-sm text-stone-500 mt-1">展示平均焦虑分、平均抑郁分和工具使用率的时序变化</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-purple-500" />
-              <span className="text-xs text-stone-500">压力指数</span>
+              <span className="text-xs text-stone-500">平均焦虑分</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-rose-500" />
-              <span className="text-xs text-stone-500">倦怠指数</span>
+              <span className="text-xs text-stone-500">平均抑郁分</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-emerald-500" />
@@ -259,22 +262,22 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
               <Tooltip 
                 contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
               />
-              <Line type="monotone" dataKey="pressure" stroke="#a855f7" strokeWidth={3} dot={{ r: 4, fill: '#a855f7' }} name="压力指数" />
-              <Line type="monotone" dataKey="burnout" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#ef4444' }} name="倦怠指数" />
+              <Line type="monotone" dataKey="anxiety" stroke="#a855f7" strokeWidth={3} dot={{ r: 4, fill: '#a855f7' }} name="平均焦虑分" />
+              <Line type="monotone" dataKey="depression" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#ef4444' }} name="平均抑郁分" />
               <Line type="monotone" dataKey="toolUsageRate" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} name="工具使用率" />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Risk Heatmap (5.1) */}
-        <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-xl font-bold text-stone-900">群体心理态势热力图</h3>
-              <p className="text-sm text-stone-500 mt-1">按年级与学科交叉分析风险分布</p>
-            </div>
+      {/* 群体心理态势综合分析模块 */}
+      <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-xl font-bold text-stone-900">群体心理态势综合分析</h3>
+            <p className="text-sm text-stone-500 mt-1">融合热力图（风险分布）与干预成效追踪（活动效果）</p>
+          </div>
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-stone-400">低风险</span>
               <div className="flex gap-0.5">
@@ -285,138 +288,201 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
               </div>
               <span className="text-[10px] text-stone-400">高风险</span>
             </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-2">
-              <thead>
-                <tr>
-                  <th className="w-16"></th>
-                  {subjects.map(s => (
-                    <th key={s} className="text-xs font-bold text-stone-400 uppercase tracking-widest pb-2">{s}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {grades.map(g => (
-                  <tr key={g}>
-                    <td className="text-xs font-bold text-stone-600 pr-4">{g}</td>
-                    {subjects.map(s => {
-                      const level = cockpitData.riskHeatmap.find(h => h.grade === g && h.subject === s)?.riskLevel || 0;
-                      return (
-                        <td key={s} className="p-0">
-                          <motion.div 
-                            whileHover={{ scale: 1.05 }}
-                            className={`h-16 rounded-2xl flex items-center justify-center font-bold text-sm ${getHeatmapColor(level)}`}
-                          >
-                            {level}%
-                          </motion.div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100 flex items-start gap-3">
-            <Info size={16} className="text-stone-400 mt-0.5" />
-            <p className="text-xs text-stone-500 leading-relaxed">
-              热力图显示风险分布情况，颜色越深表示风险越高。建议重点关注高风险年级和学科的教师心理健康状况。
-            </p>
-          </div>
-        </div>
-
-        {/* Resource Efficiency Analysis (5.1) */}
-        <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-xl font-bold text-stone-900">资源效能分析</h3>
-              <p className="text-sm text-stone-500 mt-1">统计热门工具使用数据与心理改善效果关联</p>
-            </div>
-          </div>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cockpitData.resourceEfficiency}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
-                <XAxis dataKey="tool" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
-                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
-                <YAxis yAxisId="right" domain={[0, 100]} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value, name) => {
-                    if (name === '改善指数') {
-                      return [`${value}%`, name];
-                    }
-                    return [value, name];
-                  }}
-                />
-                <Legend verticalAlign="top" align="right" height={36}/>
-                <Bar yAxisId="left" dataKey="usage" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="使用频次 (次)" />
-                <Bar yAxisId="right" dataKey="improvement" fill="#10b981" radius={[4, 4, 0, 0]} name="改善指数 (%)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100 space-y-3">
-            <h4 className="text-xs font-bold text-stone-700">算法说明</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px] text-stone-600 leading-relaxed">
-              <div>
-                <span className="font-bold text-stone-800">使用频次：</span>统计该工具在选定时间范围内的总使用次数。
+            {cockpitData.trackingData.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl border border-stone-100 text-xs font-bold text-stone-500">
+                <ShieldCheck size={14} className="text-emerald-500" /> 数据已脱敏
               </div>
-              <div>
-                <span className="font-bold text-stone-800">改善指数：</span>计算公式：(感觉"好多了"的次数 / 总使用次数) × 100%。
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Effectiveness Tracking (5.2) */}
-      <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-xl font-bold text-stone-900">干预成效追踪（脱敏研究）</h3>
-            <p className="text-sm text-stone-500 mt-1">追踪个体教师在接受干预后的关键指标变化曲线</p>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl border border-stone-100 text-xs font-bold text-stone-500">
-            <ShieldCheck size={14} className="text-emerald-500" /> 数据已脱敏
+            )}
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {cockpitData.trackingData.map((track, i) => (
-            <div key={track.id} className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs font-bold text-stone-400 uppercase">样本 ID: {track.id}</p>
-                  <p className="text-sm font-bold text-stone-900 mt-1">干预类型: {track.interventionType}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-stone-400 uppercase">改善幅度</p>
-                  <p className="text-lg font-bold text-emerald-600">+{Math.round((track.postScore - track.preScore)/track.preScore * 100)}%</p>
-                </div>
-              </div>
-              <div className="h-40 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* 热力图 - 风险分布 */}
+          <div>
+            <h4 className="text-sm font-bold text-stone-700 mb-4">热力图 - 风险分布</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full border-separate border-spacing-2">
+                <thead>
+                  <tr>
+                    <th className="w-12"></th>
+                    {subjects.map(s => (
+                      <th key={s} className="text-[10px] font-bold text-stone-400 uppercase tracking-widest pb-2">{s}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grades.map(g => (
+                    <tr key={g}>
+                      <td className="text-[10px] font-bold text-stone-600 pr-2">{g}</td>
+                      {subjects.map(s => {
+                        const level = cockpitData.riskHeatmap.find(h => h.grade === g && h.subject === s)?.riskLevel || 0;
+                        return (
+                          <td key={s} className="p-0">
+                            <motion.div 
+                              whileHover={{ scale: 1.05 }}
+                              className={`h-12 rounded-xl flex items-center justify-center font-bold text-xs ${getHeatmapColor(level)}`}
+                            >
+                              {level}%
+                            </motion.div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 p-3 bg-stone-50 rounded-xl border border-stone-100 flex items-start gap-2">
+              <Info size={14} className="text-stone-400 mt-0.5" />
+              <p className="text-[10px] text-stone-500 leading-relaxed">
+                热力图显示风险分布情况，颜色越深表示风险越高。
+              </p>
+            </div>
+          </div>
+          
+          {/* 干预成效追踪 - 活动效果 */}
+          <div className="space-y-6">
+            <h4 className="text-sm font-bold text-stone-700">干预成效追踪 - 活动效果</h4>
+            
+            {/* 干预类型统计图表 */}
+            {cockpitData.interventionTypeChartData.length > 0 ? (
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={track.timeline}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e4" />
-                    <XAxis dataKey="day" hide />
-                    <YAxis domain={[0, 100]} hide />
+                  <BarChart data={cockpitData.interventionTypeChartData} layout="vertical" margin={{ left: 0, right: 40, top: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f5f5f4" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="type" type="category" width={80} axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#78716c' }} />
                     <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      formatter={(value, name, props) => {
+                        if (name === '平均改善') {
+                          return [`${value}分`, name];
+                        }
+                        if (name === '样本数') {
+                          return [value, name];
+                        }
+                        return [value, name];
+                      }}
                     />
-                    <Line type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} />
-                  </LineChart>
+                    <Legend verticalAlign="top" align="right" height={36}/>
+                    <Bar dataKey="avgImprovement" fill="#10b981" radius={[0, 4, 4, 0]} name="平均改善 (分)" barSize={24}>
+                      <LabelList dataKey="avgImprovement" position="right" fill="#78716c" fontSize={12} fontWeight={600} formatter={(value: number) => `${value}分`} />
+                    </Bar>
+                    <Bar dataKey="count" fill="#a855f7" radius={[0, 4, 4, 0]} name="样本数" barSize={24} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex justify-between mt-4 text-[10px] font-bold text-stone-400 uppercase">
-                <span>干预前: {track.preScore}</span>
-                <span>干预后: {track.postScore}</span>
+            ) : (
+              <div className="p-8 bg-stone-50 rounded-2xl border border-stone-100 text-center mb-4">
+                <ShieldCheck size={24} className="mx-auto text-stone-300 mb-2" />
+                <p className="text-xs text-stone-400">暂无统计数据</p>
               </div>
-            </div>
-          ))}
+            )}
+
+            {/* 详细列表 - 可折叠 */}
+            {cockpitData.trackingData.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h5 className="text-xs font-bold text-stone-500">详细记录</h5>
+                  {cockpitData.trackingData.length > 3 && (
+                    <button 
+                      onClick={() => setShowAllTracking(!showAllTracking)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-stone-400 hover:text-stone-600 transition-colors"
+                    >
+                      {showAllTracking ? '收起' : `查看全部 (${cockpitData.trackingData.length})`}
+                      <ChevronDown size={12} className={`transition-transform ${showAllTracking ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                </div>
+                <div 
+                  className={`space-y-3 ${!showAllTracking && cockpitData.trackingData.length > 3 ? 'max-h-[400px] overflow-y-auto pr-2' : ''}`}
+                >
+                  {cockpitData.trackingData.map((track, i) => (
+                    <div key={track.id} className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-stone-400 uppercase">样本 ID: {track.id}</p>
+                          <p className="text-xs font-bold text-stone-900 mt-1">{track.interventionType}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-stone-400 uppercase">改善幅度</p>
+                          <p className={`text-lg font-bold ${track.improvement >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {track.improvement >= 0 ? '+' : ''}{track.improvement}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-stone-400 uppercase">
+                        <span>干预前: {track.preScore}</span>
+                        <span>→</span>
+                        <span>干预后: {track.postScore}</span>
+                      </div>
+                      <div className="mt-3 h-2 bg-stone-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-emerald-500 transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(0, track.postScore))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {cockpitData.trackingData.length === 0 && cockpitData.interventionTypeChartData.length === 0 && (
+              <div className="p-8 bg-stone-50 rounded-2xl border border-stone-100 text-center">
+                <ShieldCheck size={32} className="mx-auto text-stone-300 mb-3" />
+                <p className="text-sm text-stone-400">暂无干预成效数据</p>
+                <p className="text-xs text-stone-400 mt-1">完成干预任务后会显示效果分析</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Resource Efficiency Analysis (5.1) */}
+      <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-xl font-bold text-stone-900">资源效能分析</h3>
+            <p className="text-sm text-stone-500 mt-1">统计热门工具使用数据与心理改善效果关联</p>
+          </div>
+        </div>
+        <div className="h-80 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={cockpitData.resourceEfficiency}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
+              <XAxis dataKey="tool" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
+              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
+              <YAxis yAxisId="right" domain={[0, 100]} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#78716c'}} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                formatter={(value, name) => {
+                  if (name === '改善指数') {
+                    return [`${value}%`, name];
+                  }
+                  return [value, name];
+                }}
+              />
+              <Legend verticalAlign="top" align="right" height={36}/>
+              <Bar yAxisId="left" dataKey="usage" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="使用频次 (次)" />
+              <Bar yAxisId="right" dataKey="improvement" fill="#10b981" radius={[4, 4, 0, 0]} name="改善指数 (%)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-6 p-4 bg-stone-50 rounded-2xl border border-stone-100 space-y-3">
+          <h4 className="text-xs font-bold text-stone-700">算法说明</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px] text-stone-600 leading-relaxed">
+            <div>
+              <span className="font-bold text-stone-800">使用频次：</span>统计该工具在选定时间范围内的总使用次数。
+            </div>
+            <div>
+              <span className="font-bold text-stone-800">改善指数：</span>基于用户对工具的五星评分计算，计算公式：(平均评分 / 5) × 100%。平均评分取所有用户最新评分的均值。
+            </div>
+          </div>
+        </div>
+      </div>
+
+
 
       {/* Detailed Drill-down Analysis (5.1) */}
       <div className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm">

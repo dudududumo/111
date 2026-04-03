@@ -32,6 +32,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { UserProfile, ToolUsage, DiaryEntry, Task, CommunityPost } from "../types";
 import api from "../services/api";
+import StarRating from "../components/StarRating";
 
 
 interface ToolkitProps {
@@ -255,6 +256,29 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
       setLikeCount(prev => prev + 1);
     }
   };
+
+  const saveToolRating = async (toolId: string, rating: number) => {
+    if (!profile) return;
+    try {
+      const response = await fetch('/api/tool-ratings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ toolId, rating })
+      });
+      if (response.ok) {
+        setToolRatings(prev => ({
+          ...prev,
+          [toolId]: { rating, timestamp: new Date().toISOString() }
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to save tool rating:", err);
+    }
+  };
+
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalToolUsageMinutes, setTotalToolUsageMinutes] = useState(0);
@@ -362,6 +386,9 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
 
   // Favorites State
   const [favorites, setFavorites] = useState<string[]>([]);
+
+  // Tool Ratings State
+  const [toolRatings, setToolRatings] = useState<Record<string, { rating: number; timestamp: string }>>({});
 
   const mindfulnessTracks = [
     { id: 'm1', title: '晨光唤醒：轻柔晨间旋律', duration: '05:52', category: '晨间', url: '/src/assets/audio/morning-relaxing.mp3' },
@@ -552,6 +579,24 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     
     loadFavorites();
 
+    // Load tool ratings
+    const loadToolRatings = async () => {
+      try {
+        const response = await fetch('/api/tool-ratings/my', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        const ratingsData = await response.json();
+        const ratingsMap: Record<string, { rating: number; timestamp: string }> = {};
+        ratingsData.forEach((r: any) => {
+          ratingsMap[r.tool_id] = { rating: r.rating, timestamp: r.timestamp };
+        });
+        setToolRatings(ratingsMap);
+      } catch (e) {
+        console.error('Error loading tool ratings:', e);
+      }
+    };
+    loadToolRatings();
+
     // Community Listeners
     const loadPosts = async () => {
       try {
@@ -689,12 +734,12 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const tools = [
     { id: 'breathing', title: '3×3 呼吸引导', icon: Wind, color: 'bg-blue-500', desc: '动画引导腹式呼吸，平复心境' },
     { id: 'pause', title: '情绪暂停角', icon: Clock, color: 'bg-indigo-500', desc: '60秒冷静空间，阻断负面情绪' },
-    { id: 'anxiety-box', title: '焦虑收纳箱', icon: Trash2, color: 'bg-stone-500', desc: '将烦恼“扔”进箱子，设定处理时间' },
+    { id: 'anxiety-box', title: '焦虑收纳箱', icon: Trash2, color: 'bg-stone-500', desc: '将烦恼"扔"进箱子，设定处理时间' },
     { id: 'quadrants', title: '四象限工作法', icon: LayoutGrid, color: 'bg-blue-500', desc: '科学分类任务，缓解工作焦虑' },
-    { id: 'mindfulness', title: '正念音频库', icon: Music, color: 'bg-violet-500', desc: '3-15分钟引导式冥想课程' },
+    { id: 'mindfulness', title: '正念冥想音频库', icon: Music, color: 'bg-violet-500', desc: '3-15分钟引导式冥想课程' },
     { id: 'diary', title: '情绪日记本', icon: BookOpen, color: 'bg-amber-500', desc: '记录每日心情，生成波动曲线' },
     { id: 'cards', title: '积极心理卡片', icon: Heart, color: 'bg-rose-500', desc: '每日感恩练习与心理名言' },
-    { id: 'boundaries', title: '沟通边界卡', icon: ShieldCheck, color: 'bg-teal-500', desc: '情景模拟练习，设定工作边界' },
+    { id: 'boundaries', title: '沟通边界卡模拟', icon: ShieldCheck, color: 'bg-teal-500', desc: '情景模拟练习，设定工作边界' },
   ];
 
   const handleAddTask = async () => {
@@ -1096,8 +1141,22 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                   onClick={() => setActiveTool(tool.id)}
                   className="w-full h-full flex flex-col items-start p-4 bg-gradient-to-br from-white to-blue-50 rounded-[32px] border border-blue-100 shadow-lg shadow-blue-200/50 hover:shadow-xl hover:shadow-blue-300/30 transition-all text-left"
                 >
-                <div className={`p-3 bg-gradient-to-br ${tool.color === 'bg-blue-500' ? 'from-blue-500 to-blue-600' : tool.color === 'bg-indigo-500' ? 'from-indigo-500 to-indigo-600' : tool.color === 'bg-stone-500' ? 'from-stone-500 to-stone-600' : tool.color === 'bg-violet-500' ? 'from-violet-500 to-violet-600' : tool.color === 'bg-amber-500' ? 'from-amber-500 to-amber-600' : tool.color === 'bg-rose-500' ? 'from-rose-500 to-rose-600' : tool.color === 'bg-teal-500' ? 'from-teal-500 to-teal-600' : 'from-stone-500 to-stone-600'} rounded-2xl group-hover:${tool.color === 'bg-blue-500' ? 'from-blue-600 to-blue-700' : tool.color === 'bg-indigo-500' ? 'from-indigo-600 to-indigo-700' : tool.color === 'bg-stone-500' ? 'from-stone-600 to-stone-700' : tool.color === 'bg-violet-500' ? 'from-violet-600 to-violet-700' : tool.color === 'bg-amber-500' ? 'from-amber-600 to-amber-700' : tool.color === 'bg-rose-500' ? 'from-rose-600 to-rose-700' : tool.color === 'bg-teal-500' ? 'from-teal-600 to-teal-700' : 'from-stone-600 to-stone-700'} transition-all flex items-center justify-center mb-4`}>
-                    <tool.icon size={24} className={`${tool.color === 'bg-blue-500' ? 'text-white' : tool.color === 'bg-indigo-500' ? 'text-white' : tool.color === 'bg-stone-500' ? 'text-white' : tool.color === 'bg-violet-500' ? 'text-white' : tool.color === 'bg-amber-500' ? 'text-white' : tool.color === 'bg-rose-500' ? 'text-white' : tool.color === 'bg-teal-500' ? 'text-white' : 'text-white'}`} />
+                <div className="w-full flex justify-between items-start mb-4">
+                  <div className={`p-3 bg-gradient-to-br ${tool.color === 'bg-blue-500' ? 'from-blue-500 to-blue-600' : tool.color === 'bg-indigo-500' ? 'from-indigo-500 to-indigo-600' : tool.color === 'bg-stone-500' ? 'from-stone-500 to-stone-600' : tool.color === 'bg-violet-500' ? 'from-violet-500 to-violet-600' : tool.color === 'bg-amber-500' ? 'from-amber-500 to-amber-600' : tool.color === 'bg-rose-500' ? 'from-rose-500 to-rose-600' : tool.color === 'bg-teal-500' ? 'from-teal-500 to-teal-600' : 'from-stone-500 to-stone-600'} rounded-2xl group-hover:${tool.color === 'bg-blue-500' ? 'from-blue-600 to-blue-700' : tool.color === 'bg-indigo-500' ? 'from-indigo-600 to-indigo-700' : tool.color === 'bg-stone-500' ? 'from-stone-600 to-stone-700' : tool.color === 'bg-violet-500' ? 'from-violet-600 to-violet-700' : tool.color === 'bg-amber-500' ? 'from-amber-600 to-amber-700' : tool.color === 'bg-rose-500' ? 'from-rose-600 to-rose-700' : tool.color === 'bg-teal-500' ? 'from-teal-600 to-teal-700' : 'from-stone-600 to-stone-700'} transition-all flex items-center justify-center`}>
+                      <tool.icon size={24} className={`${tool.color === 'bg-blue-500' ? 'text-white' : tool.color === 'bg-indigo-500' ? 'text-white' : tool.color === 'bg-stone-500' ? 'text-white' : tool.color === 'bg-violet-500' ? 'text-white' : tool.color === 'bg-amber-500' ? 'text-white' : tool.color === 'bg-rose-500' ? 'text-white' : tool.color === 'bg-teal-500' ? 'text-white' : 'text-white'}`} />
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <StarRating
+                        toolId={tool.id}
+                        initialRating={toolRatings[tool.id]?.rating || 0}
+                        lastRatedAt={toolRatings[tool.id]?.timestamp}
+                        onRatingChange={(rating) => saveToolRating(tool.id, rating)}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <h3 className="font-bold text-stone-900 mb-2">{tool.title}</h3>
                 <p className="text-xs text-stone-500 leading-relaxed">{tool.desc}</p>
@@ -1107,7 +1166,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
               </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(tool.id); }}
-                className={`absolute top-4 right-4 p-2 rounded-xl transition-all ${favorites.includes(tool.id) ? 'text-amber-500 bg-amber-50' : 'text-stone-300 hover:text-amber-500 hover:bg-stone-50'}`}
+                className={`absolute bottom-4 right-4 p-2 rounded-xl transition-all ${favorites.includes(tool.id) ? 'text-amber-500 bg-amber-50' : 'text-stone-300 hover:text-amber-500 hover:bg-stone-50'}`}
               >
                 <Heart size={16} fill={favorites.includes(tool.id) ? "currentColor" : "none"} />
               </button>

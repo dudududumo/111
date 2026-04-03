@@ -799,6 +799,66 @@ export const toolUsageDb = {
   }
 };
 
+// 工具评分记录
+export const toolRatingDb = {
+  // 创建或更新评分（如果已存在则更新）
+  upsert: (rating: {
+    userId: string;
+    toolId: string;
+    rating: number;
+  }) => {
+    try {
+      const id = uuidv4();
+      const stmt = db.prepare(`
+        INSERT INTO tool_ratings (id, user_id, tool_id, rating, timestamp)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(user_id, tool_id) 
+        DO UPDATE SET rating = excluded.rating, timestamp = excluded.timestamp
+      `);
+      const result = stmt.run(id, rating.userId, rating.toolId, rating.rating);
+      console.log('数据库插入/更新工具评分记录:', result);
+      return id;
+    } catch (error) {
+      console.error('数据库插入/更新工具评分记录失败:', error);
+      throw error;
+    }
+  },
+
+  // 获取用户对所有工具的评分
+  getByUserId: (userId: string) => {
+    const stmt = db.prepare('SELECT * FROM tool_ratings WHERE user_id = ? ORDER BY timestamp DESC');
+    return stmt.all(userId);
+  },
+
+  // 获取用户对特定工具的评分
+  getByUserAndTool: (userId: string, toolId: string) => {
+    const stmt = db.prepare('SELECT * FROM tool_ratings WHERE user_id = ? AND tool_id = ?');
+    return stmt.get(userId, toolId);
+  },
+
+  // 获取某个工具的所有评分
+  getByToolId: (toolId: string) => {
+    const stmt = db.prepare('SELECT * FROM tool_ratings WHERE tool_id = ?');
+    return stmt.all(toolId);
+  },
+
+  // 获取所有工具的平均评分
+  getAverageRatings: () => {
+    const stmt = db.prepare(`
+      SELECT tool_id, AVG(rating) as avg_rating, COUNT(*) as rating_count
+      FROM tool_ratings
+      GROUP BY tool_id
+    `);
+    return stmt.all();
+  },
+
+  // 获取所有评分
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM tool_ratings ORDER BY timestamp DESC');
+    return stmt.all();
+  }
+};
+
 // 社区相关操作
 export const communityDb = {
   // 创建帖子
