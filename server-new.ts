@@ -16,12 +16,11 @@ const __dirname = path.dirname(__filename);
 // JWT 密钥
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
-// 解密函数
+// 解密函数（匹配前端的加密方式）
 const decryptData = (encryptedData: string): any => {
   try {
-    // 使用 Buffer 进行 Base64 解码，兼容 Node.js 环境
-    const jsonString = Buffer.from(encryptedData, 'base64').toString('utf8');
-    return JSON.parse(jsonString);
+    const decoded = Buffer.from(encryptedData, 'base64').toString('utf8');
+    return JSON.parse(decoded);
   } catch (error) {
     console.error('解密失败:', error);
     throw error;
@@ -349,6 +348,38 @@ async function startServer() {
         depressionScore
       });
       console.log('评估创建成功:', assessmentId);
+      
+      // 检查是否需要更新预警状态
+      try {
+        const pendingWarnings = warningDb.getPendingByUserId(req.user.userId);
+        if (pendingWarnings.length > 0) {
+          // 用户有未解决的预警，检查新评估的风险分数
+          const totalScore = Object.values(scores).reduce((sum: number, val: any) => sum + (val || 0), 0);
+          const avgScore = totalScore / Object.keys(scores).length;
+          
+          // 如果平均分低于 2.5（健康范围），关闭预警
+          if (avgScore < 2.5) {
+            const warning = pendingWarnings[0];
+            warningDb.update(warning.id, {
+              status: 'resolved',
+              reason: warning.reason + '\n[系统自动关闭] 教师已完成重新评估，风险指标已降至安全范围'
+            });
+            console.log(`自动关闭预警：${warning.id}，原因：重新评估风险降低`);
+          } else if (riskLevel === 'low') {
+            // 如果风险级别为低，也关闭预警
+            const warning = pendingWarnings[0];
+            warningDb.update(warning.id, {
+              status: 'resolved',
+              reason: warning.reason + '\n[系统自动关闭] 教师已完成重新评估，风险指标已降至安全范围'
+            });
+            console.log(`自动关闭预警：${warning.id}，原因：风险级别为低`);
+          }
+        }
+      } catch (warningError) {
+        console.error('更新预警状态失败:', warningError);
+        // 不阻塞主流程
+      }
+      
       res.json({ success: true, id: assessmentId });
     } catch (error) {
       console.error('创建评估失败:', error);
@@ -698,57 +729,117 @@ async function startServer() {
     // 获取用户的最近评估
     const assessments = assessmentDb.getRecent(userId, 4);
     
-    // 模拟 LSTM 分析
-    const seed = userId.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-    const mockHRV = [60 + (seed % 10), 58 + (seed % 8), 55 + (seed % 12), 52 + (seed % 5)];
-    const mockWorkloadIndex = 75 + (seed % 20);
-    const mockSupportIndex = 30 - (seed % 10);
-
+    console.log(`风险扫描 - 用户 ${userId} 的评估数量: ${assessments.length}`);
+    
     const factors: string[] = [];
-    let riskScore = 0.5;
-
-    // 检查连续高抑郁分数
+    let riskScore = 0.3; // 基础风险分
     let consecutiveHighDepression = false;
-    if (assessments.length >= 2) {
-      const highLevels = ["yellow", "orange", "red"];
-      if (highLevels.includes(assessments[0].risk_level) && highLevels.includes(assessments[1].risk_level)) {
-        consecutiveHighDepression = true;
-        factors.push("抑郁因子分连续两次达到预警阈值");
+    
+    // 真正使用最新评估数据计算风险
+    if (assessments.length > 0) {
+      const latestAssessment = assessments[0];
+      console.log(`最新评估数据:`, {
+        risk_level: latestAssessment.risk_level,
+        depression_score: latestAssessment.depression_score,
+        scores: latestAssessment.scores
+      });
+      
+      // 使用最新评估的抑郁因子分
+      if (latestAssessment.depression_score) {
+        const depressionScore = parseFloat(latestAssessment.depression_score);
+        console.log(`抑郁因子分: ${depressionScore}`);
+        
+        if (depressionScore >= 3.0) {
+          factors.push("抑郁因子分严重超标（≥3.0）");
+          riskScore += 0.4;
+        } else if (depressionScore >= 2.5) {
+          factors.push("抑郁因子分较高（≥2.5）");
+          riskScore += 0.25;
+        } else if (depressionScore >= 2.0) {
+          factors.push("抑郁因子分轻度偏高（≥2.0）");
+          riskScore += 0.1;
+        }
+        // 如果抑郁因子分 < 2.0，不加分
+      }
+      
+      // 使用最新评估的风险级别
+      if (latestAssessment.risk_level === "red") {
+        factors.push("综合风险评估为高风险");
         riskScore += 0.3;
+      } else if (latestAssessment.risk_level === "orange") {
+        factors.push("综合风险评估为中等风险");
+        riskScore += 0.15;
+      }
+      
+      // 检查连续高抑郁分数（基于实际抑郁因子分）
+      if (assessments.length >= 2) {
+        const dep1 = parseFloat(assessments[0].depression_score) || 0;
+        const dep2 = parseFloat(assessments[1].depression_score) || 0;
+        if (dep1 >= 2.5 && dep2 >= 2.5) {
+          consecutiveHighDepression = true;
+          factors.push("抑郁因子分连续两次达到预警阈值");
+          riskScore += 0.2;
+        }
       }
     }
-
-    // HRV 趋势分析
+    
+    // 模拟数据（保留但降低权重）
+    const seed = userId.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+    const mockHRV = [60 + (seed % 10), 58 + (seed % 8), 55 + (seed % 12), 52 + (seed % 5)];
+    const mockWorkloadIndex = 65 + (seed % 15); // 降低默认工作量
+    const mockSupportIndex = 35 - (seed % 8);
+    
+    // 模拟数据权重降低
     const hrvTrend = mockHRV[0] - mockHRV[mockHRV.length - 1];
-    if (hrvTrend < -5) {
-      factors.push("HRV (RMSSD) 呈现显著下降趋势，提示自主神经系统压力过大");
-      riskScore += 0.2;
+    if (hrvTrend < -8) {
+      factors.push("HRV 呈现下降趋势");
+      riskScore += 0.1;
     }
-
-    if (mockWorkloadIndex > 80) {
-      factors.push(`工作负荷指数过高 (${mockWorkloadIndex})，超出常规承载范围`);
-      riskScore += 0.15;
+    
+    if (mockWorkloadIndex > 85) {
+      factors.push(`工作负荷指数较高 (${mockWorkloadIndex})`);
+      riskScore += 0.1;
     }
-
-    if (mockWorkloadIndex > 70 && mockSupportIndex < 25) {
-      factors.push("识别到'高负荷-低支持'复合风险模式");
-      riskScore += 0.2;
-    }
-
+    
     riskScore = Math.min(riskScore, 0.98);
-
+    
+    console.log(`最终风险分数: ${riskScore}, 连续高抑郁: ${consecutiveHighDepression}`);
+    
     let warningTriggered = false;
     let warningLevel: string | null = null;
-
-    if (riskScore > 0.9 || consecutiveHighDepression) {
-      warningTriggered = true;
-      warningLevel = "emergency";
-    } else if (riskScore > 0.8) {
-      warningTriggered = true;
-      warningLevel = "intervention";
-    } else if (riskScore > 0.75) {
-      warningTriggered = true;
-      warningLevel = "attention";
+    
+    // 如果有最新评估且风险很低，直接不触发预警
+    if (assessments.length > 0) {
+      const latestAssessment = assessments[0];
+      const depressionScore = parseFloat(latestAssessment.depression_score) || 0;
+      
+      // 如果最新评估的抑郁因子分 < 2.0 且风险级别为 green，不触发预警
+      if (depressionScore < 2.0 && latestAssessment.risk_level === "green") {
+        console.log(`最新评估显示风险很低，不触发预警`);
+        warningTriggered = false;
+        warningLevel = null;
+      } else if (riskScore > 0.85 || consecutiveHighDepression) {
+        warningTriggered = true;
+        warningLevel = "emergency";
+      } else if (riskScore > 0.7) {
+        warningTriggered = true;
+        warningLevel = "intervention";
+      } else if (riskScore > 0.6) {
+        warningTriggered = true;
+        warningLevel = "attention";
+      }
+    } else {
+      // 没有评估数据时，使用原有逻辑
+      if (riskScore > 0.9 || consecutiveHighDepression) {
+        warningTriggered = true;
+        warningLevel = "emergency";
+      } else if (riskScore > 0.8) {
+        warningTriggered = true;
+        warningLevel = "intervention";
+      } else if (riskScore > 0.75) {
+        warningTriggered = true;
+        warningLevel = "attention";
+      }
     }
 
     // 如果触发预警，检查是否已存在未解决的预警
@@ -782,6 +873,18 @@ async function startServer() {
             : `LSTM 综合风险指数 (${(riskScore * 100).toFixed(0)}%) 超过阈值`
         });
       }
+    } else {
+      // 风险未触发预警，检查是否有未解决的预警需要关闭
+      const existingWarnings = warningDb.getPendingByUserId(userId);
+      if (existingWarnings.length > 0) {
+        // 风险降低，关闭预警
+        const existingWarning = existingWarnings[0];
+        warningDb.update(existingWarning.id, {
+          status: 'resolved',
+          reason: existingWarning.reason + '\n[系统自动关闭] 风险指标已降至安全范围'
+        });
+        console.log(`风险扫描自动关闭预警：${existingWarning.id}，原因：风险降低`);
+      }
     }
 
     res.json({
@@ -797,37 +900,76 @@ async function startServer() {
 
   // ==================== 生理数据 API ====================
 
-  // 获取生理数据（模拟 IoT 设备）
+  // 获取生理数据
   app.get("/api/physiological/:userId", authMiddleware, (req, res) => {
     const { userId } = req.params;
     const data = physiologicalDb.getByUserId(userId);
     
+    console.log('获取生理数据:', { userId, data });
+    
     if (data) {
-      res.json({
+      const parsedData = {
         userId,
-        hrv: JSON.parse(data.hrv),
-        restingHR: JSON.parse(data.resting_hr),
-        sleepDuration: JSON.parse(data.sleep_duration),
-        deepSleepRatio: JSON.parse(data.deep_sleep_ratio),
-        activityLevel: JSON.parse(data.activity_level),
-        timestamps: JSON.parse(data.timestamps)
-      });
+        hrv: data.hrv ? JSON.parse(data.hrv) : null,
+        restingHR: data.resting_hr ? JSON.parse(data.resting_hr) : null,
+        sleepDuration: data.sleep_duration ? JSON.parse(data.sleep_duration) : null,
+        deepSleepRatio: data.deep_sleep_ratio ? JSON.parse(data.deep_sleep_ratio) : null,
+        activityLevel: data.activity_level ? JSON.parse(data.activity_level) : null,
+        timestamps: data.timestamps ? JSON.parse(data.timestamps) : null,
+        recordedAt: data.recorded_at
+      };
+      console.log('解析后的生理数据:', parsedData);
+      res.json(parsedData);
     } else {
-      // 生成模拟数据
       res.json({
         userId,
-        hrv: [62, 65, 58, 70, 68, 72, 64].map(v => v + Math.floor(Math.random() * 10 - 5)),
-        restingHR: [72, 70, 75, 68, 69, 67, 71].map(v => v + Math.floor(Math.random() * 6 - 3)),
-        sleepDuration: [7.2, 6.5, 5.8, 7.5, 8.0, 7.2, 6.8],
-        deepSleepRatio: [25, 22, 18, 28, 30, 26, 24],
-        activityLevel: [8000, 6500, 4000, 9000, 11000, 7500, 8200],
-        timestamps: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        hrv: null,
+        restingHR: null,
+        sleepDuration: null,
+        deepSleepRatio: null,
+        activityLevel: null,
+        timestamps: null,
+        recordedAt: null
       });
+    }
+  });
+
+  // 保存生理数据
+  app.post("/api/physiological", authMiddleware, (req: any, res) => {
+    try {
+      let data = req.body;
+      
+      // 检查是否需要解密
+      if (data.encrypted) {
+        data = decryptData(data.encrypted);
+      }
+      
+      const { hrv } = data;
+      const userId = req.user.userId;
+      
+      console.log('保存生理数据:', { userId, hrv, reqBody: req.body, decryptedData: data });
+      
+      const dataId = physiologicalDb.create({
+        userId,
+        hrv: hrv !== null && hrv !== undefined ? [hrv] : null,
+        restingHR: null,
+        sleepDuration: null,
+        deepSleepRatio: null,
+        activityLevel: null,
+        timestamps: [new Date().toISOString()]
+      });
+      
+      console.log('生理数据保存成功:', dataId);
+      res.json({ success: true, id: dataId });
+    } catch (error) {
+      console.error('保存生理数据失败:', error);
+      res.status(500).json({ error: "保存生理数据失败", details: error.message });
     }
   });
 
   // ==================== 工作负载 API ====================
 
+  // 获取工作负载数据
   app.get("/api/workload/:userId", authMiddleware, (req, res) => {
     const { userId } = req.params;
     const data = workloadDb.getByUserId(userId);
@@ -837,15 +979,51 @@ async function startServer() {
         classHours: data.class_hours,
         meetingHours: data.meeting_hours,
         nonTeachingTasks: data.non_teaching_tasks,
-        totalWorkloadIndex: data.total_workload_index
+        totalWorkloadIndex: data.total_workload_index,
+        recordedAt: data.recorded_at
       });
     } else {
       res.json({
-        classHours: 16 + Math.floor(Math.random() * 6),
-        meetingHours: 4 + Math.floor(Math.random() * 4),
-        nonTeachingTasks: 3 + Math.floor(Math.random() * 5),
-        totalWorkloadIndex: 65 + Math.floor(Math.random() * 20)
+        classHours: null,
+        meetingHours: null,
+        nonTeachingTasks: null,
+        totalWorkloadIndex: null,
+        recordedAt: null
       });
+    }
+  });
+
+  // 保存工作负载数据
+  app.post("/api/workload", authMiddleware, (req: any, res) => {
+    try {
+      let data = req.body;
+      
+      // 检查是否需要解密
+      if (data.encrypted) {
+        data = decryptData(data.encrypted);
+      }
+      
+      const { classHours, meetingHours, nonTeachingTasks } = data;
+      const userId = req.user.userId;
+      
+      console.log('保存工作负载数据:', { userId, classHours, meetingHours, nonTeachingTasks, reqBody: req.body, decryptedData: data });
+      
+      // 计算总工作量指数（简单加权）
+      const totalWorkloadIndex = Math.min(100, (classHours || 0) * 3 + (meetingHours || 0) * 2 + (nonTeachingTasks || 0) * 2);
+      
+      const dataId = workloadDb.create({
+        userId,
+        classHours: classHours !== null && classHours !== undefined ? classHours : 0,
+        meetingHours: meetingHours !== null && meetingHours !== undefined ? meetingHours : 0,
+        nonTeachingTasks: nonTeachingTasks !== null && nonTeachingTasks !== undefined ? nonTeachingTasks : 0,
+        totalWorkloadIndex
+      });
+      
+      console.log('工作负载数据保存成功:', dataId);
+      res.json({ success: true, id: dataId, totalWorkloadIndex });
+    } catch (error) {
+      console.error('保存工作负载数据失败:', error);
+      res.status(500).json({ error: "保存工作负载数据失败", details: error.message });
     }
   });
 
@@ -853,7 +1031,14 @@ async function startServer() {
 
   app.post("/api/tool-usage", authMiddleware, (req: any, res) => {
     try {
-      const { toolId, duration, feeling } = req.body;
+      let data = req.body;
+      
+      // 检查是否需要解密
+      if (data.encrypted) {
+        data = decryptData(data.encrypted);
+      }
+      
+      const { toolId, duration, feeling } = data;
       console.log('收到工具使用记录请求:', { userId: req.user?.userId, toolId, duration, feeling });
       
       if (!toolId) {
@@ -991,7 +1176,14 @@ async function startServer() {
 
   app.post("/api/diary", authMiddleware, (req: any, res) => {
     try {
-      const { content, mood, tags, imageUrl } = req.body;
+      let data = req.body;
+      
+      // 检查是否需要解密
+      if (data.encrypted) {
+        data = decryptData(data.encrypted);
+      }
+      
+      const { content, mood, tags, imageUrl } = data;
       const diaryId = diaryDb.create({
         userId: req.user.userId,
         content,
@@ -1914,14 +2106,14 @@ async function startServer() {
       const filteredTeachers = allTeachers.filter(teacher => {
         if (selectedSubject !== 'all') {
           const subjectMap: Record<string, string> = {
-            '语文': '语文组',
-            '数学': '数学组',
-            '英语': '英语组',
-            '科学': '科学组',
-            '道法': '道法组',
-            '音乐': '音乐组',
-            '体育': '体育组',
-            '美术': '美术组'
+            '语文': '语文',
+            '数学': '数学',
+            '英语': '英语',
+            '科学': '科学',
+            '道法': '道法',
+            '音乐': '音乐',
+            '体育': '体育',
+            '美术': '美术'
           };
           const expectedDepartment = subjectMap[selectedSubject];
           if (expectedDepartment && !teacher.department?.includes(expectedDepartment)) return false;
@@ -1944,10 +2136,20 @@ async function startServer() {
         ORDER BY timestamp DESC
       `).all();
 
-      const allWarnings = db.prepare(`
+      const allWarningsRaw = db.prepare(`
         SELECT * FROM warnings 
-        WHERE user_id IN ('${teacherIds || ''}') AND status IN ('pending', 'active')
+        WHERE user_id IN ('${teacherIds || ''}') AND status = 'pending'
       `).all();
+      
+      // 按用户去重，只保留每个用户最新的预警
+      const userWarningMap = new Map();
+      allWarningsRaw.forEach((warning: any) => {
+        const existing = userWarningMap.get(warning.user_id);
+        if (!existing || new Date(warning.timestamp) > new Date(existing.timestamp)) {
+          userWarningMap.set(warning.user_id, warning);
+        }
+      });
+      const allWarnings = Array.from(userWarningMap.values());
 
       const allInterventionTasks = db.prepare(`
         SELECT * FROM intervention_tasks 
@@ -1994,9 +2196,6 @@ async function startServer() {
         });
         const avgRecentScore = recentScores.reduce((sum, score) => sum + score, 0) / recentScores.length;
         overallIndex = Math.round(100 - avgRecentScore * 10);
-      } else if (allTeachers.length > 0) {
-        const warningRate = allWarnings.length / allTeachers.length;
-        overallIndex = Math.round(80 - warningRate * 30);
       }
 
       const trends: any[] = [];
@@ -2011,24 +2210,30 @@ async function startServer() {
           AND date(timestamp) = date('${date.toISOString().split('T')[0]}')
         `).all();
 
-        let avgAnxietyScore = 40;
-        let avgDepressionScore = 35;
-        let toolUsageRate = 20;
+        let avgHealthScore = 0;
+        let warningRate = 0;
+        let toolUsageRate = 0;
         
+        // 心理健康分：从评估总分计算（SCL-90 总分越低越健康，转换为 0-100 分）
         if (dayAssessments.length > 0) {
-          const anxietyScores = dayAssessments.map((a: any) => {
+          const healthScores = dayAssessments.map((a: any) => {
             const scores = JSON.parse(a.scores);
-            return scores['焦虑'] || scores['GAD-7总分'] || scores['SAS总分'] || 40;
-          });
-          avgAnxietyScore = Math.round(anxietyScores.reduce((sum, s) => sum + s, 0) / anxietyScores.length);
+            // 如果有 total 字段（SCL-90），使用它计算平均分
+            if (scores.total) {
+              const avgScore = scores.total / Object.keys(scores).filter(k => k !== 'total').length;
+              return Math.round(100 - avgScore * 10); // 转换为 0-100 分
+            }
+            // 否则计算所有分数的平均值
+            const avgScore = Object.values(scores).reduce((sum: number, val: any) => sum + (val || 0), 0) / Object.keys(scores).length;
+            return Math.round(100 - avgScore * 10);
+          }).filter(s => s > 0 && s <= 100);
           
-          const depressionScores = dayAssessments.map((a: any) => {
-            const scores = JSON.parse(a.scores);
-            return scores['抑郁'] || scores['PHQ-9总分'] || scores['SDS总分'] || 35;
-          });
-          avgDepressionScore = Math.round(depressionScores.reduce((sum, s) => sum + s, 0) / depressionScores.length);
+          if (healthScores.length > 0) {
+            avgHealthScore = Math.round(healthScores.reduce((sum, s) => sum + s, 0) / healthScores.length);
+          }
         }
         
+        // 工具使用率
         const dayToolUsage = allToolUsage.filter((u: any) => {
           const uDate = new Date(u.timestamp).toISOString().split('T')[0];
           return uDate === date.toISOString().split('T')[0];
@@ -2039,7 +2244,22 @@ async function startServer() {
           toolUsageRate = Math.round((uniqueUsers.size / filteredTeachers.length) * 100);
         }
         
-        trends.push({ date: dateStr, anxiety: avgAnxietyScore, depression: avgDepressionScore, toolUsageRate: toolUsageRate });
+        // 预警率
+        const dayWarnings = allWarnings.filter((w: any) => {
+          const wDate = new Date(w.timestamp).toISOString().split('T')[0];
+          return wDate === date.toISOString().split('T')[0];
+        });
+        
+        if (filteredTeachers.length > 0) {
+          warningRate = Math.round((dayWarnings.length / filteredTeachers.length) * 100);
+        }
+        
+        trends.push({ 
+          date: dateStr, 
+          healthScore: avgHealthScore, 
+          warningRate: warningRate, 
+          toolUsageRate: toolUsageRate 
+        });
       }
 
       const grades = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
@@ -2050,14 +2270,14 @@ async function startServer() {
       grades.forEach(grade => {
         subjects.forEach(subject => {
           const subjectMap: Record<string, string> = {
-            '语文': '语文组',
-            '数学': '数学组',
-            '英语': '英语组',
-            '科学': '科学组',
-            '道法': '道法组',
-            '音乐': '音乐组',
-            '体育': '体育组',
-            '美术': '美术组'
+            '语文': '语文',
+            '数学': '数学',
+            '英语': '英语',
+            '科学': '科学',
+            '道法': '道法',
+            '音乐': '音乐',
+            '体育': '体育',
+            '美术': '美术'
           };
           
           const expectedDepartment = subjectMap[subject];
@@ -2069,10 +2289,20 @@ async function startServer() {
           
           if (relevantTeachers.length > 0) {
             const groupIds = relevantTeachers.map(t => t.id).join("','");
-            const groupWarnings = db.prepare(`
+            const groupWarningsRaw = db.prepare(`
               SELECT * FROM warnings 
-              WHERE user_id IN ('${groupIds}') AND status IN ('pending', 'active')
+              WHERE user_id IN ('${groupIds}') AND status = 'pending'
             `).all();
+            
+            // 按用户去重，只保留每个用户最新的预警
+            const groupUserWarningMap = new Map();
+            groupWarningsRaw.forEach((warning: any) => {
+              const existing = groupUserWarningMap.get(warning.user_id);
+              if (!existing || new Date(warning.timestamp) > new Date(existing.timestamp)) {
+                groupUserWarningMap.set(warning.user_id, warning);
+              }
+            });
+            const groupWarnings = Array.from(groupUserWarningMap.values());
             
             const groupAssessments = db.prepare(`
               SELECT * FROM assessments 
@@ -2095,7 +2325,7 @@ async function startServer() {
             const interventionEffect = groupInterventions.length > 0 ? Math.round(groupInterventions.length * 5) : 0;
             riskHeatmap.push({ grade, subject, riskLevel, interventionEffect });
           } else {
-            riskHeatmap.push({ grade, subject, riskLevel: 10, interventionEffect: 0 });
+            riskHeatmap.push({ grade, subject, riskLevel: 0, interventionEffect: 0 });
           }
         });
       });
@@ -2196,7 +2426,7 @@ async function startServer() {
           const postScore = Math.round(100 - postAvgScore * 10);
           
           const careRecords = task.care_records ? JSON.parse(task.care_records) : [];
-          const interventionType = careRecords.length > 0 ? careRecords[0].summary?.split('：')[0] || '1对1咨询' : '1对1咨询';
+          const interventionType = careRecords.length > 0 ? careRecords[0].summary?.split('：')[0] || '专业干预' : '专业干预';
           
           trackingData.push({
             id: `T-${String(index + 1000).padStart(4, '0')}`,
@@ -2244,17 +2474,27 @@ async function startServer() {
             WHERE user_id IN ('${gradeIds}') ${dateFilter}
           `).all();
           
-          const gradeWarnings = db.prepare(`
+          const gradeWarningsRaw = db.prepare(`
             SELECT * FROM warnings 
-            WHERE user_id IN ('${gradeIds}') AND status IN ('pending', 'active')
+            WHERE user_id IN ('${gradeIds}') AND status = 'pending'
           `).all();
+          
+          // 按用户去重，只保留每个用户最新的预警
+          const gradeUserWarningMap = new Map();
+          gradeWarningsRaw.forEach((warning: any) => {
+            const existing = gradeUserWarningMap.get(warning.user_id);
+            if (!existing || new Date(warning.timestamp) > new Date(existing.timestamp)) {
+              gradeUserWarningMap.set(warning.user_id, warning);
+            }
+          });
+          const gradeWarnings = Array.from(gradeUserWarningMap.values());
           
           const gradeToolUsage = db.prepare(`
             SELECT * FROM tool_usage 
             WHERE user_id IN ('${gradeIds}') ${dateFilter}
           `).all();
           
-          let avgScore = 75;
+          let avgScore = 0;
           if (gradeAssessments.length > 0) {
             const scores = gradeAssessments.map((a: any) => {
               const s = JSON.parse(a.scores);
@@ -2327,12 +2567,22 @@ async function startServer() {
             WHERE user_id IN ('${subjectIds}') ${dateFilter}
           `).all();
           
-          const subjectWarnings = db.prepare(`
+          const subjectWarningsRaw = db.prepare(`
             SELECT * FROM warnings 
-            WHERE user_id IN ('${subjectIds}') AND status IN ('pending', 'active')
+            WHERE user_id IN ('${subjectIds}') AND status = 'pending'
           `).all();
           
-          let avgScore = 75;
+          // 按用户去重，只保留每个用户最新的预警
+          const subjectUserWarningMap = new Map();
+          subjectWarningsRaw.forEach((warning: any) => {
+            const existing = subjectUserWarningMap.get(warning.user_id);
+            if (!existing || new Date(warning.timestamp) > new Date(existing.timestamp)) {
+              subjectUserWarningMap.set(warning.user_id, warning);
+            }
+          });
+          const subjectWarnings = Array.from(subjectUserWarningMap.values());
+          
+          let avgScore = 0;
           if (subjectAssessments.length > 0) {
             const scores = subjectAssessments.map((a: any) => {
               const s = JSON.parse(a.scores);
@@ -2402,12 +2652,22 @@ async function startServer() {
             WHERE user_id IN ('${expIds}') ${dateFilter}
           `).all();
           
-          const expWarnings = db.prepare(`
+          const expWarningsRaw = db.prepare(`
             SELECT * FROM warnings 
-            WHERE user_id IN ('${expIds}') AND status IN ('pending', 'active')
+            WHERE user_id IN ('${expIds}') AND status = 'pending'
           `).all();
           
-          let avgScore = 75;
+          // 按用户去重，只保留每个用户最新的预警
+          const expUserWarningMap = new Map();
+          expWarningsRaw.forEach((warning: any) => {
+            const existing = expUserWarningMap.get(warning.user_id);
+            if (!existing || new Date(warning.timestamp) > new Date(existing.timestamp)) {
+              expUserWarningMap.set(warning.user_id, warning);
+            }
+          });
+          const expWarnings = Array.from(expUserWarningMap.values());
+          
+          let avgScore = 0;
           if (expAssessments.length > 0) {
             const scores = expAssessments.map((a: any) => {
               const s = JSON.parse(a.scores);
@@ -2609,6 +2869,340 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // ==================== 个人信息相关 API ====================
+  
+  // 获取当前用户的个人信息
+  app.get("/api/personal-info", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      res.json({
+        name: user.display_name || "",
+        gender: user.gender || "",
+        phone: user.phone || "",
+        email: user.email || "",
+        department: user.department || "",
+        subject: user.department || "", // department 就是学科
+        grade: user.grade || "",
+        title: user.title || "",
+        bio: user.bio || "",
+        teachingExperience: user.teaching_experience
+      });
+    } catch (error) {
+      console.error("获取个人信息失败:", error);
+      res.status(500).json({ error: "获取个人信息失败" });
+    }
+  });
+
+  // 保存/更新个人信息
+  app.post("/api/personal-info", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const { name, gender, phone, email, department, subject, grade, title, bio } = req.body;
+      
+      const user = userDb.findById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 检查是否是第一次填写
+      const isFirstTime = !user.department || !user.grade;
+      
+      // 更新用户信息 - subject保存到department
+      userDb.update(userId, {
+        display_name: name || user.display_name,
+        gender: gender || user.gender,
+        phone: phone || user.phone,
+        email: email || user.email,
+        department: subject || department || user.department,
+        grade: grade || user.grade,
+        title: title || user.title,
+        bio: bio || user.bio
+      });
+      
+      // 如果是第一次填写，返回不需要审核；否则需要审核
+      res.json({ 
+        success: true, 
+        pending: !isFirstTime,
+        message: isFirstTime ? "信息已保存" : "信息已提交，等待审核"
+      });
+    } catch (error) {
+      console.error("保存个人信息失败:", error);
+      res.status(500).json({ error: "保存个人信息失败" });
+    }
+  });
+
+  // 获取教研组成员列表（教研组长和管理员可用）
+  app.get("/api/group-members", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 只有教研组长和管理员可以查看组员
+      if (user.role !== 'dept_head' && user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      let targetManagerId = userId;
+      // 如果是管理员，可以通过query参数指定要看谁的组员
+      if (user.role === 'admin' && req.query.managerId) {
+        targetManagerId = req.query.managerId;
+      }
+      
+      // 获取所有归属于目标组长的教师
+      const allUsers = userDb.getAll();
+      const groupMembers = allUsers.filter(u => u.manager_id === targetManagerId && u.role === 'teacher');
+      
+      const members = groupMembers.map(m => ({
+        id: m.id,
+        name: m.display_name,
+        gender: m.gender || "",
+        subject: m.department || "",
+        grade: m.grade || "",
+        phone: m.phone || "",
+        email: m.email,
+        department: m.department || "",
+        isGroupMember: true
+      }));
+      
+      res.json(members);
+    } catch (error) {
+      console.error("获取教研组成员失败:", error);
+      res.status(500).json({ error: "获取教研组成员失败" });
+    }
+  });
+
+  // 获取所有教研组长（管理员可用）
+  app.get("/api/dept-heads", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      const allUsers = userDb.getAll();
+      const deptHeads = allUsers.filter(u => u.role === 'dept_head').map(u => ({
+        id: u.id,
+        name: u.display_name,
+        email: u.email,
+        department: u.department || ""
+      }));
+      
+      res.json(deptHeads);
+    } catch (error) {
+      console.error("获取教研组长失败:", error);
+      res.status(500).json({ error: "获取教研组长失败" });
+    }
+  });
+
+  // 获取全校教师列表（教研组长和管理员可用）
+  app.get("/api/teachers/all", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 只有教研组长和管理员可以查看全校教师
+      if (user.role !== 'dept_head' && user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      let targetManagerId = userId;
+      // 如果是管理员，可以通过query参数指定要看谁的可选教师
+      if (user.role === 'admin' && req.query.managerId) {
+        targetManagerId = req.query.managerId;
+      }
+      
+      // 获取目标组长的组员 ID 列表
+      const groupMemberIds = userDb.getAll()
+        .filter(u => u.manager_id === targetManagerId)
+        .map(u => u.id);
+      
+      // 获取所有教师
+      const allUsers = userDb.getAll();
+      const teachers = allUsers.filter(u => 
+        u.role === 'teacher' && 
+        u.id !== targetManagerId &&
+        (user.role === 'admin' || u.manager_id === null || u.manager_id === targetManagerId)
+      );
+      
+      const teacherList = teachers.map(t => ({
+        id: t.id,
+        name: t.display_name,
+        gender: t.gender || "",
+        subject: t.department || "",
+        grade: t.grade || "",
+        phone: t.phone || "",
+        email: t.email,
+        department: t.department || "",
+        isGroupMember: groupMemberIds.includes(t.id)
+      }));
+      
+      res.json(teacherList);
+    } catch (error) {
+      console.error("获取教师列表失败:", error);
+      res.status(500).json({ error: "获取教师列表失败" });
+    }
+  });
+
+  // 添加组员
+  app.post("/api/group-members/:teacherId", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const teacherId = req.params.teacherId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 只有教研组长和管理员可以添加组员
+      if (user.role !== 'dept_head' && user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      let targetManagerId = userId;
+      // 如果是管理员，可以通过query参数指定要添加到哪个组长
+      if (user.role === 'admin' && req.query.managerId) {
+        targetManagerId = req.query.managerId;
+      }
+      
+      const teacher = userDb.findById(teacherId);
+      if (!teacher) {
+        return res.status(404).json({ error: "教师不存在" });
+      }
+      
+      // 更新教师的 manager_id
+      userDb.update(teacherId, { manager_id: targetManagerId });
+      
+      res.json({ success: true, message: "添加成功" });
+    } catch (error) {
+      console.error("添加组员失败:", error);
+      res.status(500).json({ error: "添加组员失败" });
+    }
+  });
+
+  // 移除组员
+  app.delete("/api/group-members/:teacherId", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const teacherId = req.params.teacherId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 只有教研组长和管理员可以移除组员
+      if (user.role !== 'dept_head' && user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      const teacher = userDb.findById(teacherId);
+      if (!teacher) {
+        return res.status(404).json({ error: "教师不存在" });
+      }
+      
+      // 清除教师的 manager_id
+      userDb.update(teacherId, { manager_id: null });
+      
+      res.json({ success: true, message: "移除成功" });
+    } catch (error) {
+      console.error("移除组员失败:", error);
+      res.status(500).json({ error: "移除组员失败" });
+    }
+  });
+
+  // ==================== 管理员相关 API ====================
+
+  // 获取所有用户（管理员可用）
+  app.get("/api/admin/users", authMiddleware, (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      const user = userDb.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      const allUsers = userDb.getAll();
+      const userList = allUsers.map(u => ({
+        id: u.id,
+        name: u.display_name,
+        email: u.email,
+        role: u.role,
+        gender: u.gender || "",
+        phone: u.phone || "",
+        subject: u.department || "",
+        grade: u.grade || "",
+        teachingExperience: u.teaching_experience,
+        managerId: u.manager_id
+      }));
+      
+      res.json(userList);
+    } catch (error) {
+      console.error("获取所有用户失败:", error);
+      res.status(500).json({ error: "获取所有用户失败" });
+    }
+  });
+
+  // 设置用户角色（管理员可用）
+  app.put("/api/admin/users/:userId/role", authMiddleware, (req: any, res) => {
+    try {
+      const currentUserId = req.user?.userId;
+      const targetUserId = req.params.userId;
+      const { role } = req.body;
+      
+      const currentUser = userDb.findById(currentUserId);
+      if (!currentUser) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      if (currentUser.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      const validRoles = ['teacher', 'admin', 'psychologist', 'dept_head'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "无效的角色" });
+      }
+      
+      const targetUser = userDb.findById(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ error: "目标用户不存在" });
+      }
+      
+      userDb.update(targetUserId, { role });
+      
+      res.json({ success: true, message: "角色更新成功" });
+    } catch (error) {
+      console.error("更新用户角色失败:", error);
+      res.status(500).json({ error: "更新用户角色失败" });
+    }
   });
 
   // ==================== Vite 中间件 ====================

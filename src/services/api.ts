@@ -382,6 +382,15 @@ export const physiologicalApi = {
   getData: async (userId: string) => {
     return fetchApi(`/physiological/${userId}`);
   },
+  // 保存生理数据
+  save: async (data: {
+    hrv?: number;
+  }) => {
+    return fetchApi("/physiological", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ==================== 工作负载 API ====================
@@ -390,6 +399,17 @@ export const workloadApi = {
   // 获取工作负载数据
   getData: async (userId: string) => {
     return fetchApi(`/workload/${userId}`);
+  },
+  // 保存工作负载数据
+  save: async (data: {
+    classHours: number;
+    meetingHours: number;
+    nonTeachingTasks: number;
+  }) => {
+    return fetchApi("/workload", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
 
@@ -543,6 +563,68 @@ export const cockpitApi = {
   },
 };
 
+// ==================== 个人信息 API ====================
+export const personalInfoApi = {
+  get: async () => {
+    return fetchApi("/personal-info");
+  },
+  save: async (data: {
+    name?: string;
+    gender?: string;
+    phone?: string;
+    email?: string;
+    department?: string;
+    subject?: string;
+    grade?: string;
+    title?: string;
+    bio?: string;
+  }) => {
+    return fetchApi("/personal-info", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ==================== 团队管理 API ====================
+export const groupApi = {
+  getMembers: async (managerId?: string) => {
+    const url = managerId ? `/group-members?managerId=${managerId}` : "/group-members";
+    return fetchApi(url);
+  },
+  getAllTeachers: async (managerId?: string) => {
+    const url = managerId ? `/teachers/all?managerId=${managerId}` : "/teachers/all";
+    return fetchApi(url);
+  },
+  getDeptHeads: async () => {
+    return fetchApi("/dept-heads");
+  },
+  addMember: async (teacherId: string, managerId?: string) => {
+    const url = managerId ? `/group-members/${teacherId}?managerId=${managerId}` : `/group-members/${teacherId}`;
+    return fetchApi(url, {
+      method: "POST",
+    });
+  },
+  removeMember: async (teacherId: string) => {
+    return fetchApi(`/group-members/${teacherId}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+// ==================== 管理员 API ====================
+export const adminApi = {
+  getAllUsers: async () => {
+    return fetchApi("/admin/users");
+  },
+  setUserRole: async (userId: string, role: string) => {
+    return fetchApi(`/admin/users/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -558,4 +640,7 @@ export default {
   intervention: interventionApi,
   notificationApi: notificationApi,
   cockpit: cockpitApi,
+  personalInfo: personalInfoApi,
+  group: groupApi,
+  admin: adminApi,
 };

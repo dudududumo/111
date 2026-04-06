@@ -22,12 +22,12 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import { motion, AnimatePresence } from "motion/react";
 
 // Pages
-import Dashboard from "./pages/Dashboard";
 import AssessmentPage from "./pages/AssessmentPage";
 import WarningCenter from "./pages/WarningCenter";
 import Toolkit from "./pages/Toolkit";
 import Intervention from "./pages/Intervention";
 import AdminCockpit from "./pages/AdminCockpit";
+import PersonalSettings from "./pages/PersonalSettings";
 
 const SidebarContent = ({ 
   profile, 
@@ -447,7 +447,7 @@ const App: React.FC = () => {
   }
 
   const navItems = [
-    { path: "/", label: "个人看板", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "slate", gradient: "from-slate-50 to-slate-100", activeBg: "bg-slate-300", activeText: "text-slate-600", hoverBg: "hover:bg-slate-50", hoverText: "hover:text-slate-600" },
+    { path: "/", label: "个人中心", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "amber", gradient: "from-amber-50 to-amber-100", activeBg: "bg-amber-600", activeText: "text-amber-600", hoverBg: "hover:bg-amber-50", hoverText: "hover:text-amber-600" },
     { path: "/assessment", label: "绿色测评", icon: ClipboardCheck, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "emerald", gradient: "from-emerald-50 to-emerald-100", activeBg: "bg-emerald-600", activeText: "text-emerald-600", hoverBg: "hover:bg-emerald-50", hoverText: "hover:text-emerald-600" },
     { path: "/toolkit", label: "蓝色调适", icon: Wind, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "blue", gradient: "from-blue-50 to-blue-100", activeBg: "bg-blue-600", activeText: "text-blue-600", hoverBg: "hover:bg-blue-50", hoverText: "hover:text-blue-600" },
     { path: "/intervention", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "orange", gradient: "from-orange-50 to-orange-100", activeBg: "bg-orange-600", activeText: "text-orange-600", hoverBg: "hover:bg-orange-50", hoverText: "hover:text-orange-600" },
@@ -498,7 +498,7 @@ const App: React.FC = () => {
           <main className="flex-1 overflow-y-auto p-6">
             <AnimatePresence mode="wait">
               <Routes>
-                <Route path="/" element={<Dashboard profile={profile} />} />
+                <Route path="/" element={<PersonalSettings profile={profile} />} />
                 <Route path="/assessment" element={<AssessmentPage profile={profile} onProfileUpdate={(updatedProfile) => setProfile(updatedProfile)} />} />
                 <Route path="/toolkit" element={<Toolkit profile={profile} />} />
                 <Route path="/intervention" element={<Intervention profile={profile} />} />

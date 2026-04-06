@@ -125,6 +125,76 @@ export function initDatabase() {
     }
   }
 
+  // 迁移：为 users 表添加 gender 列
+  try {
+    db.exec('SELECT gender FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: gender')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN gender TEXT;');
+        console.log('Successfully added gender column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 users 表添加 phone 列
+  try {
+    db.exec('SELECT phone FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: phone')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN phone TEXT;');
+        console.log('Successfully added phone column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 users 表添加 subject 列
+  try {
+    db.exec('SELECT subject FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: subject')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN subject TEXT;');
+        console.log('Successfully added subject column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 users 表添加 title 列
+  try {
+    db.exec('SELECT title FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: title')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN title TEXT;');
+        console.log('Successfully added title column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 users 表添加 bio 列
+  try {
+    db.exec('SELECT bio FROM users LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: bio')) {
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN bio TEXT;');
+        console.log('Successfully added bio column to users table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
   console.log('Database initialized successfully');
   
   // 初始化默认心理资源（如果还没有资源）
@@ -980,19 +1050,28 @@ export const communityDb = {
 export const physiologicalDb = {
   create: (data: {
     userId: string;
-    hrv: number[];
-    restingHR: number[];
-    sleepDuration: number[];
-    deepSleepRatio: number[];
-    activityLevel: number[];
-    timestamps: string[];
+    hrv?: number[] | null;
+    restingHR?: number[] | null;
+    sleepDuration?: number[] | null;
+    deepSleepRatio?: number[] | null;
+    activityLevel?: number[] | null;
+    timestamps?: string[] | null;
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
       INSERT INTO physiological_data (id, user_id, hrv, resting_hr, sleep_duration, deep_sleep_ratio, activity_level, timestamps)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, data.userId, JSON.stringify(data.hrv), JSON.stringify(data.restingHR), JSON.stringify(data.sleepDuration), JSON.stringify(data.deepSleepRatio), JSON.stringify(data.activityLevel), JSON.stringify(data.timestamps));
+    stmt.run(
+      id, 
+      data.userId, 
+      data.hrv ? JSON.stringify(data.hrv) : null, 
+      data.restingHR ? JSON.stringify(data.restingHR) : null, 
+      data.sleepDuration ? JSON.stringify(data.sleepDuration) : null, 
+      data.deepSleepRatio ? JSON.stringify(data.deepSleepRatio) : null, 
+      data.activityLevel ? JSON.stringify(data.activityLevel) : null, 
+      data.timestamps ? JSON.stringify(data.timestamps) : null
+    );
     return id;
   },
 
@@ -1013,10 +1092,10 @@ export const workloadDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO workload_data (user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO workload_data (id, user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(data.userId, data.classHours, data.meetingHours, data.nonTeachingTasks, data.totalWorkloadIndex);
+    stmt.run(id, data.userId, data.classHours, data.meetingHours, data.nonTeachingTasks, data.totalWorkloadIndex);
     return id;
   },
 

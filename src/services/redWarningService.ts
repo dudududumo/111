@@ -127,14 +127,13 @@ export interface RiskAnalysisResult {
 }
 
 /**
- * 模拟LSTM风险预测模型
- * 基于输入特征计算风险指数
+ * 风险预测模型 - 完全基于真实测评数据
  * @param features 输入特征
  * @param configs 预警配置（可选，如果不提供则使用默认配置）
  */
 export const predictRiskWithLSTM = (features: InputFeatures, configs?: WarningConfig[]): number => {
-  // 提取特征
-  const { assessmentScores, hrvData, activityChangeRate, workloadIndex } = features;
+  // 只使用评估数据，忽略其他模拟数据
+  const { assessmentScores } = features;
   
   // 使用提供的配置或默认配置
   const warningConfigs = configs || WARNING_CONFIGS;
@@ -144,56 +143,29 @@ export const predictRiskWithLSTM = (features: InputFeatures, configs?: WarningCo
   
   // 计算抑郁因子分趋势
   const recentScores = assessmentScores.slice(-2);
-  const scoreTrend = recentScores.length >= 2 ? recentScores[1] - recentScores[0] : 0;
   
-  // 计算HRV趋势（下降趋势增加风险）
-  const hrvTrend = hrvData.length >= 2 ? hrvData[hrvData.length - 1] - hrvData[0] : 0;
-  
-  // 计算行为活跃度变化率（负变化率增加风险）
-  const activityRisk = activityChangeRate < -0.1 ? Math.abs(activityChangeRate) * 0.3 : 0;
-  
-  // 计算工作量风险
-  const workloadRisk = workloadIndex > 70 ? (workloadIndex - 70) / 30 * 0.25 : 0;
-  
-  // 基础风险分数
-  let baseRisk = 0.3; // 降低基础风险分数
-  
-  // 抑郁因子分风险（使用配置的variables中的阈值）
+  // 获取配置的阈值
   const level3DepressionThreshold = level3Config?.variables?.depressionThreshold ?? 2.5;
   const level2DepressionThreshold = level2Config?.variables?.depressionThreshold ?? 2.0;
   const level1DepressionThreshold = level1Config?.variables?.depressionThreshold ?? 2.0;
   
-  // 一级预警触发条件：抑郁因子分首次≥2.0
-  const hasFirstDepression = assessmentScores.some(score => score >= level1DepressionThreshold);
+  // 完全基于评估数据计算风险
+  let riskScore = 0;
+  const latestScore = assessmentScores.length > 0 ? assessmentScores[assessmentScores.length - 1] : 0;
   
-  // 二级预警触发条件：抑郁因子分持续≥2.0超过1周
-  const hasConsecutiveDepression = recentScores.length >= 2 && recentScores.every(score => score >= level2DepressionThreshold);
-  
-  // 三级预警触发条件：抑郁因子分≥2.5
-  const hasSevereDepression = assessmentScores.some(score => score >= level3DepressionThreshold);
-  
-  // 调整基础风险分数
-  if (hasSevereDepression) {
-    baseRisk += 0.3;
-  } else if (hasConsecutiveDepression) {
-    baseRisk += 0.2;
-  } else if (hasFirstDepression) {
-    baseRisk += 0.1;
+  if (latestScore >= level3DepressionThreshold) {
+    riskScore = 0.9; // 三级预警风险
+  } else if (latestScore >= level2DepressionThreshold) {
+    // 检查是否连续
+    const hasConsecutive = recentScores.length >= 2 && recentScores.every(score => score >= level2DepressionThreshold);
+    riskScore = hasConsecutive ? 0.75 : 0.65; // 二级预警风险
+  } else if (latestScore >= level1DepressionThreshold) {
+    riskScore = 0.6; // 一级预警风险
   } else {
-    // 没有抑郁因子分风险，降低基础风险
-    baseRisk -= 0.1;
+    riskScore = 0.3; // 正常风险
   }
   
-  // HRV下降风险
-  if (hrvTrend < -5) {
-    baseRisk += 0.15;
-  }
-  
-  // 综合风险分数（使用加权平均）
-  let riskScore = baseRisk * 0.6 + activityRisk * 0.2 + workloadRisk * 0.2;
-  
-  // 限制风险分数范围在0-1之间
-  return Math.min(Math.max(riskScore, 0), 1);
+  return riskScore;
 };
 
 /**
@@ -216,32 +188,16 @@ export const analyzeTeacherRisk = async (
       assessments = response || [];
     } catch (error) {
       console.error(`获取教师 ${teacherName} (${uid}) 的测评数据失败:`, error);
-      // 使用该教师的个性化模拟数据
-      const seed = uid.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-      assessments = [
-        { scores: { total: 1.5 + (seed % 10) / 10 } },
-        { scores: { total: 1.6 + (seed % 8) / 10 } },
-        { scores: { total: 1.7 + (seed % 12) / 10 } },
-        { scores: { total: 1.8 + (seed % 5) / 10 } }
-      ];
+      // 没有数据时，不使用任何 mock
+      assessments = [];
     }
     
-    // 2. 根据教师ID生成个性化的生理数据（HRV）
-    const seed = uid.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-    const hrvData = [
-      60 + (seed % 15),
-      58 + (seed % 12),
-      55 + (seed % 10),
-      52 + (seed % 8)
-    ];
+    // 2. 不使用任何模拟生理数据
+    const hrvData = [];
+    const activityChangeRate = 0;
+    const workloadIndex = 0;
     
-    // 3. 根据教师ID生成个性化的行为数据
-    const activityChangeRate = -0.05 - (seed % 20) / 100;
-    
-    // 4. 根据教师ID生成个性化的工作量数据
-    const workloadIndex = 65 + (seed % 30);
-    
-    // 5. 构建输入特征
+    // 3. 构建输入特征（完全基于真实评估数据）
     let assessmentScores = assessments.map(a => {
       try {
         // 优先使用数据库中存储的抑郁因子分
@@ -257,22 +213,13 @@ export const analyzeTeacherRisk = async (
           // SCL-90抑郁因子包含13个项目：5, 14, 15, 20, 22, 26, 29, 30, 31, 32, 54, 71, 79
           // 注意：题目编号是1-90，而数组索引是0-89，所以需要减1
           const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
-          // 反向计分题目（项目编号，减1后）：5, 19, 43, 68, 72
-          const reverseItems = [4, 18, 42, 67, 71];
-          // 反向计分映射
-          const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
           
           let sum = 0;
           let count = 0;
           
           for (const index of depressionItems) {
             if (a.scores[index.toString()] !== undefined) {
-              let score = a.scores[index.toString()];
-              // 检查是否需要反向计分
-              if (reverseItems.includes(index)) {
-                score = reverseMapping[score as keyof typeof reverseMapping];
-              }
-              sum += score;
+              sum += a.scores[index.toString()];
               count++;
             }
           }
@@ -285,22 +232,13 @@ export const analyzeTeacherRisk = async (
         // SCL-90抑郁因子包含13个项目：5, 14, 15, 20, 22, 26, 29, 30, 31, 32, 54, 71, 79
         // 注意：题目编号是1-90，而数组索引是0-89，所以需要减1
         const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
-        // 反向计分题目（项目编号，减1后）：5, 19, 43, 68, 72
-        const reverseItems = [4, 18, 42, 67, 71];
-        // 反向计分映射
-        const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
         
         let sum = 0;
         let count = 0;
         
         for (const index of depressionItems) {
           if (scores[index.toString()] !== undefined) {
-            let score = scores[index.toString()];
-            // 检查是否需要反向计分
-            if (reverseItems.includes(index)) {
-              score = reverseMapping[score as keyof typeof reverseMapping];
-            }
-            sum += score;
+            sum += scores[index.toString()];
             count++;
           }
         }
@@ -316,14 +254,17 @@ export const analyzeTeacherRisk = async (
     // 调试：输出测评数据
     console.log(`教师 ${teacherName} (${uid}) 的测评数据:`, assessmentScores);
     
-    // 检查是否有有效的测评数据
+    // 如果没有有效测评数据，直接返回不触发预警
     const hasValidScores = assessmentScores.some(score => score > 0);
-    
-    // 如果没有有效测评数据，使用默认数据
     if (assessmentScores.length === 0 || !hasValidScores) {
-      // 生成能够触发三级预警的默认数据
-      assessmentScores = [2.0, 2.2, 2.4, 2.6];
-      console.warn(`教师 ${teacherName} (${uid}) 没有有效测评数据，已加载默认数据`);
+      console.log(`教师 ${teacherName} (${uid}) 没有有效测评数据，不触发预警`);
+      return {
+        warningTriggered: false,
+        riskScore: 0,
+        factors: [],
+        reason: "无有效测评数据",
+        triggeredBy: ""
+      };
     }
     
     const inputFeatures: InputFeatures = {
@@ -370,22 +311,13 @@ export const analyzeTeacherRisk = async (
           // SCL-90抑郁因子包含13个项目：5, 14, 15, 20, 22, 26, 29, 30, 31, 32, 54, 71, 79
           // 注意：题目编号是1-90，而数组索引是0-89，所以需要减1
           const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
-          // 反向计分题目（项目编号，减1后）：5, 19, 43, 68, 72
-          const reverseItems = [4, 18, 42, 67, 71];
-          // 反向计分映射
-          const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
           
           let sum = 0;
           let count = 0;
           
           for (const index of depressionItems) {
             if (assessment.scores[index.toString()] !== undefined) {
-              let score = assessment.scores[index.toString()];
-              // 检查是否需要反向计分
-              if (reverseItems.includes(index)) {
-                score = reverseMapping[score as keyof typeof reverseMapping];
-              }
-              sum += score;
+              sum += assessment.scores[index.toString()];
               count++;
             }
           }
@@ -398,22 +330,13 @@ export const analyzeTeacherRisk = async (
         // SCL-90抑郁因子包含13个项目：5, 14, 15, 20, 22, 26, 29, 30, 31, 32, 54, 71, 79
         // 注意：题目编号是1-90，而数组索引是0-89，所以需要减1
         const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
-        // 反向计分题目（项目编号，减1后）：5, 19, 43, 68, 72
-        const reverseItems = [4, 18, 42, 67, 71];
-        // 反向计分映射
-        const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
         
         let sum = 0;
         let count = 0;
         
         for (const index of depressionItems) {
           if (scores[index.toString()] !== undefined) {
-            let score = scores[index.toString()];
-            // 检查是否需要反向计分
-            if (reverseItems.includes(index)) {
-              score = reverseMapping[score as keyof typeof reverseMapping];
-            }
-            sum += score;
+            sum += scores[index.toString()];
             count++;
           }
         }

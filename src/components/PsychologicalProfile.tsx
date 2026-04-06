@@ -140,11 +140,13 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     { subject: '职业成就', A: 80, fullMark: 100 },
   ];
 
-  const hrvTrend = physioData?.hrv.map((val, i) => ({
-    name: physioData.timestamps[i],
-    hrv: val,
-    hr: physioData.restingHR[i]
-  })) || [];
+  const hrvTrend = (physioData?.hrv && Array.isArray(physioData.hrv)) 
+    ? physioData.hrv.map((val, i) => ({
+        name: (physioData.timestamps && Array.isArray(physioData.timestamps)) ? physioData.timestamps[i] : `第${i+1}次`,
+        hrv: val,
+        hr: (physioData.restingHR && Array.isArray(physioData.restingHR)) ? physioData.restingHR[i] : 70
+      }))
+    : [];
 
   const workloadData = [
     { name: '授课', value: behavioralData?.workload.classHours || 0, color: '#10b981' },
