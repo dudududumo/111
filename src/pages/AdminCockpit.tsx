@@ -163,7 +163,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {[
             { label: "整体心理健康指数", value: cockpitData.overallIndex, unit: "", icon: Target, bg: "from-purple-500 to-purple-600" },
-            { label: "预警人数 (待处理)", value: cockpitData.warningCount, unit: "人", icon: Activity, bg: "from-rose-500 to-rose-600" },
+            { label: "预警人数 (待完成)", value: cockpitData.warningCount, unit: "人", icon: Activity, bg: "from-rose-500 to-rose-600" },
             { label: "干预任务完成率", value: cockpitData.interventionRate, unit: "%", icon: ShieldCheck, bg: "from-emerald-500 to-emerald-600" },
             { label: "资源活跃参与度", value: cockpitData.resourceEngagement, unit: "%", icon: Users, bg: "from-blue-500 to-blue-600" },
           ].map((stat, i) => (

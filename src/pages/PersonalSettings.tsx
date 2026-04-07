@@ -32,7 +32,11 @@ import {
   Layers,
   ChevronDown,
   ShieldCheck,
-  Wind
+  Wind,
+  Activity,
+  Moon,
+  ListChecks,
+  Clock
 } from "lucide-react";
 
 import api from "../services/api";
@@ -87,7 +91,11 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
   const [physioData, setPhysioData] = useState<PhysiologicalData | null>(null);
   const [behavioralData, setBehavioralData] = useState<BehavioralData | null>(null);
   const [showDataForm, setShowDataForm] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [hrvValue, setHrvValue] = useState<string>("");
+  const [restingHRValue, setRestingHRValue] = useState<string>("");
+  const [sleepDurationValue, setSleepDurationValue] = useState<string>("");
+  const [deepSleepRatioValue, setDeepSleepRatioValue] = useState<string>("");
   const [classHours, setClassHours] = useState<string>("");
   const [meetingHours, setMeetingHours] = useState<string>("");
   const [nonTeachingTasks, setNonTeachingTasks] = useState<string>("");
@@ -129,29 +137,29 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
       
       setDataLoading(true);
       try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
         const [personalInfoData, physio, workload] = await Promise.all([
           api.personalInfo.get(),
-          api.physiological.getData(profile.uid),
-          api.workload.getData(profile.uid)
+          api.physiological.getDataByDate(profile.uid, yesterdayStr),
+          api.workload.getDataByDate(profile.uid, yesterdayStr)
         ]);
         
         setPersonalInfo(personalInfoData);
         
-        if (physio && physio.hrv) {
+        if (physio) {
           setPhysioData({
             hrv: physio.hrv,
-            restingHR: physio.restingHR || [],
-            sleepDuration: physio.sleepDuration || [],
-            deepSleepRatio: physio.deepSleepRatio || [],
-            activityLevel: physio.activityLevel || [],
-            timestamps: physio.timestamps || []
+            restingHR: physio.restingHR,
+            sleepDuration: physio.sleepDuration,
+            deepSleepRatio: physio.deepSleepRatio,
+            timestamps: physio.timestamps
           });
-          if (Array.isArray(physio.hrv) && physio.hrv.length > 0) {
-            setHrvValue(physio.hrv[0].toString());
-          }
         }
         
-        if (workload && workload.classHours !== null) {
+        if (workload) {
           setBehavioralData({
             loginFrequency: 0,
             toolUsageMinutes: 0,
@@ -163,9 +171,6 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
               totalWorkloadIndex: workload.totalWorkloadIndex
             }
           });
-          setClassHours(workload.classHours?.toString() || "");
-          setMeetingHours(workload.meetingHours?.toString() || "");
-          setNonTeachingTasks(workload.nonTeachingTasks?.toString() || "");
         }
       } catch (e) {
         console.error("获取数据失败:", e);
@@ -246,23 +251,91 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
     }
   };
 
+  const loadDataByDate = async (date: string) => {
+    if (!profile) return;
+    
+    try {
+      const [physioData, workloadData] = await Promise.all([
+        api.physiological.getDataByDate(profile.uid, date),
+        api.workload.getDataByDate(profile.uid, date)
+      ]);
+      
+      console.log('获取到的日期数据:', { date, physioData, workloadData });
+      
+      if (physioData) {
+        setHrvValue(physioData.hrv !== null && physioData.hrv !== undefined ? String(physioData.hrv) : "");
+        setRestingHRValue(physioData.restingHR !== null && physioData.restingHR !== undefined ? String(physioData.restingHR) : "");
+        setSleepDurationValue(physioData.sleepDuration !== null && physioData.sleepDuration !== undefined ? String(physioData.sleepDuration) : "");
+        setDeepSleepRatioValue(physioData.deepSleepRatio !== null && physioData.deepSleepRatio !== undefined ? String(physioData.deepSleepRatio) : "");
+      }
+      
+      if (workloadData) {
+        setClassHours(workloadData.classHours !== null && workloadData.classHours !== undefined ? String(workloadData.classHours) : "");
+        setMeetingHours(workloadData.meetingHours !== null && workloadData.meetingHours !== undefined ? String(workloadData.meetingHours) : "");
+        setNonTeachingTasks(workloadData.nonTeachingTasks !== null && workloadData.nonTeachingTasks !== undefined ? String(workloadData.nonTeachingTasks) : "");
+      }
+    } catch (e) {
+      console.error("获取日期数据失败:", e);
+    }
+  };
+
+  const handleOpenDataForm = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    setSelectedDate(yesterdayStr);
+    setHrvValue("");
+    setRestingHRValue("");
+    setSleepDurationValue("");
+    setDeepSleepRatioValue("");
+    setClassHours("");
+    setMeetingHours("");
+    setNonTeachingTasks("");
+    setShowDataForm(true);
+    loadDataByDate(yesterdayStr);
+  };
+
+  useEffect(() => {
+    if (showDataForm && selectedDate) {
+      loadDataByDate(selectedDate);
+    }
+  }, [selectedDate, showDataForm]);
+
   const handleSaveData = async () => {
     if (!profile) return;
     
-    console.log('保存数据时的表单值:', { hrvValue, classHours, meetingHours, nonTeachingTasks });
+    console.log('保存数据时的表单值:', { 
+      selectedDate, 
+      hrvValue, 
+      restingHRValue, 
+      sleepDurationValue, 
+      deepSleepRatioValue, 
+      classHours, 
+      meetingHours, 
+      nonTeachingTasks 
+    });
     
     setLoading(true);
     try {
-      if (hrvValue) {
-        console.log('保存HRV:', parseFloat(hrvValue));
-        await api.physiological.save({ hrv: parseFloat(hrvValue) });
+      const hasPhysioData = hrvValue || restingHRValue || sleepDurationValue || deepSleepRatioValue;
+      
+      if (hasPhysioData) {
+        const physioData: any = { date: selectedDate };
+        if (hrvValue) physioData.hrv = parseFloat(hrvValue);
+        if (restingHRValue) physioData.restingHR = parseFloat(restingHRValue);
+        if (sleepDurationValue) physioData.sleepDuration = parseFloat(sleepDurationValue);
+        if (deepSleepRatioValue) physioData.deepSleepRatio = parseFloat(deepSleepRatioValue);
+        
+        console.log('保存生理数据:', physioData);
+        await api.physiological.save(physioData);
       }
       
       if (classHours || meetingHours || nonTeachingTasks) {
         const workloadData = {
           classHours: parseFloat(classHours) || 0,
           meetingHours: parseFloat(meetingHours) || 0,
-          nonTeachingTasks: parseFloat(nonTeachingTasks) || 0
+          nonTeachingTasks: parseFloat(nonTeachingTasks) || 0,
+          date: selectedDate
         };
         console.log('保存工作负载:', workloadData);
         await api.workload.save(workloadData);
@@ -277,26 +350,29 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
       setShowDataForm(false);
       
       if (profile) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
         const [physio, workload] = await Promise.all([
-          api.physiological.getData(profile.uid),
-          api.workload.getData(profile.uid)
+          api.physiological.getDataByDate(profile.uid, yesterdayStr),
+          api.workload.getDataByDate(profile.uid, yesterdayStr)
         ]);
         
-        if (physio.hrv) {
+        if (physio) {
           setPhysioData({
             hrv: physio.hrv,
-            restingHR: physio.restingHR || [],
-            sleepDuration: physio.sleepDuration || [],
-            deepSleepRatio: physio.deepSleepRatio || [],
-            activityLevel: physio.activityLevel || [],
-            timestamps: physio.timestamps || []
+            restingHR: physio.restingHR,
+            sleepDuration: physio.sleepDuration,
+            deepSleepRatio: physio.deepSleepRatio,
+            timestamps: physio.timestamps
           });
-          if (Array.isArray(physio.hrv) && physio.hrv.length > 0) {
-            setHrvValue(physio.hrv[0].toString());
+          if (physio.hrv !== null && physio.hrv !== undefined) {
+            setHrvValue(physio.hrv.toString());
           }
         }
         
-        if (workload.classHours !== null) {
+        if (workload) {
           setBehavioralData({
             loginFrequency: 0,
             toolUsageMinutes: 0,
@@ -308,9 +384,15 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
               totalWorkloadIndex: workload.totalWorkloadIndex
             }
           });
-          setClassHours(workload.classHours?.toString() || "");
-          setMeetingHours(workload.meetingHours?.toString() || "");
-          setNonTeachingTasks(workload.nonTeachingTasks?.toString() || "");
+          if (workload.classHours !== null && workload.classHours !== undefined) {
+            setClassHours(workload.classHours.toString());
+          }
+          if (workload.meetingHours !== null && workload.meetingHours !== undefined) {
+            setMeetingHours(workload.meetingHours.toString());
+          }
+          if (workload.nonTeachingTasks !== null && workload.nonTeachingTasks !== undefined) {
+            setNonTeachingTasks(workload.nonTeachingTasks.toString());
+          }
         }
       }
     } catch (e) {
@@ -584,7 +666,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <p className="text-stone-500 text-xs sm:text-sm mt-1">记录您的健康指标和工作负载情况</p>
                     </div>
                     <button
-                      onClick={() => setShowDataForm(true)}
+                      onClick={handleOpenDataForm}
                       className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-md shadow-emerald-200/50"
                     >
                       <Sparkles size={12} className="sm:w-3.5 sm:h-3.5" />
@@ -602,16 +684,61 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                         {dataLoading ? (
                           <span className="text-stone-300">...</span>
                         ) : (
-                          physioData && physioData.hrv && physioData.hrv.length > 0 && physioData.hrv[0] !== null && physioData.hrv[0] !== undefined ? Math.round(physioData.hrv[0]) : "-"
+                          physioData && physioData.hrv !== null && physioData.hrv !== undefined ? Math.round(physioData.hrv) : "-"
                         )}
                       </p>
                       <p className="text-[9px] sm:text-xs text-rose-600">ms</p>
                     </div>
                     
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 sm:p-4 rounded-2xl border border-blue-100">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                        <Activity size={12} className="sm:w-4 sm:h-4 text-blue-500" />
+                        <p className="text-[9px] sm:text-xs font-medium text-blue-700">静息心率</p>
+                      </div>
+                      <p className="text-lg sm:text-2xl font-bold text-stone-900">
+                        {dataLoading ? (
+                          <span className="text-stone-300">...</span>
+                        ) : (
+                          physioData && physioData.restingHR !== null && physioData.restingHR !== undefined ? Math.round(physioData.restingHR) : "-"
+                        )}
+                      </p>
+                      <p className="text-[9px] sm:text-xs text-blue-600">次/分</p>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-3 sm:p-4 rounded-2xl border border-indigo-100">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                        <Clock size={12} className="sm:w-4 sm:h-4 text-indigo-500" />
+                        <p className="text-[9px] sm:text-xs font-medium text-indigo-700">睡眠时长</p>
+                      </div>
+                      <p className="text-lg sm:text-2xl font-bold text-stone-900">
+                        {dataLoading ? (
+                          <span className="text-stone-300">...</span>
+                        ) : (
+                          physioData && physioData.sleepDuration !== null && physioData.sleepDuration !== undefined ? physioData.sleepDuration : "-"
+                        )}
+                      </p>
+                      <p className="text-[9px] sm:text-xs text-indigo-600">小时</p>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 sm:p-4 rounded-2xl border border-purple-100">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                        <Moon size={12} className="sm:w-4 sm:h-4 text-purple-500" />
+                        <p className="text-[9px] sm:text-xs font-medium text-purple-700">深睡比例</p>
+                      </div>
+                      <p className="text-lg sm:text-2xl font-bold text-stone-900">
+                        {dataLoading ? (
+                          <span className="text-stone-300">...</span>
+                        ) : (
+                          physioData && physioData.deepSleepRatio !== null && physioData.deepSleepRatio !== undefined ? physioData.deepSleepRatio : "-"
+                        )}
+                      </p>
+                      <p className="text-[9px] sm:text-xs text-purple-600">%</p>
+                    </div>
+                    
                     <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-3 sm:p-4 rounded-2xl border border-amber-100">
                       <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
                         <Briefcase size={12} className="sm:w-4 sm:h-4 text-amber-500" />
-                        <p className="text-[9px] sm:text-xs font-medium text-amber-700">周课时</p>
+                        <p className="text-[9px] sm:text-xs font-medium text-amber-700">每日课时</p>
                       </div>
                       <p className="text-lg sm:text-2xl font-bold text-stone-900">
                         {dataLoading ? (
@@ -623,10 +750,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <p className="text-[9px] sm:text-xs text-amber-600">节</p>
                     </div>
                     
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 sm:p-4 rounded-2xl border border-blue-100">
+                    <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 p-3 sm:p-4 rounded-2xl border border-cyan-100">
                       <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-                        <Calendar size={12} className="sm:w-4 sm:h-4 text-blue-500" />
-                        <p className="text-[9px] sm:text-xs font-medium text-blue-700">会议时长</p>
+                        <Calendar size={12} className="sm:w-4 sm:h-4 text-cyan-500" />
+                        <p className="text-[9px] sm:text-xs font-medium text-cyan-700">会议时长</p>
                       </div>
                       <p className="text-lg sm:text-2xl font-bold text-stone-900">
                         {dataLoading ? (
@@ -635,12 +762,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           behavioralData && behavioralData.workload && behavioralData.workload.meetingHours !== null && behavioralData.workload.meetingHours !== undefined ? behavioralData.workload.meetingHours : "-"
                         )}
                       </p>
-                      <p className="text-[9px] sm:text-xs text-blue-600">小时</p>
+                      <p className="text-[9px] sm:text-xs text-cyan-600">小时</p>
                     </div>
                     
                     <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-3 sm:p-4 rounded-2xl border border-emerald-100">
                       <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-                        <Zap size={12} className="sm:w-4 sm:h-4 text-emerald-500" />
+                        <ListChecks size={12} className="sm:w-4 sm:h-4 text-emerald-500" />
                         <p className="text-[9px] sm:text-xs font-medium text-emerald-700">非教学任务</p>
                       </div>
                       <p className="text-lg sm:text-2xl font-bold text-stone-900">
@@ -1143,92 +1270,204 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
         )}
 
         {showDataForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-stone-900">填写每日数据</h2>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-gradient-to-br from-white to-emerald-50 rounded-[32px] max-w-lg w-full p-6 sm:p-8 shadow-2xl shadow-emerald-100/50 border border-emerald-100 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6 sm:mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl shadow-lg shadow-emerald-200/50">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-stone-900">填写每日数据</h2>
+                    <p className="text-xs text-stone-500 mt-0.5">记录您的健康与工作状态</p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowDataForm(false)}
-                  className="text-stone-400 hover:text-stone-600"
+                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-all"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="space-y-4 sm:space-y-5">
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">HRV (心率变异性)</label>
+              <div className="space-y-5 sm:space-y-6">
+                <div className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 p-4 sm:p-5 rounded-2xl border border-emerald-200/50">
+                  <label className="block text-xs sm:text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                    <Calendar size={16} />
+                    选择日期
+                  </label>
                   <div className="relative">
-                    <Heart className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
                     <input
-                      type="number"
-                      value={hrvValue}
-                      onChange={(e) => setHrvValue(e.target.value)}
-                      placeholder="请输入HRV数值"
-                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      max={(() => {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        return yesterday.toISOString().split('T')[0];
+                      })()}
+                      className="w-full px-4 py-3 bg-white border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm text-stone-700 font-medium shadow-sm"
                     />
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-emerald-600 mt-2 flex items-center gap-1">
+                    <Info size={12} />
+                    只能选择昨天及之前的日期
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-emerald-400 rounded-full"></div>
+                    <h3 className="text-sm font-bold text-stone-800">生理数据</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Heart size={14} className="text-rose-500" />
+                        HRV (心率变异性)
+                      </label>
+                      <input
+                        type="number"
+                        value={hrvValue}
+                        onChange={(e) => setHrvValue(e.target.value)}
+                        placeholder="例如: 45"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Activity size={14} className="text-blue-500" />
+                        静息心率
+                      </label>
+                      <input
+                        type="number"
+                        value={restingHRValue}
+                        onChange={(e) => setRestingHRValue(e.target.value)}
+                        placeholder="例如: 68"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Clock size={14} className="text-indigo-500" />
+                        睡眠时长（小时）
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={sleepDurationValue}
+                        onChange={(e) => setSleepDurationValue(e.target.value)}
+                        placeholder="例如: 7.5"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Moon size={14} className="text-purple-500" />
+                        深睡比例（%）
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={deepSleepRatioValue}
+                        onChange={(e) => setDeepSleepRatioValue(e.target.value)}
+                        placeholder="例如: 25"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">周课时</label>
-                  <div className="relative">
-                    <Briefcase className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
-                    <input
-                      type="number"
-                      value={classHours}
-                      onChange={(e) => setClassHours(e.target.value)}
-                      placeholder="请输入周课时数"
-                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
-                    />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-6 bg-gradient-to-b from-amber-500 to-amber-400 rounded-full"></div>
+                    <h3 className="text-sm font-bold text-stone-800">工作负载</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Briefcase size={14} className="text-amber-600" />
+                        每日课时
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={classHours}
+                        onChange={(e) => setClassHours(e.target.value)}
+                        placeholder="例如: 4"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <Calendar size={14} className="text-blue-600" />
+                        会议时长（小时）
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={meetingHours}
+                        onChange={(e) => setMeetingHours(e.target.value)}
+                        placeholder="例如: 2"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                      <label className="block text-xs font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+                        <ListChecks size={14} className="text-emerald-600" />
+                        非教学任务（项）
+                      </label>
+                      <input
+                        type="number"
+                        value={nonTeachingTasks}
+                        onChange={(e) => setNonTeachingTasks(e.target.value)}
+                        placeholder="例如: 3"
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm text-stone-700"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">会议时长（小时）</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
-                    <input
-                      type="number"
-                      value={meetingHours}
-                      onChange={(e) => setMeetingHours(e.target.value)}
-                      placeholder="请输入会议时长"
-                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">非教学任务（项）</label>
-                  <div className="relative">
-                    <Zap className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
-                    <input
-                      type="number"
-                      value={nonTeachingTasks}
-                      onChange={(e) => setNonTeachingTasks(e.target.value)}
-                      placeholder="请输入非教学任务数"
-                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5 sm:gap-3 pt-3 sm:pt-4">
+                <div className="flex gap-3 sm:gap-4 pt-4 sm:pt-6">
                   <button
                     onClick={() => setShowDataForm(false)}
-                    className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 border border-stone-200 text-stone-600 rounded-xl font-medium hover:bg-stone-50 transition-colors text-[10px] sm:text-xs"
+                    className="flex-1 px-4 sm:px-5 py-3 sm:py-3.5 bg-white border-2 border-stone-200 text-stone-600 rounded-2xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all duration-200 text-sm shadow-sm hover:shadow"
                   >
                     取消
                   </button>
                   <button
                     onClick={handleSaveData}
                     disabled={loading}
-                    className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 text-[10px] sm:text-xs"
+                    className="flex-1 px-4 sm:px-5 py-3 sm:py-3.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg shadow-emerald-200/50 hover:shadow-xl hover:shadow-emerald-300/50 active:scale-[0.98]"
                   >
-                    {loading ? "保存中..." : "保存"}
+                    {loading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        保存中...
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <Check size={16} />
+                        保存数据
+                      </div>
+                    )}
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
 

@@ -441,6 +441,177 @@ async function startServer() {
     });
   });
 
+  // 获取团队氛围统计（本组 vs 全校）
+  app.get("/api/atmosphere/stats", authMiddleware, (req: any, res) => {
+    console.log('=== /api/atmosphere/stats 被调用 ===');
+    try {
+      const currentUser = userDb.findById(req.user.userId);
+      console.log('当前用户:', currentUser);
+      if (!currentUser) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+
+      // 获取所有评估数据
+      const allAssessments = assessmentDb.getAll();
+      const allUsers = userDb.getAll();
+
+      // 创建用户信息映射
+      const userMap = new Map();
+      allUsers.forEach((user: any) => {
+        userMap.set(user.id, user);
+      });
+
+      // 计算氛围数据的辅助函数
+      const calculateAtmosphere = (assessments: any[]) => {
+        let totalDepression = 0;
+        let totalAnxiety = 0;
+        let totalRiskLevel = 0;
+        let validCount = 0;
+
+        assessments.forEach((assessment: any) => {
+          try {
+            let depressionScore = null;
+            let anxietyScore = null;
+            
+            // 优先使用数据库中直接存储的抑郁因子分
+            if (assessment.depressionScore !== undefined && assessment.depressionScore !== null) {
+              depressionScore = assessment.depressionScore;
+            } else if (assessment.depression_score !== undefined && assessment.depression_score !== null) {
+              depressionScore = assessment.depression_score;
+            }
+            
+            // 优先使用数据库中直接存储的焦虑因子分
+            if (assessment.anxietyScore !== undefined && assessment.anxietyScore !== null) {
+              anxietyScore = assessment.anxietyScore;
+            } else if (assessment.anxiety_score !== undefined && assessment.anxiety_score !== null) {
+              anxietyScore = assessment.anxiety_score;
+            }
+            
+            // 如果没有直接存储的因子分，尝试从scores中解析
+            if (depressionScore === null || anxietyScore === null) {
+              const scores = JSON.parse(assessment.scores);
+              
+              // 尝试从scores中获取因子分
+              if (depressionScore === null) {
+                if (scores['抑郁'] !== undefined) {
+                  depressionScore = scores['抑郁'];
+                } else if (scores['depression'] !== undefined) {
+                  depressionScore = scores['depression'];
+                } else {
+                  // SCL-90抑郁因子计算：13个项目的平均分
+                  const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
+                  let sum = 0;
+                  let count = 0;
+                  for (const index of depressionItems) {
+                    if (scores[index.toString()] !== undefined) {
+                      sum += scores[index.toString()];
+                      count++;
+                    }
+                  }
+                  if (count > 0) {
+                    depressionScore = sum / count;
+                  }
+                }
+              }
+              
+              if (anxietyScore === null) {
+                if (scores['焦虑'] !== undefined) {
+                  anxietyScore = scores['焦虑'];
+                } else if (scores['anxiety'] !== undefined) {
+                  anxietyScore = scores['anxiety'];
+                } else {
+                  // SCL-90焦虑因子计算：10个项目的平均分
+                  const anxietyItems = [1, 2, 16, 23, 27, 36, 45, 49, 50, 72];
+                  let sum = 0;
+                  let count = 0;
+                  for (const index of anxietyItems) {
+                    if (scores[index.toString()] !== undefined) {
+                      sum += scores[index.toString()];
+                      count++;
+                    }
+                  }
+                  if (count > 0) {
+                    anxietyScore = sum / count;
+                  }
+                }
+              }
+            }
+            
+            if (depressionScore !== null && anxietyScore !== null) {
+              totalDepression += depressionScore;
+              totalAnxiety += anxietyScore;
+              validCount++;
+            }
+
+            if (assessment.risk_level) {
+              const riskValue = assessment.risk_level === 'red' ? 3 : 
+                              assessment.risk_level === 'orange' ? 2 : 
+                              assessment.risk_level === 'yellow' ? 1 : 0;
+              totalRiskLevel += riskValue;
+            }
+          } catch (error) {
+            console.log('解析评估失败，跳过:', error);
+          }
+        });
+
+        if (validCount > 0) {
+          const avgDepression = totalDepression / validCount;
+          const avgAnxiety = totalAnxiety / validCount;
+          const avgRiskLevel = assessments.length > 0 ? totalRiskLevel / assessments.length : 0;
+
+          const vitality = Math.max(0, Math.min(100, 100 - ((avgDepression + avgAnxiety) / 2) * 25));
+          const support = Math.max(0, Math.min(100, 100 - avgRiskLevel * 20));
+          const stress = Math.max(0, Math.min(100, ((avgDepression + avgAnxiety) / 2) * 20));
+          const cohesion = Math.max(0, Math.min(100, 70 + (100 - avgRiskLevel * 15)));
+
+          return {
+            vitality: Math.round(vitality),
+            support: Math.round(support),
+            stress: Math.round(stress),
+            cohesion: Math.round(cohesion)
+          };
+        }
+
+        return null;
+      };
+
+      // 筛选本组用户（通过 manager_id 或 department）
+      let groupUserIds: string[] = [];
+      if (currentUser.manager_id) {
+        // 如果当前用户有组长，说明是普通教师，找同组长的用户
+        groupUserIds = allUsers
+          .filter((user: any) => user.manager_id === currentUser.manager_id)
+          .map((user: any) => user.id);
+      } else if (currentUser.role === 'dept_head') {
+        // 如果当前用户是组长，找自己的组员
+        groupUserIds = allUsers
+          .filter((user: any) => user.manager_id === currentUser.id)
+          .map((user: any) => user.id);
+        // 组长自己也算
+        groupUserIds.push(currentUser.id);
+      }
+
+      // 筛选本组评估和全校评估
+      const groupAssessments = allAssessments.filter((a: any) => groupUserIds.includes(a.user_id));
+      const schoolAssessments = allAssessments;
+
+      // 计算氛围数据
+      const groupAtmosphere = calculateAtmosphere(groupAssessments);
+      const schoolAtmosphere = calculateAtmosphere(schoolAssessments);
+      
+      console.log('计算结果 - groupAtmosphere:', groupAtmosphere);
+      console.log('计算结果 - schoolAtmosphere:', schoolAtmosphere);
+
+      res.json({
+        group: groupAtmosphere,
+        school: schoolAtmosphere
+      });
+    } catch (error) {
+      console.error('获取团队氛围统计失败:', error);
+      res.status(500).json({ error: "获取团队氛围统计失败" });
+    }
+  });
+
   // ==================== 预警相关 API ====================
 
   // 创建预警
@@ -903,34 +1074,120 @@ async function startServer() {
   // 获取生理数据
   app.get("/api/physiological/:userId", authMiddleware, (req, res) => {
     const { userId } = req.params;
+    const { date } = req.query;
     const data = physiologicalDb.getByUserId(userId);
     
-    console.log('获取生理数据:', { userId, data });
+    console.log('获取生理数据:', { userId, date, data });
     
     if (data) {
-      const parsedData = {
-        userId,
-        hrv: data.hrv ? JSON.parse(data.hrv) : null,
-        restingHR: data.resting_hr ? JSON.parse(data.resting_hr) : null,
-        sleepDuration: data.sleep_duration ? JSON.parse(data.sleep_duration) : null,
-        deepSleepRatio: data.deep_sleep_ratio ? JSON.parse(data.deep_sleep_ratio) : null,
-        activityLevel: data.activity_level ? JSON.parse(data.activity_level) : null,
-        timestamps: data.timestamps ? JSON.parse(data.timestamps) : null,
-        recordedAt: data.recorded_at
-      };
-      console.log('解析后的生理数据:', parsedData);
-      res.json(parsedData);
+      let hrv: any[] = [];
+      let restingHR: any[] = [];
+      let sleepDuration: any[] = [];
+      let deepSleepRatio: any[] = [];
+      let timestamps: string[] = [];
+      
+      try {
+        hrv = data.hrv ? JSON.parse(data.hrv) : [];
+      } catch (e) {
+        hrv = data.hrv !== null ? [data.hrv] : [];
+      }
+      
+      try {
+        restingHR = data.resting_hr ? JSON.parse(data.resting_hr) : [];
+      } catch (e) {
+        restingHR = data.resting_hr !== null ? [data.resting_hr] : [];
+      }
+      
+      try {
+        sleepDuration = data.sleep_duration ? JSON.parse(data.sleep_duration) : [];
+      } catch (e) {
+        sleepDuration = data.sleep_duration !== null ? [data.sleep_duration] : [];
+      }
+      
+      try {
+        deepSleepRatio = data.deep_sleep_ratio ? JSON.parse(data.deep_sleep_ratio) : [];
+      } catch (e) {
+        deepSleepRatio = data.deep_sleep_ratio !== null ? [data.deep_sleep_ratio] : [];
+      }
+      
+      try {
+        timestamps = data.timestamps ? JSON.parse(data.timestamps) : [];
+      } catch (e) {
+        timestamps = data.recorded_at ? [data.recorded_at] : [];
+      }
+      
+      if (date) {
+        const targetDate = new Date(date as string).toDateString();
+        let foundData = {
+          hrv: null,
+          restingHR: null,
+          sleepDuration: null,
+          deepSleepRatio: null
+        };
+        
+        for (let i = 0; i < timestamps.length; i++) {
+          const ts = new Date(timestamps[i]);
+          if (ts.toDateString() === targetDate) {
+            foundData = {
+              hrv: hrv[i] !== undefined ? hrv[i] : null,
+              restingHR: restingHR[i] !== undefined ? restingHR[i] : null,
+              sleepDuration: sleepDuration[i] !== undefined ? sleepDuration[i] : null,
+              deepSleepRatio: deepSleepRatio[i] !== undefined ? deepSleepRatio[i] : null
+            };
+            break;
+          }
+        }
+        
+        console.log('按日期查找的生理数据:', { date, foundData });
+        res.json({
+          userId,
+          ...foundData,
+          date: date
+        });
+      } else {
+        const historyData = timestamps.map((ts, index) => ({
+          date: ts,
+          hrv: hrv[index] !== undefined ? hrv[index] : null,
+          restingHR: restingHR[index] !== undefined ? restingHR[index] : null,
+          sleepDuration: sleepDuration[index] !== undefined ? sleepDuration[index] : null,
+          deepSleepRatio: deepSleepRatio[index] !== undefined ? deepSleepRatio[index] : null
+        }));
+        
+        const latestIndex = hrv.length > 0 ? hrv.length - 1 : -1;
+        const parsedData = {
+          userId,
+          hrv: latestIndex >= 0 ? hrv[latestIndex] : null,
+          restingHR: latestIndex >= 0 && restingHR.length > 0 ? restingHR[latestIndex] : null,
+          sleepDuration: latestIndex >= 0 && sleepDuration.length > 0 ? sleepDuration[latestIndex] : null,
+          deepSleepRatio: latestIndex >= 0 && deepSleepRatio.length > 0 ? deepSleepRatio[latestIndex] : null,
+          timestamps: timestamps.length > 0 ? timestamps : null,
+          history: historyData,
+          recordedAt: data.recorded_at
+        };
+        console.log('解析后的生理数据:', parsedData);
+        res.json(parsedData);
+      }
     } else {
-      res.json({
-        userId,
-        hrv: null,
-        restingHR: null,
-        sleepDuration: null,
-        deepSleepRatio: null,
-        activityLevel: null,
-        timestamps: null,
-        recordedAt: null
-      });
+      if (date) {
+        res.json({
+          userId,
+          hrv: null,
+          restingHR: null,
+          sleepDuration: null,
+          deepSleepRatio: null,
+          date: date
+        });
+      } else {
+        res.json({
+          userId,
+          hrv: null,
+          restingHR: null,
+          sleepDuration: null,
+          deepSleepRatio: null,
+          timestamps: null,
+          recordedAt: null
+        });
+      }
     }
   });
 
@@ -944,19 +1201,66 @@ async function startServer() {
         data = decryptData(data.encrypted);
       }
       
-      const { hrv } = data;
+      const { hrv, restingHR, sleepDuration, deepSleepRatio, date } = data;
       const userId = req.user.userId;
       
-      console.log('保存生理数据:', { userId, hrv, reqBody: req.body, decryptedData: data });
+      console.log('保存生理数据:', { userId, hrv, restingHR, sleepDuration, deepSleepRatio, date, reqBody: req.body, decryptedData: data });
+      
+      const existingData = physiologicalDb.getByUserId(userId);
+      
+      let newHrv = existingData?.hrv ? JSON.parse(existingData.hrv) : [];
+      let newRestingHR = existingData?.resting_hr ? JSON.parse(existingData.resting_hr) : [];
+      let newSleepDuration = existingData?.sleep_duration ? JSON.parse(existingData.sleep_duration) : [];
+      let newDeepSleepRatio = existingData?.deep_sleep_ratio ? JSON.parse(existingData.deep_sleep_ratio) : [];
+      let newTimestamps = existingData?.timestamps ? JSON.parse(existingData.timestamps) : [];
+      
+      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
+      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
+      
+      let foundIndex = -1;
+      for (let i = 0; i < newTimestamps.length; i++) {
+        const ts = new Date(newTimestamps[i]);
+        if (ts.toDateString() === targetDate) {
+          foundIndex = i;
+          break;
+        }
+      }
+      
+      if (foundIndex >= 0) {
+        if (hrv !== null && hrv !== undefined) newHrv[foundIndex] = hrv;
+        if (restingHR !== null && restingHR !== undefined) newRestingHR[foundIndex] = restingHR;
+        if (sleepDuration !== null && sleepDuration !== undefined) newSleepDuration[foundIndex] = sleepDuration;
+        if (deepSleepRatio !== null && deepSleepRatio !== undefined) newDeepSleepRatio[foundIndex] = deepSleepRatio;
+        newTimestamps[foundIndex] = timestamp;
+      } else {
+        if (hrv !== null && hrv !== undefined) newHrv.unshift(hrv);
+        else newHrv.unshift(null);
+        
+        if (restingHR !== null && restingHR !== undefined) newRestingHR.unshift(restingHR);
+        else newRestingHR.unshift(null);
+        
+        if (sleepDuration !== null && sleepDuration !== undefined) newSleepDuration.unshift(sleepDuration);
+        else newSleepDuration.unshift(null);
+        
+        if (deepSleepRatio !== null && deepSleepRatio !== undefined) newDeepSleepRatio.unshift(deepSleepRatio);
+        else newDeepSleepRatio.unshift(null);
+        
+        newTimestamps.unshift(timestamp);
+      }
+      
+      newHrv = newHrv.slice(0, 30);
+      newRestingHR = newRestingHR.slice(0, 30);
+      newSleepDuration = newSleepDuration.slice(0, 30);
+      newDeepSleepRatio = newDeepSleepRatio.slice(0, 30);
+      newTimestamps = newTimestamps.slice(0, 30);
       
       const dataId = physiologicalDb.create({
         userId,
-        hrv: hrv !== null && hrv !== undefined ? [hrv] : null,
-        restingHR: null,
-        sleepDuration: null,
-        deepSleepRatio: null,
-        activityLevel: null,
-        timestamps: [new Date().toISOString()]
+        hrv: newHrv.length > 0 ? newHrv : null,
+        restingHR: newRestingHR.length > 0 ? newRestingHR : null,
+        sleepDuration: newSleepDuration.length > 0 ? newSleepDuration : null,
+        deepSleepRatio: newDeepSleepRatio.length > 0 ? newDeepSleepRatio : null,
+        timestamps: newTimestamps
       });
       
       console.log('生理数据保存成功:', dataId);
@@ -972,24 +1276,135 @@ async function startServer() {
   // 获取工作负载数据
   app.get("/api/workload/:userId", authMiddleware, (req, res) => {
     const { userId } = req.params;
+    const { date } = req.query;
     const data = workloadDb.getByUserId(userId);
     
+    console.log('获取工作负载数据:', { userId, date, data });
+    
     if (data) {
-      res.json({
-        classHours: data.class_hours,
-        meetingHours: data.meeting_hours,
-        nonTeachingTasks: data.non_teaching_tasks,
-        totalWorkloadIndex: data.total_workload_index,
-        recordedAt: data.recorded_at
-      });
+      let classHours: any[] = [];
+      let meetingHours: any[] = [];
+      let nonTeachingTasks: any[] = [];
+      let totalWorkloadIndex: any[] = [];
+      let timestamps: string[] = [];
+      
+      try {
+        const parsed = data.class_hours ? JSON.parse(data.class_hours) : [];
+        classHours = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        classHours = data.class_hours !== null ? [data.class_hours] : [];
+      }
+      
+      try {
+        const parsed = data.meeting_hours ? JSON.parse(data.meeting_hours) : [];
+        meetingHours = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        meetingHours = data.meeting_hours !== null ? [data.meeting_hours] : [];
+      }
+      
+      try {
+        const parsed = data.non_teaching_tasks ? JSON.parse(data.non_teaching_tasks) : [];
+        nonTeachingTasks = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        nonTeachingTasks = data.non_teaching_tasks !== null ? [data.non_teaching_tasks] : [];
+      }
+      
+      try {
+        const parsed = data.total_workload_index ? JSON.parse(data.total_workload_index) : [];
+        totalWorkloadIndex = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        totalWorkloadIndex = data.total_workload_index !== null ? [data.total_workload_index] : [];
+      }
+      
+      try {
+        const parsed = data.timestamps ? JSON.parse(data.timestamps) : [];
+        timestamps = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        timestamps = data.timestamps !== null ? [data.timestamps] : [];
+      }
+      
+      console.log('解析后的工作负载数据:', { classHours, meetingHours, nonTeachingTasks, totalWorkloadIndex, timestamps });
+      
+      if (date) {
+        const targetDate = new Date(date as string).toDateString();
+        console.log('日期匹配调试:', {
+          dateParam: date,
+          targetDate: targetDate,
+          timestamps: timestamps
+        });
+        
+        let foundData = {
+          classHours: null,
+          meetingHours: null,
+          nonTeachingTasks: null,
+          totalWorkloadIndex: null
+        };
+        
+        for (let i = 0; i < timestamps.length; i++) {
+          const ts = new Date(timestamps[i]);
+          const tsDateString = ts.toDateString();
+          console.log(`  检查索引 ${i}:`, {
+            timestamp: timestamps[i],
+            tsDateString: tsDateString,
+            match: tsDateString === targetDate
+          });
+          
+          if (tsDateString === targetDate) {
+            foundData = {
+              classHours: classHours[i] !== undefined ? classHours[i] : null,
+              meetingHours: meetingHours[i] !== undefined ? meetingHours[i] : null,
+              nonTeachingTasks: nonTeachingTasks[i] !== undefined ? nonTeachingTasks[i] : null,
+              totalWorkloadIndex: totalWorkloadIndex[i] !== undefined ? totalWorkloadIndex[i] : null
+            };
+            console.log('  找到匹配数据!', foundData);
+            break;
+          }
+        }
+        
+        console.log('按日期查找的工作负载数据:', { date, foundData });
+        res.json({
+          ...foundData,
+          date: date
+        });
+      } else {
+        const historyData = timestamps.map((ts, index) => ({
+          date: ts,
+          classHours: classHours[index] !== undefined ? classHours[index] : null,
+          meetingHours: meetingHours[index] !== undefined ? meetingHours[index] : null,
+          nonTeachingTasks: nonTeachingTasks[index] !== undefined ? nonTeachingTasks[index] : null,
+          totalWorkloadIndex: totalWorkloadIndex[index] !== undefined ? totalWorkloadIndex[index] : null
+        }));
+        
+        const latestIndex = classHours.length > 0 ? classHours.length - 1 : -1;
+        res.json({
+          classHours: latestIndex >= 0 ? classHours[latestIndex] : null,
+          meetingHours: latestIndex >= 0 && meetingHours.length > 0 ? meetingHours[latestIndex] : null,
+          nonTeachingTasks: latestIndex >= 0 && nonTeachingTasks.length > 0 ? nonTeachingTasks[latestIndex] : null,
+          totalWorkloadIndex: latestIndex >= 0 && totalWorkloadIndex.length > 0 ? totalWorkloadIndex[latestIndex] : null,
+          timestamps: timestamps.length > 0 ? timestamps : null,
+          history: historyData,
+          recordedAt: data.recorded_at
+        });
+      }
     } else {
-      res.json({
-        classHours: null,
-        meetingHours: null,
-        nonTeachingTasks: null,
-        totalWorkloadIndex: null,
-        recordedAt: null
-      });
+      if (date) {
+        res.json({
+          classHours: null,
+          meetingHours: null,
+          nonTeachingTasks: null,
+          totalWorkloadIndex: null,
+          date: date
+        });
+      } else {
+        res.json({
+          classHours: null,
+          meetingHours: null,
+          nonTeachingTasks: null,
+          totalWorkloadIndex: null,
+          timestamps: null,
+          recordedAt: null
+        });
+      }
     }
   });
 
@@ -1003,27 +1418,118 @@ async function startServer() {
         data = decryptData(data.encrypted);
       }
       
-      const { classHours, meetingHours, nonTeachingTasks } = data;
+      const { classHours, meetingHours, nonTeachingTasks, date } = data;
       const userId = req.user.userId;
       
-      console.log('保存工作负载数据:', { userId, classHours, meetingHours, nonTeachingTasks, reqBody: req.body, decryptedData: data });
+      console.log('保存工作负载数据:', { userId, classHours, meetingHours, nonTeachingTasks, date, reqBody: req.body, decryptedData: data });
       
-      // 计算总工作量指数（简单加权）
+      const existingData = workloadDb.getByUserId(userId);
+      
+      let newClassHours: any[] = [];
+      let newMeetingHours: any[] = [];
+      let newNonTeachingTasks: any[] = [];
+      let newTotalWorkloadIndex: any[] = [];
+      let newTimestamps: string[] = [];
+      
+      try {
+        const parsed = existingData?.class_hours ? JSON.parse(existingData.class_hours) : [];
+        newClassHours = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        newClassHours = existingData?.class_hours !== null ? [existingData.class_hours] : [];
+      }
+      
+      try {
+        const parsed = existingData?.meeting_hours ? JSON.parse(existingData.meeting_hours) : [];
+        newMeetingHours = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        newMeetingHours = existingData?.meeting_hours !== null ? [existingData.meeting_hours] : [];
+      }
+      
+      try {
+        const parsed = existingData?.non_teaching_tasks ? JSON.parse(existingData.non_teaching_tasks) : [];
+        newNonTeachingTasks = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        newNonTeachingTasks = existingData?.non_teaching_tasks !== null ? [existingData.non_teaching_tasks] : [];
+      }
+      
+      try {
+        const parsed = existingData?.total_workload_index ? JSON.parse(existingData.total_workload_index) : [];
+        newTotalWorkloadIndex = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        newTotalWorkloadIndex = existingData?.total_workload_index !== null ? [existingData.total_workload_index] : [];
+      }
+      
+      try {
+        const parsed = existingData?.timestamps ? JSON.parse(existingData.timestamps) : [];
+        newTimestamps = Array.isArray(parsed) ? parsed : (parsed !== null ? [parsed] : []);
+      } catch (e) {
+        newTimestamps = existingData?.timestamps !== null ? [existingData.timestamps] : [];
+      }
+      
+      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
+      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
+      
       const totalWorkloadIndex = Math.min(100, (classHours || 0) * 3 + (meetingHours || 0) * 2 + (nonTeachingTasks || 0) * 2);
+      
+      let foundIndex = -1;
+      for (let i = 0; i < newTimestamps.length; i++) {
+        const ts = new Date(newTimestamps[i]);
+        if (ts.toDateString() === targetDate) {
+          foundIndex = i;
+          break;
+        }
+      }
+      
+      if (foundIndex >= 0) {
+        if (classHours !== null && classHours !== undefined) newClassHours[foundIndex] = classHours;
+        if (meetingHours !== null && meetingHours !== undefined) newMeetingHours[foundIndex] = meetingHours;
+        if (nonTeachingTasks !== null && nonTeachingTasks !== undefined) newNonTeachingTasks[foundIndex] = nonTeachingTasks;
+        newTotalWorkloadIndex[foundIndex] = totalWorkloadIndex;
+        newTimestamps[foundIndex] = timestamp;
+      } else {
+        if (classHours !== null && classHours !== undefined) newClassHours.unshift(classHours);
+        else newClassHours.unshift(null);
+        
+        if (meetingHours !== null && meetingHours !== undefined) newMeetingHours.unshift(meetingHours);
+        else newMeetingHours.unshift(null);
+        
+        if (nonTeachingTasks !== null && nonTeachingTasks !== undefined) newNonTeachingTasks.unshift(nonTeachingTasks);
+        else newNonTeachingTasks.unshift(null);
+        
+        newTotalWorkloadIndex.unshift(totalWorkloadIndex);
+        newTimestamps.unshift(timestamp);
+      }
+      
+      newClassHours = newClassHours.slice(0, 30);
+      newMeetingHours = newMeetingHours.slice(0, 30);
+      newNonTeachingTasks = newNonTeachingTasks.slice(0, 30);
+      newTotalWorkloadIndex = newTotalWorkloadIndex.slice(0, 30);
+      newTimestamps = newTimestamps.slice(0, 30);
+      
+      console.log('准备保存工作负载数据到数据库:', {
+        userId,
+        newClassHours,
+        newMeetingHours,
+        newNonTeachingTasks,
+        newTotalWorkloadIndex,
+        newTimestamps
+      });
       
       const dataId = workloadDb.create({
         userId,
-        classHours: classHours !== null && classHours !== undefined ? classHours : 0,
-        meetingHours: meetingHours !== null && meetingHours !== undefined ? meetingHours : 0,
-        nonTeachingTasks: nonTeachingTasks !== null && nonTeachingTasks !== undefined ? nonTeachingTasks : 0,
-        totalWorkloadIndex
+        classHours: newClassHours.length > 0 ? newClassHours : null,
+        meetingHours: newMeetingHours.length > 0 ? newMeetingHours : null,
+        nonTeachingTasks: newNonTeachingTasks.length > 0 ? newNonTeachingTasks : null,
+        totalWorkloadIndex: newTotalWorkloadIndex.length > 0 ? newTotalWorkloadIndex : null,
+        timestamps: newTimestamps
       });
       
       console.log('工作负载数据保存成功:', dataId);
       res.json({ success: true, id: dataId, totalWorkloadIndex });
     } catch (error) {
       console.error('保存工作负载数据失败:', error);
-      res.status(500).json({ error: "保存工作负载数据失败", details: error.message });
+      console.error('错误堆栈:', error.stack);
+      res.status(500).json({ error: "保存工作负载数据失败", details: error.message, stack: error.stack });
     }
   });
 
@@ -2138,7 +2644,7 @@ async function startServer() {
 
       const allWarningsRaw = db.prepare(`
         SELECT * FROM warnings 
-        WHERE user_id IN ('${teacherIds || ''}') AND status = 'pending'
+        WHERE user_id IN ('${teacherIds || ''}')
       `).all();
       
       // 按用户去重，只保留每个用户最新的预警
@@ -2150,6 +2656,10 @@ async function startServer() {
         }
       });
       const allWarnings = Array.from(userWarningMap.values());
+      
+      // 统计待完成的预警（状态不是 resolved 的）
+      const pendingWarnings = allWarnings.filter((w: any) => w.status !== 'resolved');
+      const warningCount = pendingWarnings.length;
 
       const allInterventionTasks = db.prepare(`
         SELECT * FROM intervention_tasks 
@@ -2284,7 +2794,9 @@ async function startServer() {
           let relevantTeachers = [];
           
           if (expectedDepartment) {
-            relevantTeachers = filteredTeachers.filter(t => t.department?.includes(expectedDepartment));
+            relevantTeachers = filteredTeachers.filter(t => 
+              t.department?.includes(expectedDepartment) && t.grade === grade
+            );
           }
           
           if (relevantTeachers.length > 0) {
@@ -2543,16 +3055,16 @@ async function startServer() {
       });
 
       subjects.forEach(subject => {
-        // 学科筛选：基于学科组来筛选教师
+        // 学科筛选：基于学科来筛选教师
         const subjectMap: Record<string, string> = {
-          '语文': '语文组',
-          '数学': '数学组',
-          '英语': '英语组',
-          '科学': '科学组',
-          '道法': '道法组',
-          '音乐': '音乐组',
-          '体育': '体育组',
-          '美术': '美术组'
+          '语文': '语文',
+          '数学': '数学',
+          '英语': '英语',
+          '科学': '科学',
+          '道法': '道法',
+          '音乐': '音乐',
+          '体育': '体育',
+          '美术': '美术'
         };
         
         const expectedDepartment = subjectMap[subject];
@@ -2848,7 +3360,7 @@ async function startServer() {
 
       res.json({
         overallIndex,
-        warningCount: allWarnings.length,
+        warningCount: warningCount,
         interventionRate,
         resourceEngagement,
         trends,

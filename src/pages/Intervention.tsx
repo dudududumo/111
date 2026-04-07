@@ -100,20 +100,44 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   const [users, setUsers] = useState<Record<string, { displayName: string }>>({});
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [atmosphereData, setAtmosphereData] = useState([
-    { name: '活力', value: 85 },
-    { name: '支持', value: 78 },
-    { name: '压力', value: 45 },
-    { name: '凝聚力', value: 92 },
+    { name: '活力', value: 0 },
+    { name: '支持', value: 0 },
+    { name: '压力', value: 0 },
+    { name: '凝聚力', value: 0 },
   ]);
   
   const teamAssistRef = useRef<HTMLDivElement>(null);
   
   const [schoolAtmosphereData, setSchoolAtmosphereData] = useState([
-    { name: '活力', group: 85, school: 78 },
-    { name: '支持', group: 78, school: 72 },
-    { name: '压力', group: 45, school: 52 },
-    { name: '凝聚力', group: 92, school: 85 },
+    { name: '活力', group: 0, school: 0 },
+    { name: '支持', group: 0, school: 0 },
+    { name: '压力', group: 0, school: 0 },
+    { name: '凝聚力', group: 0, school: 0 },
   ]);
+  
+  // 检查氛围数据是否全部为0
+  const hasAtmosphereData = (data: any[]) => {
+    return data.some(item => item.value > 0 || item.group > 0 || item.school > 0);
+  };
+
+  // 加载团队氛围统计数据
+  const loadAtmosphereStats = async () => {
+    console.log('=== loadAtmosphereStats 被调用 ===');
+    try {
+      const stats = await apiCall('/api/atmosphere/stats');
+      console.log('loadAtmosphereStats API 返回的 stats:', stats);
+      
+      setSchoolAtmosphereData([
+        { name: '活力', group: stats.group?.vitality || 0, school: stats.school?.vitality || 0 },
+        { name: '支持', group: stats.group?.support || 0, school: stats.school?.support || 0 },
+        { name: '压力', group: stats.group?.stress || 0, school: stats.school?.stress || 0 },
+        { name: '凝聚力', group: stats.group?.cohesion || 0, school: stats.school?.cohesion || 0 },
+      ]);
+    } catch (error) {
+      console.error('加载团队氛围统计失败:', error);
+      console.error('错误详情:', JSON.stringify(error, null, 2));
+    }
+  };
   
   const [showAddCareRecord, setShowAddCareRecord] = useState(false);
   const [selectedTaskForRecord, setSelectedTaskForRecord] = useState<string | null>(null);
@@ -165,65 +189,27 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
   useEffect(() => {
     const calculateAtmosphereData = async () => {
+      console.log('=== calculateAtmosphereData 被调用 ===');
       try {
-        const assessments = await apiCall('/api/assessments');
+        const stats = await apiCall('/api/atmosphere/stats');
+        console.log('API 返回的 stats:', stats);
         
-        if (assessments && assessments.length > 0) {
-          let totalDepression = 0;
-          let totalAnxiety = 0;
-          let totalRiskLevel = 0;
-          let validCount = 0;
-          
-          assessments.forEach((assessment: any) => {
-            try {
-              const scores = JSON.parse(assessment.scores);
-              if (scores['抑郁'] && scores['焦虑']) {
-                totalDepression += scores['抑郁'];
-                totalAnxiety += scores['焦虑'];
-                validCount++;
-              }
-              
-              if (assessment.risk_level) {
-                const riskValue = assessment.risk_level === 'red' ? 3 : 
-                                assessment.risk_level === 'orange' ? 2 : 
-                                assessment.risk_level === 'yellow' ? 1 : 0;
-                totalRiskLevel += riskValue;
-              }
-            } catch (error) {
-              console.error('解析评估数据失败:', error);
-            }
-          });
-          
-          if (validCount > 0) {
-            const avgDepression = totalDepression / validCount;
-            const avgAnxiety = totalAnxiety / validCount;
-            const avgRiskLevel = totalRiskLevel / assessments.length;
-            
-            const vitality = Math.max(0, Math.min(100, 100 - ((avgDepression + avgAnxiety) / 2) * 25));
-            const support = Math.max(0, Math.min(100, 100 - avgRiskLevel * 20));
-            const stress = Math.max(0, Math.min(100, ((avgDepression + avgAnxiety) / 2) * 20));
-            const cohesion = Math.max(0, Math.min(100, 70 + Math.random() * 30));
-            
-            setAtmosphereData([
-              { name: '活力', value: Math.round(vitality) },
-              { name: '支持', value: Math.round(support) },
-              { name: '压力', value: Math.round(stress) },
-              { name: '凝聚力', value: Math.round(cohesion) },
-            ]);
-          }
+        const atmosphereSource = stats.school || stats.group;
+        if (atmosphereSource) {
+          setAtmosphereData([
+            { name: '活力', value: atmosphereSource.vitality },
+            { name: '支持', value: atmosphereSource.support },
+            { name: '压力', value: atmosphereSource.stress },
+            { name: '凝聚力', value: atmosphereSource.cohesion },
+          ]);
         }
       } catch (error) {
         console.error('计算团队氛围指数失败:', error);
-        setAtmosphereData([
-          { name: '活力', value: 85 },
-          { name: '支持', value: 78 },
-          { name: '压力', value: 45 },
-          { name: '凝聚力', value: 92 },
-        ]);
       }
     };
     
     calculateAtmosphereData();
+    loadAtmosphereStats();
   }, [profile]);
 
   useEffect(() => {
@@ -933,38 +919,62 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
                   {/* 图表部分 - 单独出来，不在滚动条内 */}
                   {(profile?.managerId || profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST || profile?.role === UserRole.DEPT_HEAD) ? (
-                    <div className="mb-4 sm:mb-6">
-                      <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest mb-3 sm:mb-4">
-                        {(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? '本组 vs 全校 氛围对比' : '全校氛围指数'}
-                      </h3>
-                      <div className="h-36 w-full bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 p-4 sm:p-5">
-                        <ResponsiveContainer width="100%" height="100%">
-                          {(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? (
-                            <BarChart data={schoolAtmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
-                              <XAxis type="number" hide />
-                              <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
-                              <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                              <Bar dataKey="group" radius={[0, 6, 6, 0]} barSize={14} fill="#f97316" name="本组">
-                                <LabelList dataKey="group" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
-                              </Bar>
-                              <Bar dataKey="school" radius={[0, 6, 6, 0]} barSize={14} fill="#fdba74" name="全校" />
-                            </BarChart>
-                          ) : (
-                            <BarChart data={atmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
-                              <XAxis type="number" hide />
-                              <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
-                              <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18} fill="#f97316">
-                                <LabelList dataKey="value" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
-                              </Bar>
-                            </BarChart>
-                          )}
-                        </ResponsiveContainer>
-                      </div>
-                      <p className="text-[10px] text-stone-400 italic mt-2">* 数据基于{(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? '本组教师' : '全校教师'}近期脱敏聚合分析</p>
-                    </div>
+                    (() => {
+                      const currentData = (profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) 
+                        ? schoolAtmosphereData 
+                        : atmosphereData;
+                      
+                      const hasData = hasAtmosphereData(currentData);
+                      
+                      if (hasData) {
+                        return (
+                          <div className="mb-4 sm:mb-6">
+                            <h3 className="text-xs sm:text-sm font-bold text-orange-600 uppercase tracking-widest mb-3 sm:mb-4">
+                              {(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? '本组 vs 全校 氛围对比' : '全校氛围指数'}
+                            </h3>
+                            <div className="h-36 w-full bg-orange-50 rounded-xl sm:rounded-2xl border border-orange-200 p-4 sm:p-5">
+                              <ResponsiveContainer width="100%" height="100%">
+                                {(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? (
+                                  <BarChart data={schoolAtmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
+                                    <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                    <Bar dataKey="group" radius={[0, 6, 6, 0]} barSize={14} fill="#f97316" name="本组">
+                                      <LabelList dataKey="group" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
+                                    </Bar>
+                                    <Bar dataKey="school" radius={[0, 6, 6, 0]} barSize={14} fill="#fdba74" name="全校" />
+                                  </BarChart>
+                                ) : (
+                                  <BarChart data={atmosphereData} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fed7aa" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={40} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#78716c' }} />
+                                    <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18} fill="#f97316">
+                                      <LabelList dataKey="value" position="right" fill="#78716c" fontSize={10} fontWeight={600} />
+                                    </Bar>
+                                  </BarChart>
+                                )}
+                              </ResponsiveContainer>
+                            </div>
+                            <p className="text-[10px] text-stone-400 italic mt-2">* 数据基于{(profile?.role === UserRole.DEPT_HEAD || (profile?.managerId && profile?.role !== UserRole.ADMIN && profile?.role !== UserRole.PSYCHOLOGIST)) ? '本组教师' : '全校教师'}近期脱敏聚合分析</p>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="mb-4 sm:mb-6">
+                            <div className="flex flex-col items-center justify-center py-8 bg-orange-50 rounded-xl sm:rounded-2xl border border-dashed border-orange-200">
+                              <div className="p-3 bg-white rounded-xl shadow-sm text-orange-200 mb-3">
+                                <Users size={20} />
+                              </div>
+                              <p className="text-xs text-stone-500 text-center">暂无团队氛围数据</p>
+                              <p className="text-[10px] text-stone-400 mt-1">等待教师完成评估后可查看氛围数据</p>
+                            </div>
+                          </div>
+                        );
+                      }
+                    })()
                   ) : (
                     <div className="mb-4 sm:mb-6">
                       <div className="flex flex-col items-center justify-center py-8 bg-orange-50 rounded-xl sm:rounded-2xl border border-dashed border-orange-200">
