@@ -391,19 +391,19 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   const [toolRatings, setToolRatings] = useState<Record<string, { rating: number; timestamp: string }>>({});
 
   const mindfulnessTracks = [
-    { id: 'm1', title: '晨光唤醒：轻柔晨间旋律', duration: '05:52', category: '晨间', url: '/src/assets/audio/morning-relaxing.mp3' },
-    { id: 'm2', title: '身心合一：瑜伽冥想之旅', duration: '03:26', category: '瑜伽', url: '/src/assets/audio/meditation-relax-yoga.mp3' },
-    { id: 'm3', title: '内心宁静：深度放松冥想', duration: '03:00', category: '冥想', url: '/src/assets/audio/relax-meditation.mp3' },
-    { id: 'm4', title: '星空入梦：冥想助眠音乐', duration: '04:00', category: '助眠', url: '/src/assets/audio/meditation-relax-sleep.mp3' },
-    { id: 'm5', title: '心灵抚慰：自然冥想放松', duration: '06:08', category: '放松', url: '/src/assets/audio/meditation-relax.mp3' },
-    { id: 'm6', title: '禅意空间：冥想放松音乐', duration: '04:54', category: '静心', url: '/src/assets/audio/relax-meditation-music.mp3' },
-    { id: 'm7', title: '灵性觉醒：深度放松之旅', duration: '03:00', category: '灵性', url: '/src/assets/audio/relax.mp3' },
-    { id: 'm8', title: '环境律动：氛围放松节拍', duration: '03:00', category: '节奏', url: '/src/assets/audio/ambient-relax.mp3' },
-    { id: 'm9', title: '木吉他之语：安神舒缓时光', duration: '03:01', category: '舒缓', url: '/src/assets/audio/sedative.mp3' },
-    { id: 'm10', title: '钢琴轻语：温柔冥想时光', duration: '15:20', category: '冥想', url: '/src/assets/audio/gentle-piano-meditation.mp3' },
-    { id: 'm11', title: '宁静背景：冥想氛围音乐', duration: '07:52', category: '静心', url: '/src/assets/audio/meditation-background.mp3' },
-    { id: 'm12', title: '深度冥想：灵性探索之旅', duration: '09:10', category: '灵性', url: '/src/assets/audio/meditation.mp3' },
-    { id: 'm13', title: '静思冥想：内心宁静之旅', duration: '11:01', category: '冥想', url: '/src/assets/audio/quiet-contemplation-meditation.mp3' },
+    { id: 'm1', title: '晨光唤醒：轻柔晨间旋律', duration: '05:52', category: '晨间', url: '/assets/audio/morning-relaxing.mp3' },
+    { id: 'm2', title: '身心合一：瑜伽冥想之旅', duration: '03:26', category: '瑜伽', url: '/assets/audio/meditation-relax-yoga.mp3' },
+    { id: 'm3', title: '内心宁静：深度放松冥想', duration: '03:00', category: '冥想', url: '/assets/audio/relax-meditation.mp3' },
+    { id: 'm4', title: '星空入梦：冥想助眠音乐', duration: '04:00', category: '助眠', url: '/assets/audio/meditation-relax-sleep.mp3' },
+    { id: 'm5', title: '心灵抚慰：自然冥想放松', duration: '06:08', category: '放松', url: '/assets/audio/meditation-relax.mp3' },
+    { id: 'm6', title: '禅意空间：冥想放松音乐', duration: '04:54', category: '静心', url: '/assets/audio/relax-meditation-music.mp3' },
+    { id: 'm7', title: '灵性觉醒：深度放松之旅', duration: '03:00', category: '灵性', url: '/assets/audio/relax.mp3' },
+    { id: 'm8', title: '环境律动：氛围放松节拍', duration: '03:00', category: '节奏', url: '/assets/audio/ambient-relax.mp3' },
+    { id: 'm9', title: '木吉他之语：安神舒缓时光', duration: '03:01', category: '舒缓', url: '/assets/audio/sedative.mp3' },
+    { id: 'm10', title: '钢琴轻语：温柔冥想时光', duration: '15:20', category: '冥想', url: '/assets/audio/gentle-piano-meditation.mp3' },
+    { id: 'm11', title: '宁静背景：冥想氛围音乐', duration: '07:52', category: '静心', url: '/assets/audio/meditation-background.mp3' },
+    { id: 'm12', title: '深度冥想：灵性探索之旅', duration: '09:10', category: '灵性', url: '/assets/audio/meditation.mp3' },
+    { id: 'm13', title: '静思冥想：内心宁静之旅', duration: '11:01', category: '冥想', url: '/assets/audio/quiet-contemplation-meditation.mp3' },
   ];
 
   const boundaryScenarios = [
@@ -1356,7 +1356,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                       <p className="text-stone-500">这些烦恼已被安全存放在虚拟箱子中，并预约在 <span className="text-stone-900 font-bold">{processingTime}</span> 处理。现在，请把注意力转回到当下。</p>
                       <button 
                         onClick={() => { setIsBoxClosed(false); setAnxietyText(""); setActiveTool(null); }}
-                        className="px-8 py-3 border border-stone-200 rounded-xl font-bold text-stone-600 hover:bg-stone-50"
+                        className="px-8 py-3 border border-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-50"
                       >
                         返回驿站
                       </button>
@@ -1718,7 +1718,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                             setSelectedOption(i);
                             setBoundaryFeedback(opt.feedback);
                           }}
-                          className={`p-4 border rounded-2xl text-left text-sm font-medium transition-all ${selectedOption === i ? 'bg-teal-600 text-white border-teal-600 shadow-lg' : 'bg-white border-stone-200 hover:border-teal-500 hover:bg-teal-50 text-stone-700'}`}
+                          className={`p-4 border rounded-2xl text-left text-sm font-medium transition-all ${selectedOption === i ? 'bg-teal-600 text-white border-teal-600 shadow-lg' : 'bg-white border-stone-100 hover:border-teal-500 hover:bg-teal-50 text-stone-700'}`}
                         >
                           {opt.text}
                         </button>

@@ -159,7 +159,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   const handleAcceptConsent = async () => {
     if (!profile) return;
     try {
-      const response = await fetch('http://localhost:3000/api/users/' + profile.uid, {
+      const response = await fetch('/api/users/' + profile.uid, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -612,7 +612,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                           type="time"
                           value={pushConfig.time}
                           onChange={(e) => setPushConfig({ ...pushConfig, time: e.target.value })}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
                       </div>
                       <div className="space-y-2">
@@ -623,7 +623,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                           max="120"
                           value={pushConfig.reminderInterval}
                           onChange={(e) => setPushConfig({ ...pushConfig, reminderInterval: parseInt(e.target.value) })}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
                       </div>
                       <div className="space-y-2">
@@ -644,7 +644,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                               }
                             }
                           }}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         >
                           <option value="hourly">高频（每小时）</option>
                           <option value="daily">中频（每天）</option>
@@ -842,7 +842,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                             className={`w-full p-3.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border-2 text-left transition-all ${
                               answers[currentQuestionIndex] === option.value
                                 ? "border-emerald-500 bg-gradient-to-r from-emerald-50 to-emerald-100 shadow-md"
-                                : "border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50"
+                                : "border-stone-100 hover:border-emerald-300 hover:bg-emerald-50/50"
                             }`}
                           >
                             <span className="font-medium text-stone-900 text-sm sm:text-base">{option.label}</span>

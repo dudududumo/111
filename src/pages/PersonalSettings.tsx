@@ -641,7 +641,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-200 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
+                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-100 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <div>
@@ -707,7 +707,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     </div>
                   )}
                   
-                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-200 flex items-start gap-2">
+                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-100 flex items-start gap-2">
                     <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-stone-200 flex items-center justify-center shrink-0 mt-0.5">
                       <Info size={6} className="sm:w-2.5 sm:h-2.5 text-stone-600" />
                     </div>
@@ -721,7 +721,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-200 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
+                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-100 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <div>
@@ -844,7 +844,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     </div>
                   </div>
                   
-                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-200 flex items-start gap-2">
+                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-100 flex items-start gap-2">
                     <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-stone-200 flex items-center justify-center shrink-0 mt-0.5">
                       <Info size={6} className="sm:w-2.5 sm:h-2.5 text-stone-600" />
                     </div>
@@ -860,7 +860,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-200 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
+                  className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-100 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
                 >
                   <div className="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
                     <div className="p-2.5 sm:p-3 bg-gradient-to-br from-stone-600 to-stone-700 rounded-xl sm:rounded-2xl">
@@ -882,8 +882,8 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           <FileText size={12} className="sm:w-4 sm:h-4 text-white" />
                         </div>
                         <div>
-                          <p className="text-[10px] sm:text-xs font-semibold text-stone-900">绿色测评</p>
-                          <p className="text-[8px] sm:text-[10px] text-stone-500">进行心理测评</p>
+                          <p className="text-xs sm:text-xs font-semibold text-stone-900">绿色测评</p>
+                          <p className="text-xs sm:text-xs text-stone-500">进行心理测评</p>
                         </div>
                       </div>
                       <ChevronRight size={12} className="sm:w-4 sm:h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -899,7 +899,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                         </div>
                         <div>
                           <p className="text-xs sm:text-xs font-semibold text-stone-900">蓝色调适</p>
-                        <p className="text-xs sm:text-[10px] text-stone-500">心理调适工具</p>
+                        <p className="text-xs sm:text-xs text-stone-500">心理调适工具</p>
                         </div>
                       </div>
                       <ChevronRight size={12} className="sm:w-4 sm:h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -915,7 +915,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                         </div>
                         <div>
                           <p className="text-xs sm:text-xs font-semibold text-stone-900">橙色干预</p>
-                        <p className="text-xs sm:text-[10px] text-stone-500">心理支持网络</p>
+                        <p className="text-xs sm:text-xs text-stone-500">心理支持网络</p>
                         </div>
                       </div>
                       <ChevronRight size={12} className="sm:w-4 sm:h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -931,8 +931,8 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                             <ShieldAlert size={12} className="sm:w-4 sm:h-4 text-white" />
                           </div>
                           <div>
-                            <p className="text-[10px] sm:text-xs font-semibold text-stone-900">红色预警</p>
-                            <p className="text-[8px] sm:text-[10px] text-stone-500">查看风险预警</p>
+                            <p className="text-xs sm:text-xs font-semibold text-stone-900">红色预警</p>
+                            <p className="text-xs sm:text-xs text-stone-500">查看风险预警</p>
                           </div>
                         </div>
                         <ChevronRight size={12} className="sm:w-4 sm:h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -949,8 +949,8 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                             <BarChart3 size={12} className="sm:w-4 sm:h-4 text-white" />
                           </div>
                           <div>
-                            <p className="text-[10px] sm:text-xs font-semibold text-stone-900">紫色评估</p>
-                            <p className="text-[8px] sm:text-[10px] text-stone-500">查看整体统计</p>
+                            <p className="text-xs sm:text-xs font-semibold text-stone-900">紫色评估</p>
+                            <p className="text-xs sm:text-xs text-stone-500">查看整体统计</p>
                           </div>
                         </div>
                         <ChevronRight size={12} className="sm:w-4 sm:h-4 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -958,7 +958,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     )}
                   </div>
                   
-                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-200 flex items-start gap-2">
+                  <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-100 flex items-start gap-2">
                     <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-stone-200 flex items-center justify-center shrink-0 mt-0.5">
                       <Info size={6} className="sm:w-2.5 sm:h-2.5 text-stone-600" />
                     </div>
@@ -975,7 +975,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-200 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
+              className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-100 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
                 <div>
@@ -1000,7 +1000,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={selectedDeptHead || ""}
                       onChange={(e) => setSelectedDeptHead(e.target.value || null)}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-500/20"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-500/20"
                     >
                       <option value="">请选择要管理的教研组长</option>
                       {deptHeads.map((head) => (
@@ -1023,10 +1023,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <p className="text-[8px] sm:text-[10px] text-stone-400 mt-1">点击"新增成员"添加教师到教研组</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
+                  <div className="overflow-x-auto rounded-2xl border border-stone-100 bg-white">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-200">
+                        <tr className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-100">
                           <th className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">姓名</th>
                           <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">学科</th>
                           <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">年级</th>
@@ -1063,7 +1063,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                 </div>
               )}
               
-              <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-200 flex items-start gap-2">
+              <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-100 flex items-start gap-2">
                 <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-stone-200 flex items-center justify-center shrink-0 mt-0.5">
                   <Info size={6} className="sm:w-2.5 sm:h-2.5 text-stone-600" />
                 </div>
@@ -1078,7 +1078,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-200 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
+              className="bg-white rounded-[32px] shadow-lg shadow-stone-200/50 border border-stone-100 hover:shadow-xl hover:shadow-stone-300/30 transition-all p-4 sm:p-6 lg:p-8"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
                 <div>
@@ -1102,14 +1102,14 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
                     placeholder="搜索姓名或邮箱..."
-                    className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
+                    className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-100 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
                   />
                 </div>
                 <div className="relative">
                   <select
                     value={userSubjectFilter}
                     onChange={(e) => setUserSubjectFilter(e.target.value)}
-                    className="w-full pl-3 sm:pl-4 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
+                    className="w-full pl-3 sm:pl-4 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-100 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
                   >
                     <option value="">全部学科</option>
                     {Array.from(new Set(allUsers.map(u => u.subject).filter(Boolean))).map(subject => (
@@ -1121,7 +1121,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                   <select
                     value={userRoleFilter}
                     onChange={(e) => setUserRoleFilter(e.target.value)}
-                    className="w-full pl-3 sm:pl-4 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
+                    className="w-full pl-3 sm:pl-4 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-stone-100 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[10px] sm:text-xs"
                   >
                     <option value="">全部角色</option>
                     <option value="teacher">普通教师</option>
@@ -1134,7 +1134,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
               {adminLoading ? (
                 <div className="text-center py-10 sm:py-12">
-                  <div className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-3 sm:border-4 border-stone-200 border-t-stone-600 rounded-full mx-auto mb-3 sm:mb-4"></div>
+                  <div className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-3 sm:border-4 border-stone-100 border-t-stone-600 rounded-full mx-auto mb-3 sm:mb-4"></div>
                   <p className="text-[10px] sm:text-xs text-stone-500">加载中...</p>
                 </div>
               ) : (
@@ -1154,16 +1154,16 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <p className="text-[10px] sm:text-xs text-stone-500 font-medium">暂无匹配的用户</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
+                    <div className="overflow-x-auto rounded-2xl border border-stone-100 bg-white">
                       <table className="w-full text-left">
                         <thead>
-                          <tr className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-200">
-                            <th className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">姓名</th>
+                          <tr className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-100">
+                            <th className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">姓名</th>
                             <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">邮箱</th>
                             <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">学科</th>
                             <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">教龄</th>
                             <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">所属教研组</th>
-                            <th className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-3 sm:pr-6 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">角色</th>
+                            <th className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-1.5 sm:pr-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">角色</th>
                             <th className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-3 sm:pr-6 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">操作</th>
                           </tr>
                         </thead>
@@ -1173,30 +1173,28 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                             const managerName = deptHeads.find(h => h.id === user.managerId)?.name || "无";
                             return (
                               <tr key={user.id} className="group hover:bg-stone-50 transition-colors">
-                                <td className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 font-bold text-stone-900 text-[9px] sm:text-xs whitespace-nowrap">{user.name}</td>
-                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{user.email}</td>
-                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{user.subject || "-"}</td>
-                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{user.teachingExperience ? `${user.teachingExperience}年` : "-"}</td>
-                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{managerName}</td>
+                                <td className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 font-bold text-stone-900 text-xs sm:text-xs whitespace-nowrap">{user.name}</td>
+                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{user.email}</td>
+                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{user.subject || "-"}</td>
+                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{user.teachingExperience ? `${user.teachingExperience}年` : "-"}</td>
+                                <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{managerName}</td>
                                 <td className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-1.5 sm:pr-3">
                                   <div className="flex items-center gap-2 sm:gap-3">
                                     <select
                                       value={user.role}
                                       onChange={(e) => handleSetUserRole(user.id, e.target.value)}
                                       disabled={isCurrentUser}
-                                      className={`px-2.5 sm:px-3 py-1.5 sm:py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-[9px] sm:text-xs ${isCurrentUser ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                      className={`px-2.5 sm:px-3 py-1.5 sm:py-2 border border-stone-100 rounded-xl focus:ring-2 focus:ring-stone-500 focus:border-transparent outline-none text-xs sm:text-xs ${isCurrentUser ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                       <option value="teacher">普通教师</option>
                                       <option value="dept_head">教研组长</option>
                                       <option value="psychologist">心理专家</option>
                                       <option value="admin">管理员</option>
                                     </select>
-                                    <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-medium ${
-                                      user.role === 'admin' ? 'bg-red-100 text-red-700' :
+                                    <div className={`px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-xs font-medium ${user.role === 'admin' ? 'bg-red-100 text-red-700' :
                                       user.role === 'dept_head' ? 'bg-blue-100 text-blue-700' :
                                       user.role === 'psychologist' ? 'bg-green-100 text-green-700' :
-                                      'bg-stone-100 text-stone-700'
-                                    }`}>
+                                      'bg-stone-100 text-stone-700'}`}>
                                       {user.role === 'admin' ? '管理员' :
                                        user.role === 'dept_head' ? '教研组长' :
                                        user.role === 'psychologist' ? '心理专家' :
@@ -1223,7 +1221,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                 })()
               )}
               
-              <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-200 flex items-start gap-2">
+              <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl border border-stone-100 flex items-start gap-2">
                 <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-stone-200 flex items-center justify-center shrink-0 mt-0.5">
                   <Info size={6} className="sm:w-2.5 sm:h-2.5 text-stone-600" />
                 </div>
@@ -1238,7 +1236,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
         {showInfoForm && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-[32px] max-w-md w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-200">
+            <div className="bg-white rounded-[32px] max-w-md w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-100">
               <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-gradient-to-br from-stone-600 to-stone-700 rounded-xl shadow-md shadow-stone-200/50">
@@ -1261,7 +1259,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editFormData.gender || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="男">男</option>
@@ -1281,7 +1279,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       value={editFormData.phone || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                       placeholder="请输入手机号"
-                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
                     />
                   </div>
                 </div>
@@ -1292,7 +1290,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editFormData.subject || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, subject: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="语文">语文</option>
@@ -1315,7 +1313,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editFormData.grade || ""}
                       onChange={(e) => setEditFormData({ ...editFormData, grade: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="一年级">一年级</option>
@@ -1333,7 +1331,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                 <div className="flex gap-2.5 sm:gap-3 pt-3 sm:pt-4">
                   <button
                     onClick={() => setShowInfoForm(false)}
-                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-xs sm:text-xs"
+                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-100 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-xs sm:text-xs"
                   >
                     取消
                   </button>
@@ -1356,7 +1354,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[32px] max-w-4xl w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-200 max-h-[95vh] overflow-y-auto"
+              className="bg-white rounded-[32px] max-w-4xl w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-100 max-h-[95vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <div className="flex items-center gap-3">
@@ -1377,7 +1375,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
               </div>
 
               <div className="space-y-4 sm:space-y-5">
-                <div className="bg-gradient-to-r from-stone-50 to-stone-100 p-3 sm:p-4 rounded-xl border border-stone-200">
+                <div className="bg-gradient-to-r from-stone-50 to-stone-100 p-3 sm:p-4 rounded-xl border border-stone-100">
                   <label className="block text-[10px] sm:text-xs font-semibold text-stone-700 mb-2.5 flex items-center gap-1.5">
                     <Calendar size={14} />
                     选择日期
@@ -1392,7 +1390,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                         yesterday.setDate(yesterday.getDate() - 1);
                         return yesterday.toISOString().split('T')[0];
                       })()}
-                      className="w-full px-3 sm:px-4 py-2.5 bg-white border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none text-[10px] sm:text-xs text-stone-700 font-medium"
+                      className="w-full px-3 sm:px-4 py-2.5 bg-white border border-stone-100 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none text-[10px] sm:text-xs text-stone-700 font-medium"
                     />
                   </div>
                   <p className="text-[9px] sm:text-[10px] text-stone-600 mt-1.5 flex items-center gap-1">
@@ -1409,7 +1407,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                         <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Heart size={12} className="text-rose-500" />
                           HRV
@@ -1419,12 +1417,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={hrvValue}
                           onChange={(e) => setHrvValue(e.target.value)}
                           placeholder="45"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">ms</p>
                       </div>
 
-                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                         <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Activity size={12} className="text-blue-500" />
                           静息心率
@@ -1434,12 +1432,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={restingHRValue}
                           onChange={(e) => setRestingHRValue(e.target.value)}
                           placeholder="72"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">次/分</p>
                       </div>
 
-                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                         <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Clock size={12} className="text-indigo-500" />
                           睡眠时长
@@ -1450,12 +1448,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={sleepDurationValue}
                           onChange={(e) => setSleepDurationValue(e.target.value)}
                           placeholder="7.5"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">小时</p>
                       </div>
 
-                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                         <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Moon size={12} className="text-purple-500" />
                           深睡比例
@@ -1467,7 +1465,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={deepSleepRatioValue}
                           onChange={(e) => setDeepSleepRatioValue(e.target.value)}
                           placeholder="25"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">%</p>
                       </div>
@@ -1481,7 +1479,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     </div>
                     
                     <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
-                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                         <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Briefcase size={12} className="text-stone-600" />
                           每日课时
@@ -1492,13 +1490,13 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={classHours}
                           onChange={(e) => setClassHours(e.target.value)}
                           placeholder="4"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">节</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                           <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <Calendar size={12} className="text-stone-600" />
                           会议时长
@@ -1509,12 +1507,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={meetingHours}
                           onChange={(e) => setMeetingHours(e.target.value)}
                           placeholder="2"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">小时</p>
                         </div>
 
-                        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-200 hover:shadow-sm transition-shadow">
+                        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-stone-100 hover:shadow-sm transition-shadow">
                           <label className="block text-xs sm:text-[10px] font-medium text-stone-600 mb-1.5 flex items-center gap-1">
                           <ListChecks size={12} className="text-stone-600" />
                           非教学任务
@@ -1524,7 +1522,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                           value={nonTeachingTasks}
                           onChange={(e) => setNonTeachingTasks(e.target.value)}
                           placeholder="3"
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-100 rounded-lg focus:ring-1 focus:ring-stone-400 focus:border-transparent outline-none text-xs sm:text-xs text-stone-700"
                         />
                         <p className="text-xs text-stone-400 mt-0.5">项</p>
                         </div>
@@ -1536,7 +1534,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                 <div className="flex gap-2.5 sm:gap-3 pt-3 sm:pt-4">
                   <button
                     onClick={() => setShowDataForm(false)}
-                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-[10px] sm:text-xs"
+                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-100 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-[10px] sm:text-xs"
                   >
                     取消
                   </button>
@@ -1565,7 +1563,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
         {showAddMemberModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-[32px] max-w-2xl w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-200">
+            <div className="bg-white rounded-[32px] max-w-2xl w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-100">
               <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-gradient-to-br from-stone-600 to-stone-700 rounded-xl shadow-md shadow-stone-200/50">
@@ -1589,7 +1587,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="搜索教师姓名、学科或邮箱..."
-                    className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none text-[10px] sm:text-xs"
+                    className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none text-[10px] sm:text-xs"
                   />
                 </div>
               </div>
@@ -1637,7 +1635,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
         {showEditUserModal && editingUser && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-[32px] max-w-md w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-200">
+            <div className="bg-white rounded-[32px] max-w-md w-full p-5 sm:p-6 shadow-2xl shadow-stone-200/50 border border-stone-100">
               <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-gradient-to-br from-stone-600 to-stone-700 rounded-xl shadow-md shadow-stone-200/50">
@@ -1660,7 +1658,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     type="text"
                     value={editUserForm.name}
                     onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
                   />
                 </div>
 
@@ -1670,7 +1668,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     type="email"
                     value={editUserForm.email}
                     onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
                   />
                 </div>
 
@@ -1680,7 +1678,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editUserForm.gender}
                       onChange={(e) => setEditUserForm({ ...editUserForm, gender: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="男">男</option>
@@ -1699,7 +1697,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       type="tel"
                       value={editUserForm.phone}
                       onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
                     />
                   </div>
                 </div>
@@ -1710,7 +1708,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editUserForm.subject}
                       onChange={(e) => setEditUserForm({ ...editUserForm, subject: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="语文">语文</option>
@@ -1733,7 +1731,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <select
                       value={editUserForm.grade}
                       onChange={(e) => setEditUserForm({ ...editUserForm, grade: e.target.value })}
-                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
+                      className="w-full pl-8 sm:pl-10 pr-6 sm:pr-8 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold appearance-none outline-none focus:ring-2 focus:ring-stone-400"
                     >
                       <option value="">请选择</option>
                       <option value="一年级">一年级</option>
@@ -1754,14 +1752,14 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     type="number"
                     value={editUserForm.teachingExperience}
                     onChange={(e) => setEditUserForm({ ...editUserForm, teachingExperience: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
                   />
                 </div>
 
                 <div className="flex gap-2.5 sm:gap-3 pt-3 sm:pt-4">
                   <button
                     onClick={() => setShowEditUserModal(false)}
-                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-[10px] sm:text-xs"
+                    className="flex-1 px-3 sm:px-4 py-2.5 bg-white border border-stone-100 text-stone-600 rounded-xl font-semibold hover:bg-stone-50 hover:border-stone-300 transition-all text-[10px] sm:text-xs"
                   >
                     取消
                   </button>

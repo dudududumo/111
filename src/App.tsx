@@ -84,8 +84,8 @@ const SidebarContent = ({
       </nav>
 
       <div className="p-3.5 border-t border-stone-100">
-        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-br from-stone-50 to-stone-100 mb-3.5 shadow-sm">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-md">
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 mb-3.5 shadow-sm">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md">
             {profile?.displayName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
@@ -447,7 +447,7 @@ const App: React.FC = () => {
   }
 
   const navItems = [
-    { path: "/", label: "个人中心", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "amber", gradient: "from-amber-50 to-amber-100", activeBg: "bg-amber-600", activeText: "text-amber-600", hoverBg: "hover:bg-amber-50", hoverText: "hover:text-amber-600" },
+    { path: "/", label: "个人中心", icon: LayoutDashboard, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "white", gradient: "from-white to-white", activeBg: "bg-stone-500", activeText: "text-stone-500", hoverBg: "hover:bg-stone-50", hoverText: "hover:text-stone-600" },
     { path: "/assessment", label: "绿色测评", icon: ClipboardCheck, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "emerald", gradient: "from-emerald-50 to-emerald-100", activeBg: "bg-emerald-600", activeText: "text-emerald-600", hoverBg: "hover:bg-emerald-50", hoverText: "hover:text-emerald-600" },
     { path: "/toolkit", label: "蓝色调适", icon: Wind, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "blue", gradient: "from-blue-50 to-blue-100", activeBg: "bg-blue-600", activeText: "text-blue-600", hoverBg: "hover:bg-blue-50", hoverText: "hover:text-blue-600" },
     { path: "/intervention", label: "橙色干预", icon: Users, roles: [UserRole.TEACHER, UserRole.ADMIN, UserRole.PSYCHOLOGIST, UserRole.DEPT_HEAD], color: "orange", gradient: "from-orange-50 to-orange-100", activeBg: "bg-orange-600", activeText: "text-orange-600", hoverBg: "hover:bg-orange-50", hoverText: "hover:text-orange-600" },

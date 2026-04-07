@@ -49,7 +49,7 @@ import {
 
 const apiCall = async (endpoint: string, options?: RequestInit) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`http://localhost:3000${endpoint}`, {
+  const response = await fetch(`${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -1033,7 +1033,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                           const isEnded = new Date(activity.date) < today;
 
                           return (
-                            <div key={activity.id} className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${isEnded ? 'bg-stone-50 border-stone-200 opacity-75' : 'bg-orange-50 border-orange-200'}`}>
+                            <div key={activity.id} className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${isEnded ? 'bg-stone-50 border-stone-100 opacity-75' : 'bg-orange-50 border-orange-200'}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2 mb-1">
@@ -1074,7 +1074,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                                       <button
                                         onClick={() => handleJoinActivity(activity.id!)}
                                         disabled={isFull}
-                                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${isFull ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-white text-stone-900 border border-stone-200 hover:bg-stone-100'}`}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${isFull ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-white text-stone-900 border border-stone-100 hover:bg-stone-100'}`}
                                       >
                                         {isFull ? '已满' : '报名'}
                                       </button>
@@ -1359,7 +1359,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                 ) : (
                   <div className="space-y-4 flex-1">
                     <div className="space-y-2">
-                      {resources.filter(r => r.type === 'internal' && (r.title.includes('咨询') || r.tags.includes('心理咨询'))).map(resource => (
+                      {resources.filter(r => r.type === 'internal' && (r.title.includes('咨询') || r.tags.some(tag => tag.includes('咨询')))).map(resource => (
                         <div key={resource.id} className="group p-3 bg-orange-50 rounded-2xl border border-orange-200 hover:shadow-md transition-all cursor-pointer"
                           onClick={() => {
                             setActiveTab('matching');
@@ -1387,7 +1387,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                     </div>
                     
                     <div className="space-y-2">
-                      {resources.filter(r => r.type === 'internal' && (r.title.includes('沙盘') || r.tags.includes('沙盘'))).map(resource => (
+                      {resources.filter(r => r.type === 'internal' && (r.title.includes('沙盘') || r.tags.some(tag => tag.includes('沙盘')))).map(resource => (
                         <div key={resource.id} className="group p-3 bg-orange-50 rounded-2xl border border-orange-200 hover:shadow-md transition-all cursor-pointer"
                           onClick={() => {
                             setActiveTab('matching');
@@ -1441,7 +1441,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                         外部专业服务渠道
                       </h3>
                       <div className="space-y-2">
-                        {resources.filter(r => r.type === 'external' && (r.title.includes('医院') || r.tags.includes('医院'))).map(resource => (
+                        {resources.filter(r => r.type === 'external' && (r.title.includes('医院') || r.tags.some(tag => tag.includes('医院')))).map(resource => (
                           <div key={resource.id} className="group p-3 bg-blue-50 rounded-2xl border border-blue-200 hover:shadow-md transition-all cursor-pointer"
                             onClick={() => {
                               setActiveTab('matching');
@@ -1468,7 +1468,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                         ))}
                       </div>
                       <div className="space-y-2">
-                        {resources.filter(r => r.type === 'external' && (r.title.includes('热线') || r.tags.includes('热线'))).map(resource => (
+                        {resources.filter(r => r.type === 'external' && (r.title.includes('热线') || r.tags.some(tag => tag.includes('热线')))).map(resource => (
                           <div key={resource.id} className="group p-3 bg-blue-50 rounded-2xl border border-blue-200 hover:shadow-md transition-all cursor-pointer"
                             onClick={() => {
                               setActiveTab('matching');
@@ -1495,7 +1495,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                         ))}
                       </div>
                       <div className="space-y-2">
-                        {resources.filter(r => r.type === 'external' && !(r.title.includes('医院') || r.tags.includes('医院') || r.title.includes('热线') || r.tags.includes('热线'))).map(resource => (
+                        {resources.filter(r => r.type === 'external' && !(r.title.includes('医院') || r.tags.some(tag => tag.includes('医院')) || r.title.includes('热线') || r.tags.some(tag => tag.includes('热线')))).map(resource => (
                           <div key={resource.id} className="group p-3 bg-blue-50 rounded-2xl border border-blue-200 hover:shadow-md transition-all">
                             <div className="flex items-start justify-between">
                               <div>
@@ -1768,7 +1768,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                               </button>
                             )}
                             <button 
-                              className="px-3 py-1.5 bg-stone-50 text-stone-700 rounded-md text-xs font-bold hover:bg-stone-100 transition-all border border-stone-200"
+                              className="px-3 py-1.5 bg-stone-50 text-stone-700 rounded-md text-xs font-bold hover:bg-stone-100 transition-all border border-stone-100"
                               onClick={() => {
                                 showModal({
                                   type: "info",
@@ -2264,7 +2264,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                                   <div className="px-3 py-1.5 bg-gradient-to-r from-orange-100 to-amber-100 rounded-lg border border-orange-200">
                                     <span className="text-sm font-bold text-orange-700">{apt.time || '待定时间'}</span>
                                   </div>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${apt.status === 'confirmed' ? 'bg-green-100 text-green-700 border border-green-200' : apt.status === 'pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : apt.status === 'completed' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-stone-100 text-stone-500 border border-stone-200'}`}>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${apt.status === 'confirmed' ? 'bg-green-100 text-green-700 border border-green-200' : apt.status === 'pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : apt.status === 'completed' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-stone-100 text-stone-500 border border-stone-100'}`}>
                                     {apt.status === 'confirmed' ? '已确认' : apt.status === 'pending' ? '待处理' : apt.status === 'completed' ? '已完成' : '已取消'}
                                   </span>
                                 </div>
