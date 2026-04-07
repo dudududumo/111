@@ -636,6 +636,12 @@ export const adminApi = {
       body: JSON.stringify({ role }),
     });
   },
+  updateUser: async (userId: string, data: Record<string, any>) => {
+    return fetchApi(`/admin/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 export default {

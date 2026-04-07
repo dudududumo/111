@@ -37,44 +37,24 @@ const CustomModal: React.FC<ModalProps> = ({
   const getIcon = () => {
     switch (type) {
       case "success":
-        return <CheckCircle className="w-10 h-10 text-emerald-600" />;
+        return <CheckCircle className="w-10 h-10 text-stone-600" />;
       case "error":
-        return <XCircle className="w-10 h-10 text-rose-600" />;
+        return <XCircle className="w-10 h-10 text-stone-600" />;
       case "warning":
-        return <AlertTriangle className="w-10 h-10 text-amber-600" />;
+        return <AlertTriangle className="w-10 h-10 text-stone-600" />;
       case "confirm":
-        return <AlertTriangle className="w-10 h-10 text-amber-600" />;
+        return <AlertTriangle className="w-10 h-10 text-stone-600" />;
       default:
-        return <Info className="w-10 h-10 text-blue-600" />;
+        return <Info className="w-10 h-10 text-stone-600" />;
     }
   };
 
   const getIconBg = () => {
-    switch (type) {
-      case "success":
-        return "bg-emerald-100";
-      case "error":
-        return "bg-rose-100";
-      case "warning":
-      case "confirm":
-        return "bg-amber-100";
-      default:
-        return "bg-blue-100";
-    }
+    return "bg-stone-100";
   };
 
   const getConfirmButtonStyle = () => {
-    switch (type) {
-      case "success":
-        return "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100";
-      case "error":
-        return "bg-rose-600 hover:bg-rose-700 shadow-rose-100";
-      case "warning":
-      case "confirm":
-        return "bg-amber-600 hover:bg-amber-700 shadow-amber-100";
-      default:
-        return "bg-blue-600 hover:bg-blue-700 shadow-blue-100";
-    }
+    return "bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-800 hover:to-stone-900 shadow-stone-200";
   };
 
   return (

@@ -25,6 +25,7 @@ import { SCALES, Scale, Question } from "../data/scales";
 import ConsentModal from "../components/ConsentModal";
 import WearableSync from "../components/WearableSync";
 import PsychologicalProfile from "../components/PsychologicalProfile";
+import CustomModal from "../components/CustomModal";
 import { 
   initPushService, 
   saveAssessmentProgress, 
@@ -49,7 +50,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   const [result, setResult] = useState<{ score: number; level: string; color: string; advice: string } | null>(null);
   const [showConsent, setShowConsent] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [viewMode, setViewMode] = useState<"scales" | "profile">("scales");
   const [lastResults, setLastResults] = useState<Record<string, { level: string; timestamp: string; color: string }>>({});
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
@@ -58,6 +58,34 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   const [pushConfig, setPushConfig] = useState(getPushConfig());
   const [unfinishedAssessments, setUnfinishedAssessments] = useState<Record<string, any>>({});
   const [syncFrequency, setSyncFrequency] = useState<string>(profile?.syncFrequency || 'daily');
+  const [continueScale, setContinueScale] = useState<Scale | null>(null);
+  const [continueProgress, setContinueProgress] = useState<{ answers: number[]; currentQuestion: number } | null>(null);
+  const [irtScale, setIrtScale] = useState<Scale | null>(null);
+  const [finalAnswers, setFinalAnswers] = useState<number[]>([]);
+  
+  const [modalData, setModalData] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning" | "info" | "confirm";
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: ""
+  });
+
+  const showModal = (data: Omit<typeof modalData, "isOpen">) => {
+    setModalData({ ...data, isOpen: true });
+  };
+
+  const closeModal = () => {
+    setModalData(prev => ({ ...prev, isOpen: false }));
+  };
 
   useEffect(() => {
     if (profile && !profile.consentAccepted && !consentGiven) {
@@ -92,7 +120,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
         if (!results[assessment.type]) {
           let level = '';
           if (assessment.type === 'scl90') {
-            // SCL-90 按照中国常模标准映射
             switch (assessment.risk_level) {
               case 'green':
                 level = '正常';
@@ -110,7 +137,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                 level = '正常';
             }
           } else {
-            // 其他量表保持原有映射
             level = assessment.risk_level === 'green' ? '正常' : 
                   assessment.risk_level === 'blue' ? '轻度' : 
                   assessment.risk_level === 'yellow' ? '中度' : 
@@ -164,20 +190,25 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   };
 
   const startScale = async (scale: Scale) => {
-    // Check for existing progress
     const progress = getAssessmentProgress();
     const scaleProgress = progress[scale.id];
     
     if (scaleProgress) {
-      // Show continue confirmation
       setContinueScale(scale);
       setContinueProgress({
         answers: scaleProgress.answers,
         currentQuestion: scaleProgress.currentQuestion
       });
-      setShowContinueConfirm(true);
+      showModal({
+        type: "confirm",
+        title: "继续测评？",
+        message: "您之前有未完成的测评，是否继续作答？",
+        confirmText: "继续作答",
+        cancelText: "重新开始",
+        showCancel: true,
+        onConfirm: confirmContinue
+      });
     } else {
-      // Start fresh
       setSelectedScale(scale);
       setAnswers([]);
       setCurrentQuestionIndex(0);
@@ -190,8 +221,8 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       setSelectedScale(continueScale);
       setAnswers(continueProgress.answers);
       setCurrentQuestionIndex(continueProgress.currentQuestion);
-      setStep(2); // Directly go to assessment interface
-      setShowContinueConfirm(false);
+      setStep(2);
+      closeModal();
       setContinueScale(null);
       setContinueProgress(null);
     }
@@ -199,13 +230,12 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
 
   const startNewAssessment = () => {
     if (continueScale) {
-      // Clear existing progress
       clearAssessmentProgress(continueScale.id);
       setSelectedScale(continueScale);
       setAnswers([]);
       setCurrentQuestionIndex(0);
       setStep(1);
-      setShowContinueConfirm(false);
+      closeModal();
       setContinueScale(null);
       setContinueProgress(null);
     }
@@ -218,11 +248,17 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
     const scaleProgress = progress[scale.id];
     
     if (scaleProgress && !fromProgress) {
-      // Show styled popup instead of window.confirm
       setIrtScale(scale);
-      setShowIrtContinueConfirm(true);
+      showModal({
+        type: "confirm",
+        title: "继续测评？",
+        message: "您之前有未完成的测评，是否继续作答？",
+        confirmText: "继续作答",
+        cancelText: "重新开始",
+        showCancel: true,
+        onConfirm: confirmIrtContinue
+      });
     } else {
-      // Directly start assessment
       await startIrtAssessmentInternal(scale, scaleProgress);
     }
   };
@@ -260,7 +296,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       const progress = getAssessmentProgress();
       const scaleProgress = progress[irtScale.id];
       await startIrtAssessmentInternal(irtScale, scaleProgress);
-      setShowIrtContinueConfirm(false);
+      closeModal();
       setIrtScale(null);
     }
   };
@@ -268,18 +304,10 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   const cancelIrtContinue = async () => {
     if (irtScale) {
       await startIrtAssessmentInternal(irtScale, null);
-      setShowIrtContinueConfirm(false);
+      closeModal();
       setIrtScale(null);
     }
   };
-
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [finalAnswers, setFinalAnswers] = useState<number[]>([]);
-  const [showContinueConfirm, setShowContinueConfirm] = useState(false);
-  const [continueScale, setContinueScale] = useState<Scale | null>(null);
-  const [continueProgress, setContinueProgress] = useState<{ answers: number[]; currentQuestion: number } | null>(null);
-  const [showIrtContinueConfirm, setShowIrtContinueConfirm] = useState(false);
-  const [irtScale, setIrtScale] = useState<Scale | null>(null);
 
   const handleAnswer = async (value: number) => {
     const newAnswers = [...answers];
@@ -303,16 +331,23 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
           setCurrentQuestionIndex(nextIndex);
         }
       } else {
-        // All questions answered, show submit confirmation
         setFinalAnswers(newAnswers);
-        setShowSubmitConfirm(true);
+        showModal({
+          type: "confirm",
+          title: "确认提交？",
+          message: "您已完成所有题目，确认提交测评结果？",
+          confirmText: "确认提交",
+          cancelText: "继续修改",
+          showCancel: true,
+          onConfirm: confirmSubmit
+        });
       }
     }
   };
 
   const confirmSubmit = async () => {
     if (selectedScale) {
-      setShowSubmitConfirm(false);
+      closeModal();
       clearAssessmentProgress(selectedScale.id);
       await submitAssessment(finalAnswers);
     }
@@ -326,16 +361,11 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       const calcResult = selectedScale.calculateResult(finalAnswers);
       setResult(calcResult);
       
-      // 计算抑郁因子分（仅对SCL-90量表）
-      let depressionScore = 2.0; // 设置默认值
+      let depressionScore = 2.0;
       console.log('检查量表类型:', { selectedScaleId: selectedScale?.id, isScl90: selectedScale?.id === 'scl90' });
       if (selectedScale.id === 'scl90') {
-        // SCL-90抑郁因子包含13个项目：5, 14, 15, 20, 22, 26, 29, 30, 31, 32, 54, 71, 79
-        // 数组索引（从0开始）
         const depressionItems = [4, 13, 14, 19, 21, 25, 28, 29, 30, 31, 53, 70, 78];
-        // 反向计分题目（项目编号）
         const reverseItems = [5, 19, 43, 68, 72];
-        // 反向计分映射
         const reverseMapping = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
         
         let sum = 0;
@@ -344,13 +374,12 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
         console.log('计算抑郁因子分:', {
           depressionItems,
           finalAnswersLength: finalAnswers.length,
-          finalAnswers: finalAnswers.slice(0, 10) // 只显示前10个答案
+          finalAnswers: finalAnswers.slice(0, 10)
         });
         
         for (const index of depressionItems) {
           if (finalAnswers[index] !== undefined) {
             let score = finalAnswers[index];
-            // 检查是否需要反向计分（项目编号 = 索引 + 1）
             const itemNumber = index + 1;
             if (reverseItems.includes(itemNumber)) {
               score = reverseMapping[score as keyof typeof reverseMapping];
@@ -372,9 +401,8 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
         }
       }
       
-      // 确保抑郁因子分有效
       if (selectedScale.id === 'scl90' && (depressionScore === 0 || isNaN(depressionScore))) {
-        depressionScore = 2.0; // 设置默认值
+        depressionScore = 2.0;
         console.log('设置默认抑郁因子分:', depressionScore);
       }
       
@@ -402,14 +430,15 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       
       fetchLastResults();
 
-      // 教师提交测评时不自动创建预警，预警由系统自动扫描或管理员手动创建
-      // 移除自动创建预警的代码，因为教师角色没有创建预警的权限
-
       setStep(3);
       console.log('跳转到结果页面');
     } catch (err) {
       console.error("提交评估失败:", err);
-      alert('提交评估失败，请稍后重试');
+      showModal({
+        type: "error",
+        title: "提交失败",
+        message: "提交评估失败，请稍后重试"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -421,11 +450,21 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
   const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
 
   const handleExit = () => {
-    setShowExitConfirm(false);
-    setStep(0);
-    setSelectedScale(null);
-    setAnswers([]);
-    setCurrentQuestionIndex(0);
+    showModal({
+      type: "confirm",
+      title: "确认退出？",
+      message: "您的答题进度已自动保存，再次进入时可继续作答。",
+      confirmText: "确认退出",
+      cancelText: "继续答题",
+      showCancel: true,
+      onConfirm: () => {
+        closeModal();
+        setStep(0);
+        setSelectedScale(null);
+        setAnswers([]);
+        setCurrentQuestionIndex(0);
+      }
+    });
   };
 
   const getTimeEstimate = (scale: Scale) => {
@@ -442,166 +481,41 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       className="min-h-screen bg-gradient-to-br from-emerald-50 via-emerald-100 to-emerald-50"
     >
       <ConsentModal isOpen={showConsent} onAccept={handleAcceptConsent} />
+      <CustomModal 
+        isOpen={modalData.isOpen}
+        onClose={closeModal}
+        type={modalData.type}
+        title={modalData.title}
+        message={modalData.message}
+        confirmText={modalData.confirmText}
+        cancelText={modalData.cancelText}
+        onConfirm={modalData.onConfirm}
+        showCancel={modalData.showCancel}
+      />
       
-      <AnimatePresence>
-        {showExitConfirm && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
-            >
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-                  <Clock className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h3 className="text-xl font-bold text-stone-900">确认退出？</h3>
-                <p className="text-stone-500">您的答题进度已自动保存，再次进入时可继续作答。</p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowExitConfirm(false)}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
-                  >
-                    继续答题
-                  </button>
-                  <button
-                    onClick={handleExit}
-                    className="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-all shadow-md"
-                  >
-                    确认退出
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
+              <ClipboardCheck className="text-emerald-500" size={24} />
+              绿色测评：心理数据中心
+            </h1>
+            <p className="text-stone-500 mt-1">专业心理测评系统，科学评估您的心理状态</p>
           </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showIrtContinueConfirm && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
-            >
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-                  <Clock className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h3 className="text-xl font-bold text-stone-900">继续测评？</h3>
-                <p className="text-stone-500">您之前有未完成的测评，是否继续作答？</p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={cancelIrtContinue}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
-                  >
-                    重新开始
-                  </button>
-                  <button
-                    onClick={confirmIrtContinue}
-                    className="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-all shadow-md"
-                  >
-                    继续作答
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showContinueConfirm && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
-            >
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-                  <Clock className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h3 className="text-xl font-bold text-stone-900">继续测评？</h3>
-                <p className="text-stone-500">您之前有未完成的测评，是否继续作答？</p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={startNewAssessment}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
-                  >
-                    重新开始
-                  </button>
-                  <button
-                    onClick={confirmContinue}
-                    className="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-all shadow-md"
-                  >
-                    继续作答
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showSubmitConfirm && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
-            >
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h3 className="text-xl font-bold text-stone-900">确认提交？</h3>
-                <p className="text-stone-500">您已完成所有题目，确认提交测评结果？</p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowSubmitConfirm(false)}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
-                  >
-                    继续修改
-                  </button>
-                  <button
-                    onClick={confirmSubmit}
-                    className="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-all shadow-md"
-                  >
-                    确认提交
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
-                <ClipboardCheck className="text-emerald-500" size={24} />
-                绿色测评：心理数据中心
-              </h1>
-              <p className="text-stone-500 mt-1">专业心理测评系统，科学评估您的心理状态</p>
-            </div>
-            <div className="inline-flex bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-xl sm:rounded-2xl p-1 shadow-lg shadow-emerald-200/50 w-fit">
+          <div className="inline-flex bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-xl sm:rounded-2xl p-1 shadow-lg shadow-emerald-200/50 w-fit">
             <button
               onClick={() => setViewMode("scales")}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${                viewMode === "scales"                  ? "bg-emerald-600 text-white shadow-md"                  : "text-stone-500 hover:text-stone-700"              }`}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                viewMode === "scales" ? "bg-emerald-600 text-white shadow-md" : "text-stone-500 hover:text-stone-700"
+              }`}
             >
               量表测评
             </button>
             <button
               onClick={() => setViewMode("profile")}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${                viewMode === "profile"                  ? "bg-emerald-600 text-white shadow-md"                  : "text-stone-500 hover:text-stone-700"              }`}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                viewMode === "profile" ? "bg-emerald-600 text-white shadow-md" : "text-stone-500 hover:text-stone-700"
+              }`}
             >
               心理档案
             </button>
@@ -613,38 +527,36 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
         ) : (
           <>
             {step === 0 && (
-              <div className="space-y-8">
-
-
+              <div className="space-y-6 sm:space-y-8">
                 <WearableSync currentBrand={profile?.wearableBrand || null} onSync={(brand) => handleWearableSync(brand)} />
 
                 {Object.keys(unfinishedAssessments).length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-amber-50 to-amber-100 p-6 rounded-[32px] border border-amber-200 mb-8"
+                    className="bg-gradient-to-br from-white via-amber-50/30 to-amber-50/50 p-4 sm:p-6 rounded-[32px] shadow-lg shadow-amber-200/50 border border-amber-100"
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 bg-amber-200 rounded-2xl shrink-0">
-                        <PauseCircle className="w-6 h-6 text-amber-700" />
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="p-2.5 sm:p-3 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl sm:rounded-2xl shrink-0">
+                        <PauseCircle className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-amber-900 mb-3">您有未完成的测评</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-stone-900 mb-3 sm:mb-4">您有未完成的测评</h3>
                         <div className="space-y-3">
                           {Object.entries(unfinishedAssessments).map(([scaleId, progress]) => {
                             const scale = SCALES.find(s => s.id === scaleId);
                             if (!scale) return null;
                             return (
-                              <div key={scaleId} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-2xl border border-amber-200 gap-3">
+                              <div key={scaleId} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-amber-200 gap-3">
                                 <div className="flex-1 min-w-0">
                                   <h4 className="font-semibold text-stone-900 truncate">{scale.name}</h4>
-                                  <p className="text-sm text-stone-500 mt-1">
+                                  <p className="text-[10px] sm:text-xs text-stone-500 mt-1">
                                     已完成 {progress.currentQuestion}/{scale.questions.length} 题
                                   </p>
                                 </div>
                                 <button
                                   onClick={() => startIrtAssessment(scale, true)}
-                                  className="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-all shadow-md whitespace-nowrap shrink-0"
+                                  className="px-3 sm:px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-semibold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md shadow-amber-200/50 whitespace-nowrap shrink-0"
                                 >
                                   继续测评
                                 </button>
@@ -660,18 +572,18 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-white to-emerald-50 p-4 rounded-[32px] shadow-lg shadow-stone-100/50 mb-8"
+                  className="bg-gradient-to-br from-white via-emerald-50/30 to-emerald-50/50 p-4 sm:p-6 rounded-[32px] shadow-lg shadow-emerald-200/50 border border-emerald-100"
                 >
                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl">
-                          <Clock className="w-6 h-6 text-emerald-600" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-stone-900">测评提醒设置</h3>
-                          <p className="text-stone-500 text-sm">设置您的测评提醒时间和频率</p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 sm:p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl sm:rounded-2xl">
+                        <Clock className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
                       </div>
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-stone-900">测评提醒设置</h3>
+                        <p className="text-stone-500 text-[10px] sm:text-xs">设置您的测评提醒时间和频率</p>
+                      </div>
+                    </div>
                     <button
                       onClick={() => setShowPushConfig(!showPushConfig)}
                       className="p-2 rounded-full hover:bg-stone-100 transition-colors"
@@ -683,7 +595,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                   {showPushConfig && (
                     <div className="space-y-3 pt-3 border-t border-stone-100">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-stone-700">启用测评提醒</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-stone-700">启用测评提醒</span>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
                             type="checkbox"
@@ -691,31 +603,31 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                             onChange={(e) => setPushConfig({ ...pushConfig, enabled: e.target.checked })}
                             className="sr-only peer"
                           />
-                          <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                         </label>
                       </div>
                       <div className="space-y-2">
-                        <span className="text-sm font-medium text-stone-700">提醒时间</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-stone-700">提醒时间</span>
                         <input
                           type="time"
                           value={pushConfig.time}
                           onChange={(e) => setPushConfig({ ...pushConfig, time: e.target.value })}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
                       </div>
                       <div className="space-y-2">
-                        <span className="text-sm font-medium text-stone-700">提醒间隔（分钟）</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-stone-700">提醒间隔（分钟）</span>
                         <input
                           type="number"
                           min="5"
                           max="120"
                           value={pushConfig.reminderInterval}
                           onChange={(e) => setPushConfig({ ...pushConfig, reminderInterval: parseInt(e.target.value) })}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
                       </div>
                       <div className="space-y-2">
-                        <span className="text-sm font-medium text-stone-700">测评频率</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-stone-700">测评频率</span>
                         <select
                           value={syncFrequency}
                           onChange={async (e) => {
@@ -724,7 +636,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                             if (profile) {
                               try {
                                 await api.user.update(profile.uid, { syncFrequency: newFrequency });
-                                // 更新 App.tsx 中的 profile 状态
                                 if (onProfileUpdate) {
                                   onProfileUpdate({ ...profile, syncFrequency: newFrequency as "hourly" | "daily" | "realtime" });
                                 }
@@ -733,20 +644,20 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                               }
                             }
                           }}
-                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         >
                           <option value="hourly">高频（每小时）</option>
                           <option value="daily">中频（每天）</option>
                           <option value="realtime">实时</option>
                         </select>
-                        <p className="text-xs text-stone-400">系统会根据您的心理状态自动调整测评频率，您也可以手动设置。</p>
+                        <p className="text-[10px] text-stone-400">系统会根据您的心理状态自动调整测评频率，您也可以手动设置。</p>
                       </div>
                       <button
                         onClick={() => {
                           savePushConfig(pushConfig);
                           setShowPushConfig(false);
                         }}
-                        className="w-full py-2 bg-emerald-600 text-white rounded-2xl font-semibold hover:bg-emerald-700 transition-all shadow-md mb-1"
+                        className="w-full py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-md shadow-emerald-200/50 text-[10px] sm:text-xs"
                       >
                         保存设置
                       </button>
@@ -754,53 +665,59 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                   )}
                 </motion.div>
 
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 sm:gap-6 md:gap-8 sm:grid-cols-2 lg:grid-cols-3">
                   {SCALES.map((scale) => (
                     <motion.div
                       key={scale.id}
-                      whileHover={{ y: -4 }}
-                      className="bg-gradient-to-br from-white to-emerald-50 rounded-[32px] p-4 shadow-lg shadow-stone-100/50 border border-emerald-100 hover:shadow-xl hover:shadow-emerald-200/30 transition-all cursor-pointer group min-h-[320px] flex flex-col"
-                      onClick={() => startScale(scale)}
+                      whileHover={{ y: -5 }}
+                      className="relative group"
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl group-hover:from-emerald-100 group-hover:to-emerald-200 transition-all">
-                          <ClipboardCheck className="w-6 h-6 text-emerald-600" />
+                      <div
+                        onClick={() => startScale(scale)}
+                        className="w-full h-full flex flex-col items-start p-4 sm:p-6 bg-gradient-to-br from-white via-emerald-50/30 to-emerald-50/50 rounded-[32px] border border-emerald-100 shadow-lg shadow-emerald-200/50 hover:shadow-xl hover:shadow-emerald-300/30 transition-all cursor-pointer"
+                      >
+                        <div className="w-full flex justify-between items-start mb-4">
+                          <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl sm:rounded-2xl group-hover:from-emerald-600 group-hover:to-emerald-700 transition-all flex items-center justify-center">
+                            <ClipboardCheck size={20} className="sm:w-6 sm:h-6 text-white" />
+                          </div>
+                          {lastResults[scale.id] && (
+                            <span className={`px-2.5 sm:px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold ${
+                              lastResults[scale.id].color === 'green' ? 'bg-emerald-100 text-emerald-700' :
+                              lastResults[scale.id].color === 'blue' ? 'bg-blue-100 text-blue-700' :
+                              lastResults[scale.id].color === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                              lastResults[scale.id].color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {lastResults[scale.id].level}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base sm:text-lg font-bold text-stone-900 mb-2">{scale.name}</h3>
+                        <p className="text-[10px] sm:text-xs text-stone-500 mb-4 line-clamp-2">{scale.description}</p>
+                        <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-stone-400 mb-4">
+                          <span className="flex items-center gap-1.5">
+                            <Clock size={12} className="sm:w-3.5 sm:h-3.5" />
+                            {getTimeEstimate(scale)}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Info size={12} className="sm:w-3.5 sm:h-3.5" />
+                            {scale.questions.length} 题
+                          </span>
                         </div>
                         {lastResults[scale.id] && (
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${
-                            lastResults[scale.id].color === 'green' ? 'bg-emerald-100 text-emerald-700' :
-                            lastResults[scale.id].color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                            lastResults[scale.id].color === 'yellow' ? 'bg-amber-100 text-amber-700' :
-                            lastResults[scale.id].color === 'orange' ? 'bg-orange-100 text-orange-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {lastResults[scale.id].level}
-                          </span>
+                          <p className="text-[10px] sm:text-xs text-stone-400 flex items-center gap-1.5">
+                            <Calendar size={10} className="sm:w-3 sm:h-3" />
+                            上次测评: {new Date(lastResults[scale.id].timestamp).toLocaleDateString('zh-CN')}
+                          </p>
                         )}
-                      </div>
-                      <h3 className="text-lg font-bold text-stone-900 mb-2">{scale.name}</h3>
-                      <p className="text-sm text-stone-500 mb-4 line-clamp-2">{scale.description}</p>
-                      <div className="flex items-center gap-4 text-xs text-stone-400 mb-4">
-                        <span className="flex items-center gap-1.5">
-                          <Clock size={14} />
-                          {getTimeEstimate(scale)}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Info size={14} />
-                          {scale.questions.length} 题
-                        </span>
-                      </div>
-                      {lastResults[scale.id] && (
-                        <p className="text-xs text-stone-400 flex items-center gap-1.5">
-                          <Calendar size={12} />
-                          上次测评: {new Date(lastResults[scale.id].timestamp).toLocaleDateString('zh-CN')}
-                        </p>
-                      )}
-                      <div className="mt-auto pt-4 border-t border-stone-100">
-                        <button className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-md shadow-emerald-200/50 flex items-center justify-center gap-2">
-                          开始测评
-                          <ChevronRight size={16} />
-                        </button>
+                        <div className="mt-auto pt-4 border-t border-stone-100 w-full">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] sm:text-xs font-bold text-stone-400 group-hover:text-stone-900 transition-colors">
+                              开始测评
+                            </span>
+                            <ChevronRight size={14} className="text-stone-400 group-hover:text-emerald-600 transition-colors" />
+                          </div>
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -814,40 +731,40 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                 animate={{ opacity: 1, y: 0 }}
                 className="max-w-2xl mx-auto"
               >
-                <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-stone-100/50 border border-stone-100">
+                <div className="bg-gradient-to-br from-white via-emerald-50/30 to-emerald-50/50 rounded-[32px] p-6 sm:p-8 shadow-xl shadow-emerald-200/50 border border-emerald-100">
                   <button
                     onClick={() => setStep(0)}
-                    className="flex items-center gap-2 text-stone-500 hover:text-stone-700 mb-8 transition-colors"
+                    className="flex items-center gap-2 text-stone-500 hover:text-stone-700 mb-6 sm:mb-8 transition-colors text-[10px] sm:text-xs"
                   >
                     <ArrowLeft size={20} />
                     返回量表列表
                   </button>
 
                   <div className="text-center space-y-6">
-                    <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-emerald-200">
-                      <ClipboardCheck className="w-12 h-12 text-white" />
+                    <div className="w-20 sm:w-24 h-20 sm:h-24 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-emerald-200">
+                      <ClipboardCheck className="w-10 sm:w-12 h-10 sm:h-12 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-2xl md:text-3xl font-bold text-stone-900 mb-2">{selectedScale.name}</h2>
-                      <p className="text-stone-500">{selectedScale.description}</p>
+                      <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-stone-900 mb-2">{selectedScale.name}</h2>
+                      <p className="text-stone-500 text-[10px] sm:text-xs">{selectedScale.description}</p>
                     </div>
                     
-                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-3xl p-6 text-left space-y-4">
-                      <h3 className="font-semibold text-emerald-900 flex items-center gap-2">
-                        <Sparkles size={18} />
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-left space-y-3 sm:space-y-4">
+                      <h3 className="font-semibold text-emerald-900 flex items-center gap-2 text-sm sm:text-base">
+                        <Sparkles size={16} className="sm:w-4 sm:h-4" />
                         测评说明
                       </h3>
-                      <ul className="space-y-3 text-sm text-emerald-800">
+                      <ul className="space-y-2 sm:space-y-3 text-[10px] sm:text-xs text-emerald-800">
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                          <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <span>请根据最近一周的实际感受作答</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                          <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <span>没有对错之分，选择最符合您情况的选项</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                          <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <span>测评结果将严格保密，仅用于生成个性化建议</span>
                         </li>
                       </ul>
@@ -855,10 +772,10 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
 
                     <button
                       onClick={() => startIrtAssessment(selectedScale)}
-                      className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2"
+                      className="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                       开始测评
-                      <ChevronRight size={20} />
+                      <ChevronRight size={18} className="sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </div>
@@ -871,74 +788,74 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                 animate={{ opacity: 1 }}
                 className="max-w-3xl mx-auto"
               >
-                <div className="bg-gradient-to-br from-white to-emerald-50 rounded-[32px] p-4 shadow-xl shadow-stone-100/50">
-                    <div className="flex items-center justify-between mb-6">
-                        <button
-                          onClick={() => setShowExitConfirm(true)}
-                      className="flex items-center gap-2 text-stone-500 hover:text-stone-700 transition-colors"
+                <div className="bg-gradient-to-br from-white via-emerald-50/30 to-emerald-50/50 rounded-[32px] p-4 sm:p-6 shadow-xl shadow-emerald-200/50 border border-emerald-100">
+                  <div className="flex items-center justify-between mb-4 sm:mb-6">
+                    <button
+                      onClick={handleExit}
+                      className="flex items-center gap-2 text-stone-500 hover:text-stone-700 transition-colors text-[10px] sm:text-xs"
                     >
                       <X size={20} />
                       退出
                     </button>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-stone-500">题目</span>
-                      <span className="text-lg font-bold text-emerald-600">
+                      <span className="text-[10px] sm:text-xs text-stone-500">题目</span>
+                      <span className="text-base sm:text-lg font-bold text-emerald-600">
                         {currentQuestionIndex + 1} / {totalQuestions}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="flex justify-between items-center mb-8">
-                    <div className="text-sm text-stone-500">
+                  <div className="flex justify-between items-center mb-6 sm:mb-8">
+                    <div className="text-[10px] sm:text-xs text-stone-500">
                       已完成 {answeredQuestions} 题
                     </div>
-                    <div className="text-sm text-stone-500">
+                    <div className="text-[10px] sm:text-xs text-stone-500">
                       进度: {Math.round(progress)}%
                     </div>
                   </div>
 
                   {isLoadingQuestions ? (
-                    <div className="flex flex-col items-center justify-center py-20">
-                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mb-6">
-                        <Zap className="animate-spin w-10 h-10 text-emerald-600" />
+                    <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+                      <div className="w-16 sm:w-20 h-16 sm:h-20 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mb-4 sm:mb-6">
+                        <Zap className="animate-spin w-8 sm:w-10 h-8 sm:h-10 text-emerald-600" />
                       </div>
-                      <p className="text-stone-600 text-base">正在根据您的情况智能调整题目...</p>
+                      <p className="text-stone-600 text-sm sm:text-base">正在根据您的情况智能调整题目...</p>
                     </div>
                   ) : currentQuestion ? (
                     <div>
-                      <div className="w-full bg-stone-100 rounded-full h-2 mb-8 overflow-hidden">
+                      <div className="w-full bg-stone-100 rounded-full h-1.5 sm:h-2 mb-6 sm:mb-8 overflow-hidden">
                         <div 
-                          className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-1.5 sm:h-2 rounded-full transition-all duration-300"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
 
-                      <h3 className="text-xl md:text-2xl font-semibold text-stone-900 mb-8 leading-relaxed">
+                      <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-stone-900 mb-6 sm:mb-8 leading-relaxed">
                         {currentQuestion.text}
                       </h3>
 
-                      <div className="space-y-3">
+                      <div className="space-y-2.5 sm:space-y-3">
                         {currentQuestion.options.map((option) => (
                           <button
                             key={option.value}
                             onClick={() => handleAnswer(option.value)}
-                            className={`w-full p-4 md:p-5 rounded-2xl border-2 text-left transition-all ${
+                            className={`w-full p-3.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border-2 text-left transition-all ${
                               answers[currentQuestionIndex] === option.value
                                 ? "border-emerald-500 bg-gradient-to-r from-emerald-50 to-emerald-100 shadow-md"
                                 : "border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50"
                             }`}
                           >
-                            <span className="font-medium text-stone-900 text-base">{option.label}</span>
+                            <span className="font-medium text-stone-900 text-sm sm:text-base">{option.label}</span>
                           </button>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-20">
-                      <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-6">
-                        <Info size={40} className="text-stone-300" />
+                    <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+                      <div className="w-16 sm:w-20 h-16 sm:h-20 bg-stone-100 rounded-full flex items-center justify-center mb-4 sm:mb-6">
+                        <Info size={32} className="sm:w-10 sm:h-10 text-stone-300" />
                       </div>
-                      <p className="text-stone-600 text-base">题目加载中...</p>
+                      <p className="text-stone-600 text-sm sm:text-base">题目加载中...</p>
                     </div>
                   )}
                 </div>
@@ -951,15 +868,15 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                 animate={{ opacity: 1, scale: 1 }}
                 className="max-w-2xl mx-auto"
               >
-                <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-stone-100/50 border border-stone-100 text-center">
-                  <div className={`w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-8 ${
+                <div className="bg-gradient-to-br from-white via-emerald-50/30 to-emerald-50/50 rounded-[32px] p-6 sm:p-8 shadow-xl shadow-emerald-200/50 border border-emerald-100 text-center">
+                  <div className={`w-24 sm:w-28 h-24 sm:h-28 rounded-full flex items-center justify-center mx-auto mb-6 sm:mb-8 ${
                     result.color === 'green' ? 'bg-gradient-to-br from-emerald-100 to-emerald-200' :
                     result.color === 'blue' ? 'bg-gradient-to-br from-blue-100 to-blue-200' :
                     result.color === 'yellow' ? 'bg-gradient-to-br from-amber-100 to-amber-200' :
                     result.color === 'orange' ? 'bg-gradient-to-br from-orange-100 to-orange-200' :
                     'bg-gradient-to-br from-red-100 to-red-200'
                   }`}>
-                    <ClipboardCheck className={`w-14 h-14 ${
+                    <ClipboardCheck className={`w-10 sm:w-14 h-10 sm:h-14 ${
                       result.color === 'green' ? 'text-emerald-600' :
                       result.color === 'blue' ? 'text-blue-600' :
                       result.color === 'yellow' ? 'text-amber-600' :
@@ -968,12 +885,12 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                     }`} />
                   </div>
 
-                  <h2 className="text-2xl md:text-3xl font-bold text-stone-900 mb-2">测评完成</h2>
-                  <p className="text-stone-500 mb-8">{selectedScale?.name}</p>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-stone-900 mb-2">测评完成</h2>
+                  <p className="text-stone-500 text-[10px] sm:text-xs mb-6 sm:mb-8">{selectedScale?.name}</p>
 
-                  <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-3xl p-6 mb-8">
-                    <p className="text-sm text-stone-500 mb-2">测评结果</p>
-                    <p className={`text-3xl md:text-4xl font-bold ${
+                  <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8">
+                    <p className="text-[10px] sm:text-xs text-stone-500 mb-2">测评结果</p>
+                    <p className={`text-2xl sm:text-3xl md:text-4xl font-bold ${
                       result.color === 'green' ? 'text-emerald-600' :
                       result.color === 'blue' ? 'text-blue-600' :
                       result.color === 'yellow' ? 'text-amber-600' :
@@ -982,15 +899,15 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                     }`}>
                       {result.level}
                     </p>
-                    <p className="text-sm text-stone-400 mt-2">得分: {result.score}</p>
+                    <p className="text-[10px] sm:text-xs text-stone-400 mt-2">得分: {result.score}</p>
                   </div>
 
-                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-3xl p-6 mb-8 text-left">
-                    <h3 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
-                      <TrendingUp size={18} />
+                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 text-left">
+                    <h3 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2 text-sm sm:text-base">
+                      <TrendingUp size={16} className="sm:w-4 sm:h-4" />
                       建议
                     </h3>
-                    <p className="text-emerald-800 leading-relaxed">{result.advice}</p>
+                    <p className="text-emerald-800 leading-relaxed text-[10px] sm:text-xs">{result.advice}</p>
                   </div>
 
                   <button
@@ -1001,7 +918,7 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                       setCurrentQuestionIndex(0);
                       setResult(null);
                     }}
-                    className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-200/50"
+                    className="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-200/50 text-sm sm:text-base"
                   >
                     返回量表列表
                   </button>
