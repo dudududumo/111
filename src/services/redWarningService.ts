@@ -114,6 +114,21 @@ interface InputFeatures {
   hrvData: number[]; // HRV指标时序数据
   activityChangeRate: number; // 近一周行为活跃度变化率
   workloadIndex: number; // 工作量负荷指数
+  // 新增：生理数据
+  physiologicalData?: {
+    hrv?: number; // HRV值
+    restingHR?: number; // 静息心率
+    sleepDuration?: number; // 睡眠时长（小时）
+    deepSleepRatio?: number; // 深睡比例（%）
+  };
+  // 新增：行为数据
+  behavioralData?: {
+    toolUsageMinutes?: number; // 工具使用时长（分钟）
+    communityInteractions?: number; // 社群参与度
+    classHours?: number; // 授课时长
+    meetingHours?: number; // 会议时长
+    nonTeachingTasks?: number; // 非教学任务数
+  };
 }
 
 // 风险分析结果接口
@@ -127,13 +142,22 @@ export interface RiskAnalysisResult {
 }
 
 /**
- * 风险预测模型 - 完全基于真实测评数据
+ * 风险预测模型 - 综合评分算法
+ * 核心设计原则：
+ * 1. 心理量表数据是核心（必须要有）
+ * 2. 生理数据（HRV、静息心率、睡眠时长、深睡比例）是辅助（有则更准确，没有也没关系）
+ * 3. 行为数据（工作负荷、活跃度）也是辅助
+ * 
+ * 评分权重：
+ * - 基础风险（基于心理量表）：60%
+ * - 生理风险（基于HRV、心率、睡眠）：25%
+ * - 行为风险（基于工作负荷、活跃度）：15%
+ * 
  * @param features 输入特征
  * @param configs 预警配置（可选，如果不提供则使用默认配置）
  */
 export const predictRiskWithLSTM = (features: InputFeatures, configs?: WarningConfig[]): number => {
-  // 只使用评估数据，忽略其他模拟数据
-  const { assessmentScores } = features;
+  const { assessmentScores, physiologicalData, behavioralData } = features;
   
   // 使用提供的配置或默认配置
   const warningConfigs = configs || WARNING_CONFIGS;
@@ -141,31 +165,173 @@ export const predictRiskWithLSTM = (features: InputFeatures, configs?: WarningCo
   const level2Config = warningConfigs.find(c => c.level === 'level2');
   const level3Config = warningConfigs.find(c => c.level === 'level3');
   
-  // 计算抑郁因子分趋势
-  const recentScores = assessmentScores.slice(-2);
-  
   // 获取配置的阈值
   const level3DepressionThreshold = level3Config?.variables?.depressionThreshold ?? 2.5;
   const level2DepressionThreshold = level2Config?.variables?.depressionThreshold ?? 2.0;
   const level1DepressionThreshold = level1Config?.variables?.depressionThreshold ?? 2.0;
   
-  // 完全基于评估数据计算风险
-  let riskScore = 0;
-  const latestScore = assessmentScores.length > 0 ? assessmentScores[assessmentScores.length - 1] : 0;
+  // ==================== 1. 计算基础风险（心理量表）- 权重60% ====================
+  let baseRisk = 0;
+  const latestScore = assessmentScores.length > 0 ? assessmentScores[0] : 0;
+  const recentScores = assessmentScores.slice(0, 2);
   
+  console.log('风险计算 - 最新抑郁因子分:', latestScore);
+  console.log('风险计算 - 最近分数 (最新在前):', recentScores);
+  
+  // 基于最新抑郁因子分计算基础风险
   if (latestScore >= level3DepressionThreshold) {
-    riskScore = 0.9; // 三级预警风险
+    baseRisk = 0.95; // 极高风险
   } else if (latestScore >= level2DepressionThreshold) {
     // 检查是否连续
     const hasConsecutive = recentScores.length >= 2 && recentScores.every(score => score >= level2DepressionThreshold);
-    riskScore = hasConsecutive ? 0.75 : 0.65; // 二级预警风险
+    baseRisk = hasConsecutive ? 0.8 : 0.7; // 连续更高风险
   } else if (latestScore >= level1DepressionThreshold) {
-    riskScore = 0.6; // 一级预警风险
+    baseRisk = 0.6; // 中等风险
+  } else if (latestScore >= 1.5) {
+    baseRisk = 0.4; // 轻度风险
   } else {
-    riskScore = 0.3; // 正常风险
+    baseRisk = 0.2; // 低风险
   }
   
-  return riskScore;
+  // ==================== 2. 计算生理风险 - 权重25% ====================
+  let physiologicalRisk = 0;
+  let physiologicalFactorsCount = 0;
+  
+  // HRV风险：HRV越低风险越高
+  if (physiologicalData?.hrv !== undefined && physiologicalData.hrv !== null) {
+    physiologicalFactorsCount++;
+    if (physiologicalData.hrv < 20) {
+      physiologicalRisk += 0.9; // HRV极低
+    } else if (physiologicalData.hrv < 30) {
+      physiologicalRisk += 0.7; // HRV较低
+    } else if (physiologicalData.hrv < 40) {
+      physiologicalRisk += 0.5; // HRV略低
+    } else {
+      physiologicalRisk += 0.2; // HRV正常
+    }
+  }
+  
+  // 静息心率风险：心率越高风险越高
+  if (physiologicalData?.restingHR !== undefined && physiologicalData.restingHR !== null) {
+    physiologicalFactorsCount++;
+    if (physiologicalData.restingHR > 90) {
+      physiologicalRisk += 0.8; // 心率过高
+    } else if (physiologicalData.restingHR > 80) {
+      physiologicalRisk += 0.6; // 心率较高
+    } else if (physiologicalData.restingHR > 70) {
+      physiologicalRisk += 0.4; // 心率略高
+    } else {
+      physiologicalRisk += 0.1; // 心率正常
+    }
+  }
+  
+  // 睡眠时长风险：睡眠越少风险越高
+  if (physiologicalData?.sleepDuration !== undefined && physiologicalData.sleepDuration !== null) {
+    physiologicalFactorsCount++;
+    if (physiologicalData.sleepDuration < 5) {
+      physiologicalRisk += 0.9; // 严重睡眠不足
+    } else if (physiologicalData.sleepDuration < 6) {
+      physiologicalRisk += 0.7; // 睡眠不足
+    } else if (physiologicalData.sleepDuration < 7) {
+      physiologicalRisk += 0.5; // 睡眠略少
+    } else {
+      physiologicalRisk += 0.1; // 睡眠正常
+    }
+  }
+  
+  // 深睡比例风险：深睡越少风险越高
+  if (physiologicalData?.deepSleepRatio !== undefined && physiologicalData.deepSleepRatio !== null) {
+    physiologicalFactorsCount++;
+    if (physiologicalData.deepSleepRatio < 15) {
+      physiologicalRisk += 0.8; // 深睡严重不足
+    } else if (physiologicalData.deepSleepRatio < 20) {
+      physiologicalRisk += 0.6; // 深睡不足
+    } else if (physiologicalData.deepSleepRatio < 25) {
+      physiologicalRisk += 0.4; // 深睡略少
+    } else {
+      physiologicalRisk += 0.1; // 深睡正常
+    }
+  }
+  
+  // 平均生理风险
+  if (physiologicalFactorsCount > 0) {
+    physiologicalRisk = physiologicalRisk / physiologicalFactorsCount;
+  } else {
+    // 如果没有生理数据，使用基础风险的30%作为生理风险
+    physiologicalRisk = baseRisk * 0.3;
+  }
+  
+  // ==================== 3. 计算行为风险 - 权重15% ====================
+  let behavioralRisk = 0;
+  let behavioralFactorsCount = 0;
+  
+  // 工作负荷风险：工作量越大风险越高
+  if (behavioralData?.classHours !== undefined || behavioralData?.meetingHours !== undefined || behavioralData?.nonTeachingTasks !== undefined) {
+    behavioralFactorsCount++;
+    const totalWorkload = (behavioralData.classHours || 0) + (behavioralData.meetingHours || 0) + (behavioralData.nonTeachingTasks || 0);
+    if (totalWorkload > 12) {
+      behavioralRisk += 0.8; // 工作量极大
+    } else if (totalWorkload > 10) {
+      behavioralRisk += 0.6; // 工作量大
+    } else if (totalWorkload > 8) {
+      behavioralRisk += 0.4; // 工作量较大
+    } else {
+      behavioralRisk += 0.2; // 工作量正常
+    }
+  }
+  
+  // 工具使用风险：使用越少风险越高（可能是压力大不愿使用工具）
+  if (behavioralData?.toolUsageMinutes !== undefined) {
+    behavioralFactorsCount++;
+    if (behavioralData.toolUsageMinutes < 10) {
+      behavioralRisk += 0.7; // 几乎不使用工具
+    } else if (behavioralData.toolUsageMinutes < 30) {
+      behavioralRisk += 0.5; // 使用较少
+    } else if (behavioralData.toolUsageMinutes < 60) {
+      behavioralRisk += 0.3; // 使用一般
+    } else {
+      behavioralRisk += 0.1; // 使用正常
+    }
+  }
+  
+  // 社群参与风险：参与越少风险越高
+  if (behavioralData?.communityInteractions !== undefined) {
+    behavioralFactorsCount++;
+    if (behavioralData.communityInteractions < 1) {
+      behavioralRisk += 0.6; // 几乎不参与
+    } else if (behavioralData.communityInteractions < 3) {
+      behavioralRisk += 0.4; // 参与较少
+    } else if (behavioralData.communityInteractions < 5) {
+      behavioralRisk += 0.2; // 参与一般
+    } else {
+      behavioralRisk += 0.1; // 参与正常
+    }
+  }
+  
+  // 平均行为风险
+  if (behavioralFactorsCount > 0) {
+    behavioralRisk = behavioralRisk / behavioralFactorsCount;
+  } else {
+    // 如果没有行为数据，使用基础风险的20%作为行为风险
+    behavioralRisk = baseRisk * 0.2;
+  }
+  
+  // ==================== 4. 综合计算总风险 ====================
+  const totalRisk = (baseRisk * 0.6) + (physiologicalRisk * 0.25) + (behavioralRisk * 0.15);
+  
+  // 确保风险值在0-1之间
+  const finalRisk = Math.max(0, Math.min(1, totalRisk));
+  
+  console.log('风险计算详情:', {
+    baseRisk,
+    physiologicalRisk,
+    behavioralRisk,
+    finalRisk,
+    hasPhysiologicalData: physiologicalFactorsCount > 0,
+    hasBehavioralData: behavioralFactorsCount > 0
+  });
+  
+  return finalRisk;
 };
 
 /**
@@ -192,10 +358,46 @@ export const analyzeTeacherRisk = async (
       assessments = [];
     }
     
-    // 2. 不使用任何模拟生理数据
-    const hrvData = [];
-    const activityChangeRate = 0;
-    const workloadIndex = 0;
+    // 2. 获取生理数据（可选，如果没有也没关系）
+    let physiologicalData = undefined;
+    try {
+      const physioResponse = await api.physiological.getData(uid);
+      if (physioResponse) {
+        physiologicalData = {
+          hrv: physioResponse.hrv,
+          restingHR: physioResponse.restingHR,
+          sleepDuration: physioResponse.sleepDuration,
+          deepSleepRatio: physioResponse.deepSleepRatio
+        };
+        console.log(`教师 ${teacherName} (${uid}) 的生理数据:`, physiologicalData);
+      }
+    } catch (error) {
+      console.log(`教师 ${teacherName} (${uid}) 没有生理数据或获取失败:`, error);
+      // 不报错，继续执行
+    }
+    
+    // 3. 获取工作负荷数据（可选）
+    let workloadData = undefined;
+    try {
+      const workloadResponse = await api.workload.getData(uid);
+      if (workloadResponse) {
+        workloadData = {
+          classHours: workloadResponse.classHours,
+          meetingHours: workloadResponse.meetingHours,
+          nonTeachingTasks: workloadResponse.nonTeachingTasks
+        };
+        console.log(`教师 ${teacherName} (${uid}) 的工作负荷数据:`, workloadData);
+      }
+    } catch (error) {
+      console.log(`教师 ${teacherName} (${uid}) 没有工作负荷数据或获取失败:`, error);
+      // 不报错，继续执行
+    }
+    
+    // 4. 构建行为数据
+    const behavioralData = workloadData ? {
+      ...workloadData,
+      // 暂时没有工具使用和社群参与数据，后续可以添加
+    } : undefined;
     
     // 3. 构建输入特征（完全基于真实评估数据）
     let assessmentScores = assessments.map(a => {
@@ -252,7 +454,14 @@ export const analyzeTeacherRisk = async (
     });
     
     // 调试：输出测评数据
-    console.log(`教师 ${teacherName} (${uid}) 的测评数据:`, assessmentScores);
+    console.log(`教师 ${teacherName} (${uid}) 的原始评估记录数量:`, assessments.length);
+    console.log(`教师 ${teacherName} (${uid}) 的原始评估记录:`, assessments.map((a: any) => ({
+      id: a.id,
+      timestamp: a.timestamp,
+      depressionScore: a.depressionScore || a.depression_score,
+      riskLevel: a.riskLevel || a.risk_level
+    })));
+    console.log(`教师 ${teacherName} (${uid}) 的测评分数数组 (最新在前):`, assessmentScores);
     
     // 如果没有有效测评数据，直接返回不触发预警
     const hasValidScores = assessmentScores.some(score => score > 0);
@@ -269,9 +478,11 @@ export const analyzeTeacherRisk = async (
     
     const inputFeatures: InputFeatures = {
       assessmentScores,
-      hrvData,
-      activityChangeRate,
-      workloadIndex
+      hrvData: [],
+      activityChangeRate: 0,
+      workloadIndex: 0,
+      physiologicalData,
+      behavioralData
     };
     
     // 6. 使用LSTM模型预测风险（传入配置）
@@ -349,14 +560,10 @@ export const analyzeTeacherRisk = async (
       }
     };
     
-    // 使用 assessmentScores 数组来计算抑郁因子分，而不是 assessments 数组
-    const hasHighDepression = assessmentScores.some(score => score >= level1DepressionThreshold);
+    // 只使用最新的评估记录来判断预警触发条件（因为数据是按时间倒序排列的）
+    const hasHighDepression = assessmentScores.length > 0 && assessmentScores[0] >= level1DepressionThreshold;
     
-    const hasVeryHighDepression = assessmentScores.some(score => {
-      // 调试：输出抑郁因子分
-      console.log(`教师 ${teacherName} (${uid}) 的抑郁因子分:`, score);
-      return score >= level3DepressionThreshold;
-    });
+    const hasVeryHighDepression = assessmentScores.length > 0 && assessmentScores[0] >= level3DepressionThreshold;
     
     const hasConsecutiveHighDepression = assessmentScores.length >= 2 && 
       assessmentScores[0] >= level2DepressionThreshold && 
@@ -477,6 +684,20 @@ export const triggerWarning = async (uid: string, teacherName: string, analysis:
     return;
   }
  
+  // 先获取该教师的现有预警
+  let existingStatus = "active";
+  try {
+    const allWarnings = await api.warning.getAll();
+    const teacherExistingWarning = allWarnings.find((w: any) => w.user_id === uid);
+    if (teacherExistingWarning && teacherExistingWarning.status === "resolved") {
+      // 如果预警已经是 resolved 状态，保持不变
+      existingStatus = "resolved";
+      console.log(`教师 ${teacherName} (${uid}) 的预警状态是 resolved，保持不变`);
+    }
+  } catch (error) {
+    console.error(`获取现有预警失败:`, error);
+  }
+  
   const warningData = {
     userId: uid,
     teacherName,
@@ -484,7 +705,7 @@ export const triggerWarning = async (uid: string, teacherName: string, analysis:
     riskScore: analysis.riskScore,
     factors: analysis.factors,
     reason: analysis.reason,
-    status: "active"
+    status: existingStatus
   };
 
   // 合并发给教师本人的多条消息为一条（提取到函数作用域，确保 try/catch 块都能访问）
@@ -772,6 +993,23 @@ export const scanTeachersRisk = async (
 ) => {
   const results = [];
   console.log(`[scanTeachersRisk] 开始扫描 ${teachers.length} 位教师...`);
+
+  // 先清除所有旧的预警，确保每次扫描都是全新的
+  try {
+    console.log('[scanTeachersRisk] 清除所有旧预警...');
+    const allWarnings = await api.warning.getAll();
+    for (const warning of allWarnings) {
+      try {
+        await api.warning.delete(warning.id);
+        console.log(`[scanTeachersRisk] 已删除预警: ${warning.teacher_name} (${warning.id})`);
+      } catch (deleteError) {
+        console.error(`[scanTeachersRisk] 删除预警失败: ${warning.id}`, deleteError);
+      }
+    }
+    console.log('[scanTeachersRisk] 旧预警清除完成');
+  } catch (error) {
+    console.error('[scanTeachersRisk] 清除旧预警失败:', error);
+  }
 
   for (let i = 0; i < teachers.length; i++) {
     const teacher = teachers[i];

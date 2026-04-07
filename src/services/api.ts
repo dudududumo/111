@@ -382,9 +382,17 @@ export const physiologicalApi = {
   getData: async (userId: string) => {
     return fetchApi(`/physiological/${userId}`);
   },
+  // 获取特定日期的生理数据
+  getDataByDate: async (userId: string, date: string) => {
+    return fetchApi(`/physiological/${userId}?date=${date}`);
+  },
   // 保存生理数据
   save: async (data: {
     hrv?: number;
+    restingHR?: number;
+    sleepDuration?: number;
+    deepSleepRatio?: number;
+    date?: string;
   }) => {
     return fetchApi("/physiological", {
       method: "POST",
@@ -400,11 +408,16 @@ export const workloadApi = {
   getData: async (userId: string) => {
     return fetchApi(`/workload/${userId}`);
   },
+  // 获取特定日期的工作负载数据
+  getDataByDate: async (userId: string, date: string) => {
+    return fetchApi(`/workload/${userId}?date=${date}`);
+  },
   // 保存工作负载数据
   save: async (data: {
     classHours: number;
     meetingHours: number;
     nonTeachingTasks: number;
+    date?: string;
   }) => {
     return fetchApi("/workload", {
       method: "POST",

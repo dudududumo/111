@@ -193,12 +193,20 @@ export interface MentalResource {
 }
 
 export interface PhysiologicalData {
-  hrv: number[];
-  restingHR: number[];
-  sleepDuration: number[];
-  deepSleepRatio: number[];
-  activityLevel: number[];
-  timestamps: string[];
+  userId: string;
+  hrv: number | null;
+  restingHR: number | null;
+  sleepDuration: number | null;
+  deepSleepRatio: number | null;
+  timestamps: string[] | null;
+  history?: Array<{
+    date: string;
+    hrv: number | null;
+    restingHR: number | null;
+    sleepDuration: number | null;
+    deepSleepRatio: number | null;
+  }>;
+  recordedAt: string;
 }
 
 export interface BehavioralData {
@@ -206,10 +214,10 @@ export interface BehavioralData {
   toolUsageMinutes: number;
   communityInteractions: number;
   workload: {
-    classHours: number;
-    meetingHours: number;
-    nonTeachingTasks: number;
-    totalWorkloadIndex: number;
+    classHours: number | null;
+    meetingHours: number | null;
+    nonTeachingTasks: number | null;
+    totalWorkloadIndex: number | null;
   };
 }
 

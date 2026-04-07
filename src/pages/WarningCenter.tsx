@@ -495,25 +495,61 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
       console.log("scanTeachersRisk 返回结果:", results);
       console.log("触发预警的数量:", results.filter(r => r.analysis.warningTriggered).length);
       
-      // 将扫描结果转换为预警格式并更新到页面
-      const newWarningsFromScan: Warning[] = results
-        .filter(result => result.analysis.warningTriggered && result.warningId)
-        .map((result, index) => ({
-          id: result.warningId || `warning_${Date.now()}_${index}`,
-          uid: result.teacher.uid,
-          teacherName: result.teacher.name,
-          level: result.analysis.warningLevel === "level1" ? "level1" : 
-                 result.analysis.warningLevel === "level2" ? "level2" : "level3",
-          riskScore: result.analysis.riskScore,
-          factors: result.analysis.factors,
-          reason: result.analysis.reason,
-          status: "pending" as const,
-          timestamp: new Date().toISOString()
-        }));
-      
-      // 直接使用新扫描的预警替换整个列表，避免重复叠加
-      setWarnings(newWarningsFromScan);
-      console.log("预警列表已更新，共", newWarningsFromScan.length, "条预警");
+      // 预警数据已在 scanTeachersRisk 中通过 triggerWarning 保存到数据库
+      // 重新从数据库加载预警，确保状态正确
+      console.log("预警数据已保存到数据库，正在重新加载...");
+      try {
+        const [warningsResponse, tasksResponse] = await Promise.all([
+          api.warning.getAll(),
+          api.intervention.getAllTasks()
+        ]);
+        
+        console.log('重新从数据库加载预警数据成功:', warningsResponse.length || 0, '条');
+        console.log('重新从数据库加载干预任务成功:', tasksResponse.length || 0, '条');
+        
+        // 创建预警ID到干预任务的映射
+        const warningIdToTaskMap: Record<string, any> = {};
+        tasksResponse.forEach((task: any) => {
+          if (task.warningId) {
+            warningIdToTaskMap[task.warningId] = task;
+          }
+        });
+        
+        // 转换数据库格式为前端格式
+        const dbWarnings = (warningsResponse || []).map((warning: any) => {
+          let status = warning.status || 'pending';
+          
+          // 对于三级预警，根据干预任务状态来决定
+          const isLevel3 = warning.level === 'emergency';
+          const task = warningIdToTaskMap[warning.id];
+          
+          if (isLevel3 && task) {
+            if (task.status === 'completed') {
+              status = 'resolved';
+            } else if (task.status === 'in_progress' || task.status === 'pending') {
+              status = 'active';
+            }
+          }
+          
+          return {
+            id: warning.id,
+            uid: warning.user_id,
+            teacherName: warning.display_name || warning.teacher_name || '',
+            level: warning.level === 'attention' ? 'level1' : 
+                   warning.level === 'intervention' ? 'level2' : 'level3',
+            riskScore: warning.risk_score,
+            factors: Array.isArray(warning.factors) ? warning.factors : [],
+            reason: warning.reason || '',
+            status,
+            timestamp: warning.created_at || new Date().toISOString()
+          };
+        });
+        
+        setWarnings(dbWarnings);
+        console.log('预警列表已更新，共', dbWarnings.length, '条预警');
+      } catch (error) {
+        console.error('重新加载预警数据失败:', error);
+      }
       
       // 预警数据已在 scanTeachersRisk 中通过 triggerWarning 保存到数据库，无需重复保存
       console.log("预警数据已在扫描过程中保存到数据库");

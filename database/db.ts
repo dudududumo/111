@@ -195,6 +195,34 @@ export function initDatabase() {
     }
   }
 
+  // 迁移：为 physiological_data 表添加 timestamps 列
+  try {
+    db.exec('SELECT timestamps FROM physiological_data LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: timestamps')) {
+      try {
+        db.exec('ALTER TABLE physiological_data ADD COLUMN timestamps TEXT;');
+        console.log('Successfully added timestamps column to physiological_data table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
+  // 迁移：为 workload_data 表添加 timestamps 列
+  try {
+    db.exec('SELECT timestamps FROM workload_data LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: timestamps')) {
+      try {
+        db.exec('ALTER TABLE workload_data ADD COLUMN timestamps TEXT;');
+        console.log('Successfully added timestamps column to workload_data table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
   console.log('Database initialized successfully');
   
   // 初始化默认心理资源（如果还没有资源）
@@ -1085,22 +1113,49 @@ export const physiologicalDb = {
 export const workloadDb = {
   create: (data: {
     userId: string;
-    classHours: number;
-    meetingHours: number;
-    nonTeachingTasks: number;
-    totalWorkloadIndex: number;
+    classHours: any;
+    meetingHours: any;
+    nonTeachingTasks: any;
+    totalWorkloadIndex: any;
+    timestamps?: any;
   }) => {
     const id = uuidv4();
-    const stmt = db.prepare(`
-      INSERT INTO workload_data (id, user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, data.userId, data.classHours, data.meetingHours, data.nonTeachingTasks, data.totalWorkloadIndex);
-    return id;
+    
+    const existing = db.prepare('SELECT * FROM workload_data WHERE user_id = ?').get(data.userId) as any;
+    
+    if (existing) {
+      const stmt = db.prepare(`
+        UPDATE workload_data 
+        SET class_hours = ?, meeting_hours = ?, non_teaching_tasks = ?, total_workload_index = ?, timestamps = ?
+        WHERE user_id = ?
+      `);
+      stmt.run(
+        data.classHours ? JSON.stringify(data.classHours) : null, 
+        data.meetingHours ? JSON.stringify(data.meetingHours) : null, 
+        data.nonTeachingTasks ? JSON.stringify(data.nonTeachingTasks) : null, 
+        data.totalWorkloadIndex ? JSON.stringify(data.totalWorkloadIndex) : null,
+        data.timestamps ? JSON.stringify(data.timestamps) : null,
+        data.userId
+      );
+      return existing.id;
+    } else {
+      const stmt = db.prepare(`
+        INSERT INTO workload_data (id, user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index, timestamps)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, data.userId, 
+        data.classHours ? JSON.stringify(data.classHours) : null, 
+        data.meetingHours ? JSON.stringify(data.meetingHours) : null, 
+        data.nonTeachingTasks ? JSON.stringify(data.nonTeachingTasks) : null, 
+        data.totalWorkloadIndex ? JSON.stringify(data.totalWorkloadIndex) : null, 
+        data.timestamps ? JSON.stringify(data.timestamps) : null
+      );
+      return id;
+    }
   },
 
   getByUserId: (userId: string) => {
-    const stmt = db.prepare('SELECT * FROM workload_data WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1');
+    const stmt = db.prepare('SELECT * FROM workload_data WHERE user_id = ?');
     return stmt.get(userId);
   }
 };
