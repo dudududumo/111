@@ -429,11 +429,10 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
             <ClipboardCheck size={18} className="text-emerald-500" />
             <h3 className="text-base font-semibold text-stone-800">专业测评历史</h3>
           </div>
-          <span className="text-xs font-medium text-stone-400">最近 10 次记录</span>
         </div>
 
         {assessments.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
             {assessments.map((item) => (
               <div key={item.id} className="bg-stone-50 rounded-lg p-3 hover:bg-stone-100 transition-colors">
                 <div className="flex items-center justify-between gap-2 mb-1">

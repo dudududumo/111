@@ -212,7 +212,8 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       setSelectedScale(scale);
       setAnswers([]);
       setCurrentQuestionIndex(0);
-      setStep(1);
+      setIrtQuestions(scale.questions);
+      setStep(2);
     }
   };
 
@@ -771,7 +772,12 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
                     </div>
 
                     <button
-                      onClick={() => startIrtAssessment(selectedScale)}
+                      onClick={() => {
+                        setAnswers([]);
+                        setCurrentQuestionIndex(0);
+                        setIrtQuestions(selectedScale.questions);
+                        setStep(2);
+                      }}
                       className="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                       开始测评
