@@ -167,6 +167,29 @@ export function initDatabase() {
     }
   }
 
+  // 迁移：修复 user_tasks 表的 quadrant 约束，支持"不重要不紧急"
+  try {
+    db.exec('PRAGMA table_info(user_tasks);');
+    const stmt = db.prepare('UPDATE user_tasks SET quadrant = ? WHERE quadrant = ?');
+    stmt.run('不紧急不重要', '不重要不紧急');
+  } catch (migrationError) {
+    console.error('Migration failed:', migrationError);
+  }
+
+  // 迁移：为 warnings 表添加 dept_head_read_at 列（用于二级干预已处理）
+  try {
+    db.exec('SELECT dept_head_read_at FROM warnings LIMIT 1;');
+  } catch (error: any) {
+    if (error.message.includes('no such column: dept_head_read_at')) {
+      try {
+        db.exec('ALTER TABLE warnings ADD COLUMN dept_head_read_at TIMESTAMP;');
+        console.log('Successfully added dept_head_read_at column to warnings table');
+      } catch (migrationError) {
+        console.error('Migration failed:', migrationError);
+      }
+    }
+  }
+
   // 迁移：为 users 表添加 title 列
   try {
     db.exec('SELECT title FROM users LIMIT 1;');
@@ -236,8 +259,8 @@ export function initDatabase() {
         category: 'counselor',
         description: '专业心理咨询师一对一咨询服务，帮助您解决工作、生活中的心理困扰。每次咨询时长50分钟，请提前预约。',
         tags: ['心理咨询', '一对一', '专业支持', '工作压力', '情绪管理'],
-        contact: 'psychologist@school.com',
-        location: '心理健康中心 301室',
+        contact: '李老师：133 5027 8910',
+        location: '南部县第二小学综合楼三楼心理健康中心',
         isVerified: true,
         agreementSigned: true
       },
@@ -247,8 +270,8 @@ export function initDatabase() {
         category: 'sandplay',
         description: '通过沙盘游戏进行心理表达和探索，适合不善于用语言表达情绪的老师。提供安全、放松的自我探索空间。',
         tags: ['沙盘游戏', '非语言表达', '情绪释放', '自我探索', '放松减压'],
-        contact: 'sandplay@school.com',
-        location: '心理健康中心 205室',
+        contact: '李老师：133 5027 8910',
+        location: '南部县第二小学综合楼三楼心理健康中心',
         isVerified: true,
         agreementSigned: true
       },
@@ -258,8 +281,8 @@ export function initDatabase() {
         category: 'group',
         description: '定期举办茶话会、团体沙盘、心理工作坊等团体活动。在团体中分享、学习、成长，建立支持网络。',
         tags: ['团体活动', '同伴支持', '茶话会', '工作坊', '社交'],
-        contact: 'group@school.com',
-        location: '教师之家 多功能厅',
+        contact: '李老师：133 5027 8910',
+        location: '见具体活动地点',
         isVerified: true,
         agreementSigned: true
       },
@@ -269,8 +292,8 @@ export function initDatabase() {
         category: 'hospital',
         description: '经学校审核合作的专业医疗机构，提供心理科门诊服务。严重心理问题可转介至此，享受绿色通道。',
         tags: ['医院', '精神科', '药物治疗', '专业医疗', '转介服务'],
-        contact: '021-64387250',
-        location: '宛平南路600号',
+        contact: '0817-2311920',
+        location: '南充市精神卫生中心（第二人民医院）',
         isVerified: true,
         agreementSigned: true
       },
@@ -564,8 +587,43 @@ export const warningDb = {
 
   // 标记一级预警为已读
   markAsRead: (id: string) => {
-    const stmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP, status = ? WHERE id = ?');
-    stmt.run('resolved', id);
+    const stmt = db.prepare('SELECT * FROM warnings WHERE id = ?');
+    const warning = stmt.get(id) as any;
+    
+    if (warning) {
+      if (warning.level === 'attention') {
+        const updateStmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP, status = ? WHERE id = ?');
+        updateStmt.run('resolved', id);
+      } else if (warning.level === 'intervention') {
+        const updateStmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP WHERE id = ?');
+        updateStmt.run(id);
+        
+        const checkStmt = db.prepare('SELECT read_at, dept_head_read_at FROM warnings WHERE id = ?');
+        const updatedWarning = checkStmt.get(id) as any;
+        if (updatedWarning.read_at && updatedWarning.dept_head_read_at) {
+          const resolveStmt = db.prepare('UPDATE warnings SET status = ? WHERE id = ?');
+          resolveStmt.run('resolved', id);
+        }
+      }
+    }
+  },
+
+  // 标记二级预警为教研组长已读
+  markDeptHeadAsRead: (id: string) => {
+    const stmt = db.prepare('SELECT * FROM warnings WHERE id = ?');
+    const warning = stmt.get(id) as any;
+    
+    if (warning && warning.level === 'intervention') {
+      const updateStmt = db.prepare('UPDATE warnings SET dept_head_read_at = CURRENT_TIMESTAMP WHERE id = ?');
+      updateStmt.run(id);
+      
+      const checkStmt = db.prepare('SELECT read_at, dept_head_read_at FROM warnings WHERE id = ?');
+      const updatedWarning = checkStmt.get(id) as any;
+      if (updatedWarning.read_at && updatedWarning.dept_head_read_at) {
+        const resolveStmt = db.prepare('UPDATE warnings SET status = ? WHERE id = ?');
+        resolveStmt.run('resolved', id);
+      }
+    }
   },
 
   // 获取用户的未解决预警（包括 pending 和 active 状态）
@@ -1071,6 +1129,30 @@ export const communityDb = {
     updateStmt.run(newLikes, JSON.stringify(newLikedBy), postId);
     
     return { likes: newLikes, likedBy: newLikedBy };
+  },
+
+  // 获取用户的社群统计数据
+  getUserCommunityStats: (userId: string) => {
+    // 获取用户发布的帖子数
+    const postsStmt = db.prepare('SELECT COUNT(*) as count FROM community_posts WHERE author_id = ?');
+    const postsResult = postsStmt.get(userId) as any;
+    const posts = postsResult?.count || 0;
+
+    // 获取用户的评论数
+    const commentsStmt = db.prepare('SELECT COUNT(*) as count FROM community_comments WHERE author_id = ?');
+    const commentsResult = commentsStmt.get(userId) as any;
+    const comments = commentsResult?.count || 0;
+
+    // 获取用户收到的点赞数（所有帖子的点赞总和）
+    const likesStmt = db.prepare('SELECT COALESCE(SUM(likes), 0) as total FROM community_posts WHERE author_id = ?');
+    const likesResult = likesStmt.get(userId) as any;
+    const likes = likesResult?.total || 0;
+
+    return {
+      posts,
+      comments,
+      likes
+    };
   }
 };
 

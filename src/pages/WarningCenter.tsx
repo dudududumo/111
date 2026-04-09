@@ -626,7 +626,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
             {userRole === UserRole.ADMIN && (
               <button 
                 onClick={() => setShowConfig(true)}
-                className="p-3 bg-white border border-stone-100 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
+                className="p-3 bg-white border border-stone-200 rounded-2xl text-stone-500 hover:bg-stone-50 transition-all shadow-sm"
                 title="响应机制配置"
               >
                 <Settings size={20} />
@@ -661,7 +661,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Warning List */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white p-4 rounded-2xl border border-stone-100 flex items-center gap-4">
+              <div className="bg-white/70 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                   <input 
@@ -736,7 +736,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                   ))}
                 </AnimatePresence>
                 {filteredWarnings.length === 0 && (
-                  <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-stone-100">
+                  <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-stone-200">
                     <CheckCircle className="mx-auto text-stone-200 mb-4" size={48} />
                     <p className="text-stone-400 font-medium">暂无匹配的预警事件</p>
                   </div>
@@ -876,7 +876,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                     </div>
                   </motion.div>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-white rounded-3xl border border-dashed border-stone-100">
+                  <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-white rounded-3xl border border-dashed border-stone-200">
                     <Eye className="text-stone-200 mb-4" size={48} />
                     <h3 className="text-stone-900 font-bold">查看详情</h3>
                     <p className="text-stone-400 text-sm mt-2">点击左侧预警项查看详细的风险因子分析与响应建议</p>
@@ -889,7 +889,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
           <div className="space-y-8">
             {/* Group Risk Map */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-stone-100 shadow-sm">
+              <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-lg font-bold text-rose-900">群体风险分布图谱</h3>
@@ -918,7 +918,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                 </div>
               </div>
 
-              <div className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm">
+              <div className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
                 <h3 className="text-lg font-bold text-rose-900 mb-8">风险等级占比</h3>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -997,7 +997,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                       </div>
                       <div className="space-y-4">
                         {/* 变量配置区域 */}
-                        <div className="p-4 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                        <div className="p-4 bg-white rounded-2xl border border-stone-200 shadow-sm">
                           <label className="text-[10px] font-bold text-stone-400 uppercase block mb-3">阈值变量配置</label>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -1023,7 +1023,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                     return newConfig;
                                   });
                                 }}
-                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
                               />
                             </div>
                             <div>
@@ -1051,7 +1051,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                     return newConfig;
                                   });
                                 }}
-                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
                               />
                             </div>
                             {item.id === 'level2' && (
@@ -1066,7 +1066,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                                     newConfig[i].variables.consecutiveWeeks = parseInt(e.target.value);
                                     setResponseConfig(newConfig);
                                   }}
-                                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
+                                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100"
                                 />
                               </div>
                             )}

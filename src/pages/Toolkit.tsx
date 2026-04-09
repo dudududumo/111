@@ -718,6 +718,8 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
     if (activeTool === 'breathing') setBreathCount(0);
   }, [activeTool]);
 
+
+
   // Pause Timer Logic
   useEffect(() => {
     if (!isPauseActive || pauseTimer <= 0) {
@@ -750,7 +752,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
         1: '重要紧急',
         2: '重要不紧急',
         3: '紧急不重要',
-        4: '不重要不紧急'
+        4: '不紧急不重要'
       };
 
       const response = await fetch('/api/tasks', {
@@ -1193,7 +1195,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                 <audio 
                   ref={breathAudioRef} 
                   loop 
-                  src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"
+                  src="/assets/audio/relax-meditation.mp3"
                   onError={() => {
                     console.warn("Breathing audio failed to load");
                     setIsMuted(true);
@@ -1383,7 +1385,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                         <option value={1}>重要且紧急</option>
                         <option value={2}>重要不紧急</option>
                         <option value={3}>紧急不重要</option>
-                        <option value={4}>不重要不紧急</option>
+                        <option value={4}>不紧急不重要</option>
                       </select>
                       <button
                         onClick={handleAddTask}
@@ -1409,13 +1411,13 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                         1: '重要紧急',
                         2: '重要不紧急',
                         3: '紧急不重要',
-                        4: '不重要不紧急'
+                        4: '不紧急不重要'
                       };
                       return (
                       <div key={q} className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl border ${q === 1 ? 'bg-rose-50 border-rose-100' : q === 2 ? 'bg-blue-50 border-blue-100' : q === 3 ? 'bg-amber-50 border-amber-100' : 'bg-stone-50 border-stone-100'}`}>
                         <h4 className="text-xs font-bold uppercase tracking-wider mb-2 sm:mb-4 flex items-center gap-1.5 sm:gap-2">
                           <span className={`h-2 w-2 rounded-full ${q === 1 ? 'bg-rose-500' : q === 2 ? 'bg-blue-500' : q === 3 ? 'bg-amber-500' : 'bg-stone-500'}`} />
-                          <span className="truncate">{q === 1 ? '重要且紧急' : q === 2 ? '重要不紧急' : q === 3 ? '紧急不重要' : '不重要不紧急'}</span>
+                          <span className="truncate">{q === 1 ? '重要且紧急' : q === 2 ? '重要不紧急' : q === 3 ? '紧急不重要' : '不紧急不重要'}</span>
                         </h4>
                         <div className="space-y-2 max-h-[180px] sm:max-h-[200px] overflow-y-auto pr-2">
                           {tasks.filter(t => t.quadrant === quadrantNames[q]).map(task => (
@@ -1638,6 +1640,9 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                     >
                       <audio 
                         ref={audioRef} 
+                        src={selectedAudio?.url}
+                        controls
+                        className="hidden"
                         onEnded={() => setIsPlaying(false)}
                         onError={(e) => {
                           console.error("音频加载失败");

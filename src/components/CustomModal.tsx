@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 type ModalType = "success" | "error" | "warning" | "info" | "confirm";
+type ModalTheme = "green" | "stone";
 
 interface ModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface ModalProps {
   cancelText?: string;
   onConfirm?: () => void;
   showCancel?: boolean;
+  theme?: ModalTheme;
 }
 
 const CustomModal: React.FC<ModalProps> = ({
@@ -33,28 +35,108 @@ const CustomModal: React.FC<ModalProps> = ({
   cancelText = "取消",
   onConfirm,
   showCancel = false,
+  theme = "green",
 }) => {
+  const getIconColor = () => {
+    if (theme === "stone") {
+      switch (type) {
+        case "success":
+          return "text-stone-600";
+        case "error":
+          return "text-red-600";
+        case "warning":
+          return "text-amber-600";
+        case "confirm":
+          return "text-stone-600";
+        default:
+          return "text-stone-600";
+      }
+    }
+    switch (type) {
+      case "success":
+        return "text-emerald-600";
+      case "error":
+        return "text-red-600";
+      case "warning":
+        return "text-amber-600";
+      case "confirm":
+        return "text-emerald-600";
+      default:
+        return "text-emerald-600";
+    }
+  };
+
   const getIcon = () => {
     switch (type) {
       case "success":
-        return <CheckCircle className="w-10 h-10 text-stone-600" />;
+        return <CheckCircle className={`w-10 h-10 ${getIconColor()}`} />;
       case "error":
-        return <XCircle className="w-10 h-10 text-stone-600" />;
+        return <XCircle className={`w-10 h-10 ${getIconColor()}`} />;
       case "warning":
-        return <AlertTriangle className="w-10 h-10 text-stone-600" />;
+        return <AlertTriangle className={`w-10 h-10 ${getIconColor()}`} />;
       case "confirm":
-        return <AlertTriangle className="w-10 h-10 text-stone-600" />;
+        return <AlertTriangle className={`w-10 h-10 ${getIconColor()}`} />;
       default:
-        return <Info className="w-10 h-10 text-stone-600" />;
+        return <Info className={`w-10 h-10 ${getIconColor()}`} />;
     }
   };
 
   const getIconBg = () => {
-    return "bg-stone-100";
+    if (theme === "stone") {
+      switch (type) {
+        case "success":
+          return "bg-stone-100";
+        case "error":
+          return "bg-red-100";
+        case "warning":
+          return "bg-amber-100";
+        case "confirm":
+          return "bg-stone-100";
+        default:
+          return "bg-stone-100";
+      }
+    }
+    switch (type) {
+      case "success":
+        return "bg-emerald-100";
+      case "error":
+        return "bg-red-100";
+      case "warning":
+        return "bg-amber-100";
+      case "confirm":
+        return "bg-emerald-100";
+      default:
+        return "bg-emerald-100";
+    }
   };
 
   const getConfirmButtonStyle = () => {
-    return "bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-800 hover:to-stone-900 shadow-stone-200";
+    if (theme === "stone") {
+      switch (type) {
+        case "success":
+          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
+        case "error":
+          return "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-red-200";
+        case "warning":
+          return "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-amber-200";
+        case "confirm":
+          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
+        default:
+          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
+      }
+    }
+    switch (type) {
+      case "success":
+        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
+      case "error":
+        return "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-red-200";
+      case "warning":
+        return "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-amber-200";
+      case "confirm":
+        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
+      default:
+        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
+    }
   };
 
   return (

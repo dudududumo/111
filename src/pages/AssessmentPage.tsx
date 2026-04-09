@@ -340,17 +340,17 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
           confirmText: "确认提交",
           cancelText: "继续修改",
           showCancel: true,
-          onConfirm: confirmSubmit
+          onConfirm: () => confirmSubmit(newAnswers)
         });
       }
     }
   };
 
-  const confirmSubmit = async () => {
+  const confirmSubmit = async (answersToSubmit: number[]) => {
     if (selectedScale) {
       closeModal();
       clearAssessmentProgress(selectedScale.id);
-      await submitAssessment(finalAnswers);
+      await submitAssessment(answersToSubmit);
     }
   };
 

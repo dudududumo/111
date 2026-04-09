@@ -22,6 +22,7 @@ import {
   Phone,
   BookOpen,
   GraduationCap,
+  Mail,
   UserPlus,
   Settings,
   BarChart3,
@@ -233,10 +234,13 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
     setLoading(true);
     try {
       const dataToSave = {
+        name: editFormData.name || personalInfo?.name || "",
+        email: editFormData.email || personalInfo?.email || "",
         gender: editFormData.gender || personalInfo?.gender || "",
         phone: editFormData.phone || personalInfo?.phone || "",
         grade: editFormData.grade || personalInfo?.grade || "",
         subject: editFormData.subject || personalInfo?.subject || "",
+        teachingExperience: editFormData.teachingExperience !== undefined ? editFormData.teachingExperience : personalInfo?.teachingExperience,
       };
       
       await api.personalInfo.save(dataToSave);
@@ -651,10 +655,13 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <button
                       onClick={() => {
                         setEditFormData({
+                          name: personalInfo?.name,
+                          email: personalInfo?.email,
                           gender: personalInfo?.gender,
                           phone: personalInfo?.phone,
                           grade: personalInfo?.grade,
-                          subject: personalInfo?.subject
+                          subject: personalInfo?.subject,
+                          teachingExperience: personalInfo?.teachingExperience
                         });
                         setShowInfoForm(true);
                       }}
@@ -697,12 +704,12 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                         <p className="text-sm sm:text-sm font-bold text-stone-900">{personalInfo?.subject || "未填写"}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] sm:text-xs text-stone-500 mb-1.5">年级</p>
-                        <p className="text-xs sm:text-sm font-bold text-stone-900">{personalInfo?.grade || "未填写"}</p>
+                        <p className="text-xs sm:text-xs text-stone-500 mb-1.5">年级</p>
+                        <p className="text-sm sm:text-sm font-bold text-stone-900">{personalInfo?.grade || "未填写"}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] sm:text-xs text-stone-500 mb-1.5">教龄</p>
-                        <p className="text-xs sm:text-sm font-bold text-stone-900">{personalInfo?.teachingExperience ? `${personalInfo.teachingExperience} 年` : "未填写"}</p>
+                        <p className="text-xs sm:text-xs text-stone-500 mb-1.5">教龄</p>
+                        <p className="text-sm sm:text-sm font-bold text-stone-900">{personalInfo?.teachingExperience ? `${personalInfo.teachingExperience} 年` : "未填写"}</p>
                       </div>
                     </div>
                   )}
@@ -831,9 +838,9 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-3 sm:p-4 rounded-2xl border border-emerald-100">
                       <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
                         <ListChecks size={12} className="sm:w-4 sm:h-4 text-emerald-500" />
-                        <p className="text-[9px] sm:text-xs font-medium text-emerald-700">非教学任务</p>
+                        <p className="text-xs sm:text-xs font-medium text-emerald-700">非教学任务</p>
                       </div>
-                      <p className="text-lg sm:text-2xl font-bold text-stone-900">
+                      <p className="text-xl sm:text-2xl font-bold text-stone-900">
                         {dataLoading ? (
                           <span className="text-stone-300">...</span>
                         ) : (
@@ -1027,20 +1034,20 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-100">
-                          <th className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">姓名</th>
-                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">学科</th>
-                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">年级</th>
-                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">邮箱</th>
-                          <th className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-3 sm:pr-6 text-[9px] sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">操作</th>
+                          <th className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">姓名</th>
+                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">学科</th>
+                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">年级</th>
+                          <th className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">邮箱</th>
+                          <th className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-3 sm:pr-6 text-xs sm:text-xs font-bold text-stone-700 uppercase tracking-widest whitespace-nowrap">操作</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100">
                         {teamMembers.map((member) => (
                           <tr key={member.id} className="group hover:bg-stone-50 transition-colors">
-                            <td className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 font-bold text-stone-900 text-[9px] sm:text-xs whitespace-nowrap">{member.name}</td>
-                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{member.subject || "-"}</td>
-                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{member.grade || "-"}</td>
-                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-[9px] sm:text-xs whitespace-nowrap">{member.email}</td>
+                            <td className="py-2.5 sm:py-3.5 pl-3 sm:pl-6 pr-1.5 sm:pr-3 font-bold text-stone-900 text-xs sm:text-xs whitespace-nowrap">{member.name}</td>
+                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{member.subject || "-"}</td>
+                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{member.grade || "-"}</td>
+                            <td className="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-stone-500 text-xs sm:text-xs whitespace-nowrap">{member.email}</td>
                             <td className="py-2.5 sm:py-3.5 pl-1.5 sm:pl-3 pr-3 sm:pr-6">
                               <button
                                 onClick={() => handleRemoveMember(member.id)}
@@ -1254,6 +1261,34 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
               <div className="space-y-3 sm:space-y-4">
                 <div>
+                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">姓名</label>
+                  <div className="relative">
+                    <User className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
+                    <input
+                      type="text"
+                      value={editFormData.name || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      placeholder="请输入姓名"
+                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">邮箱</label>
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
+                    <input
+                      type="email"
+                      value={editFormData.email || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      placeholder="请输入邮箱"
+                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">性别</label>
                   <div className="relative">
                     <select
@@ -1301,6 +1336,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <option value="音乐">音乐</option>
                       <option value="体育">体育</option>
                       <option value="美术">美术</option>
+                      <option value="信息科技">信息科技</option>
                     </select>
                     <BookOpen className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
                     <ChevronDown className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
@@ -1325,6 +1361,21 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                     </select>
                     <GraduationCap className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
                     <ChevronDown className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] sm:text-xs font-medium text-stone-700 mb-2">教龄</label>
+                  <div className="relative">
+                    <GraduationCap className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
+                    <input
+                      type="number"
+                      min="0"
+                      value={editFormData.teachingExperience || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, teachingExperience: e.target.value ? parseInt(e.target.value) : undefined })}
+                      placeholder="请输入教龄"
+                      className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-stone-50 border border-stone-100 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:ring-2 focus:ring-stone-400"
+                    />
                   </div>
                 </div>
 

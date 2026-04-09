@@ -16,7 +16,8 @@ import {
   X,
   Heart,
   UserPlus,
-  ChevronRight
+  ChevronRight,
+  User
 } from "lucide-react";
 import NotificationDropdown from "./components/NotificationDropdown";
 import { motion, AnimatePresence } from "motion/react";
@@ -330,117 +331,231 @@ const App: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-stone-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-50 via-white to-stone-100 p-4 sm:p-6 lg:p-8">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-emerald-200/50 to-teal-200/50 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-200/50 to-purple-200/50 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-amber-100/30 to-rose-100/30 rounded-full blur-3xl"></div>
+        </div>
+        
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-8 rounded-3xl bg-white p-10 shadow-xl border border-stone-100"
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full max-w-lg relative z-10"
         >
-          <div className="text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-200">
-              <Heart size={40} fill="white" className="text-white" />
-            </div>
-            <h1 className="mt-6 text-3xl font-bold tracking-tight text-stone-900">五色教师心理健康支持系统</h1>
-            <p className="mt-2 text-stone-500">五色心理健康系统 · 数据驱动关怀，守护教师心灵</p>
-          </div>
+          <div className="bg-white/80 backdrop-blur-xl rounded-[32px] shadow-2xl shadow-stone-200/50 border border-white/50 overflow-hidden">
+            <div className="relative p-6 sm:p-8 lg:p-10">
+              <div className="text-center mb-8">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="mx-auto mb-6"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl blur-xl opacity-30"></div>
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-300/50">
+                      <Heart size={40} sm={48} fill="white" className="text-white" />
+                    </div>
+                  </div>
+                </motion.div>
+                
+                <motion.h1 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-stone-800 via-stone-700 to-stone-800 bg-clip-text text-transparent"
+                >
+                  心桥教师关怀
+                </motion.h1>
+                
+                <motion.p 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="mt-2 text-sm sm:text-base text-stone-500"
+                >
+                  五色心理健康系统 · 数据驱动关怀，守护教师心灵
+                </motion.p>
+              </div>
 
-          {showLogin ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <input
-                  type="email"
-                  placeholder="邮箱"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  placeholder="密码"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              {authError && (
-                <p className="text-red-500 text-sm">{authError}</p>
-              )}
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-4 py-4 text-white font-semibold shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-700 active:scale-95"
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
               >
-                <LogIn size={20} />
-                登录
-              </button>
-              <p className="text-center text-sm text-stone-500">
-                还没有账号？{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowLogin(false)}
-                  className="text-emerald-600 hover:underline"
-                >
-                  立即注册
-                </button>
-              </p>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  placeholder="姓名"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              <div>
-                <input
-                  type="email"
-                  placeholder="邮箱"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  placeholder="密码"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              {authError && (
-                <p className="text-red-500 text-sm">{authError}</p>
-              )}
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-4 py-4 text-white font-semibold shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-700 active:scale-95"
-              >
-                <UserPlus size={20} />
-                注册
-              </button>
-              <p className="text-center text-sm text-stone-500">
-                已有账号？{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowLogin(true)}
-                  className="text-emerald-600 hover:underline"
-                >
-                  立即登录
-                </button>
-              </p>
-            </form>
-          )}
+                {showLogin ? (
+                  <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <User size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="email"
+                          placeholder="请输入邮箱"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <LogIn size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="password"
+                          placeholder="请输入密码"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    {authError && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
+                      >
+                        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                        <p className="text-red-600 text-sm">{authError}</p>
+                      </motion.div>
+                    )}
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
+                    >
+                      <LogIn size={18} />
+                      登录
+                    </motion.button>
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-stone-500">
+                        还没有账号？{" "}
+                        <button
+                          type="button"
+                          onClick={() => setShowLogin(false)}
+                          className="text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                        >
+                          立即注册
+                        </button>
+                      </p>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleRegister} className="space-y-4 sm:space-y-5">
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <User size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="请输入姓名"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <User size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="email"
+                          placeholder="请输入邮箱"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <LogIn size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="password"
+                          placeholder="请输入密码"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    {authError && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
+                      >
+                        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                        <p className="text-red-600 text-sm">{authError}</p>
+                      </motion.div>
+                    )}
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
+                    >
+                      <UserPlus size={18} />
+                      注册
+                    </motion.button>
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-stone-500">
+                        已有账号？{" "}
+                        <button
+                          type="button"
+                          onClick={() => setShowLogin(true)}
+                          className="text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                        >
+                          立即登录
+                        </button>
+                      </p>
+                    </div>
+                  </form>
+                )}
+              </motion.div>
+            </div>
+          </div>
+          
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="mt-6 text-center"
+          >
+            <p className="text-xs sm:text-sm text-stone-400">
+              登录即表示同意我们的服务条款和隐私政策
+            </p>
+          </motion.div>
         </motion.div>
       </div>
     );

@@ -822,6 +822,30 @@ async function startServer() {
     }
   });
 
+  // 标记二级预警为教研组长已读
+  app.post("/api/warnings/:id/mark-dept-head-read", authMiddleware, (req: any, res) => {
+    try {
+      // 获取预警
+      const warnings = warningDb.getAll();
+      const warning = warnings.find(w => w.id === req.params.id);
+      
+      if (!warning) {
+        return res.status(404).json({ error: "预警不存在" });
+      }
+      
+      // 检查权限：只有教研组长、管理员和心理医生可以操作
+      if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权操作此预警" });
+      }
+      
+      // 标记为教研组长已读
+      warningDb.markDeptHeadAsRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "标记已读失败" });
+    }
+  });
+
   // 根据用户ID获取预警
   app.get("/api/warnings/user/:userId", authMiddleware, (req: any, res) => {
     try {
@@ -1375,7 +1399,7 @@ async function startServer() {
           totalWorkloadIndex: totalWorkloadIndex[index] !== undefined ? totalWorkloadIndex[index] : null
         }));
         
-        const latestIndex = classHours.length > 0 ? classHours.length - 1 : -1;
+        const latestIndex = classHours.length > 0 ? 0 : -1;
         res.json({
           classHours: latestIndex >= 0 ? classHours[latestIndex] : null,
           meetingHours: latestIndex >= 0 && meetingHours.length > 0 ? meetingHours[latestIndex] : null,
@@ -1813,6 +1837,16 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "删除评论失败" });
+    }
+  });
+
+  // 获取用户社群统计数据
+  app.get("/api/community/my-stats", authMiddleware, (req: any, res) => {
+    try {
+      const stats = communityDb.getUserCommunityStats(req.user.userId);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "获取社群统计失败" });
     }
   });
 
@@ -2619,7 +2653,8 @@ async function startServer() {
             '道法': '道法',
             '音乐': '音乐',
             '体育': '体育',
-            '美术': '美术'
+            '美术': '美术',
+            '信息科技': '信息科技'
           };
           const expectedDepartment = subjectMap[selectedSubject];
           if (expectedDepartment && !teacher.department?.includes(expectedDepartment)) return false;
@@ -2773,7 +2808,7 @@ async function startServer() {
       }
 
       const grades = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
-      const subjects = ['语文', '数学', '英语', '科学', '道法', '音乐', '体育', '美术'];
+      const subjects = ['语文', '数学', '英语', '科学', '道法', '音乐', '体育', '美术', '信息科技'];
       
       const riskHeatmap: any[] = [];
       
@@ -2787,7 +2822,8 @@ async function startServer() {
             '道法': '道法',
             '音乐': '音乐',
             '体育': '体育',
-            '美术': '美术'
+            '美术': '美术',
+            '信息科技': '信息科技'
           };
           
           const expectedDepartment = subjectMap[subject];
@@ -3417,7 +3453,7 @@ async function startServer() {
   app.post("/api/personal-info", authMiddleware, (req: any, res) => {
     try {
       const userId = req.user?.userId;
-      const { name, gender, phone, email, department, subject, grade, title, bio } = req.body;
+      const { name, gender, phone, email, department, subject, grade, title, bio, teachingExperience } = req.body;
       
       const user = userDb.findById(userId);
       if (!user) {
@@ -3436,7 +3472,8 @@ async function startServer() {
         department: subject || department || user.department,
         grade: grade || user.grade,
         title: title || user.title,
-        bio: bio || user.bio
+        bio: bio || user.bio,
+        teaching_experience: teachingExperience !== undefined ? teachingExperience : user.teaching_experience
       });
       
       // 如果是第一次填写，返回不需要审核；否则需要审核
@@ -3714,6 +3751,43 @@ async function startServer() {
     } catch (error) {
       console.error("更新用户角色失败:", error);
       res.status(500).json({ error: "更新用户角色失败" });
+    }
+  });
+
+  app.put("/api/admin/users/:userId", authMiddleware, (req: any, res) => {
+    try {
+      const currentUserId = req.user?.userId;
+      const targetUserId = req.params.userId;
+      const { name, email, subject, grade, teachingExperience, gender, phone } = req.body;
+      
+      const currentUser = userDb.findById(currentUserId);
+      if (!currentUser) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      if (currentUser.role !== 'admin') {
+        return res.status(403).json({ error: "无权限访问" });
+      }
+      
+      const targetUser = userDb.findById(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ error: "目标用户不存在" });
+      }
+      
+      userDb.update(targetUserId, {
+        display_name: name || targetUser.display_name,
+        email: email || targetUser.email,
+        department: subject || targetUser.department,
+        grade: grade || targetUser.grade,
+        teaching_experience: teachingExperience !== undefined ? teachingExperience : targetUser.teaching_experience,
+        gender: gender || targetUser.gender,
+        phone: phone || targetUser.phone
+      });
+      
+      res.json({ success: true, message: "用户信息更新成功" });
+    } catch (error) {
+      console.error("更新用户信息失败:", error);
+      res.status(500).json({ error: "更新用户信息失败" });
     }
   });
 

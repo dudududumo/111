@@ -34,6 +34,8 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     const fetchData = async () => {
       if (!profile) return;
       
+      let communityData: any = null;
+      
       try {
         const [physioRes, workloadRes, assessmentRes, toolUsageRes] = await Promise.all([
           fetch(`/api/physiological/${profile.uid}`, {
@@ -59,16 +61,32 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
         
         const loginFrequency = calculateLoginFrequency();
         const toolUsageMinutes = calculateToolUsageMinutes(toolUsageData);
-        const communityInteractions = 0;
         
         setBehavioralData({
           loginFrequency: loginFrequency,
           toolUsageMinutes: toolUsageMinutes,
-          communityInteractions: communityInteractions,
+          communityInteractions: 0,
           workload: workload
         });
 
         setAssessments(assessmentsData || []);
+        
+        setLoading(false);
+        
+        try {
+          const communityRes = await fetch(`/api/community/my-stats`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          communityData = await communityRes.json();
+          const communityInteractions = calculateCommunityInteractions(communityData);
+          
+          setBehavioralData(prev => prev ? {
+            ...prev,
+            communityInteractions: communityInteractions
+          } : prev);
+        } catch (communityErr) {
+          console.log("Community stats not available yet:", communityErr);
+        }
 
       } catch (err) {
         console.error("Error fetching profile data:", err);
@@ -83,7 +101,6 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
             totalWorkloadIndex: 0
           }
         });
-      } finally {
         setLoading(false);
       }
     };
@@ -121,11 +138,14 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
     return names[id] || id;
   };
 
-  const assessmentTrend = [...assessments].reverse().map(a => ({
-    date: new Date(a.timestamp).toLocaleDateString(),
-    score: a.scores?.total || 0,
-    type: getScaleName(a.type)
-  }));
+  const assessmentTrend = [...assessments]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map(a => ({
+      date: new Date(a.timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+      score: a.scores?.total || 0,
+      type: a.type,
+      typeName: getScaleName(a.type)
+    }));
 
   const calculateRadarData = () => {
     let emotionalState = 50;
@@ -171,17 +191,19 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
   const radarData = calculateRadarData();
 
   const hrvTrend = (physioData?.history && Array.isArray(physioData.history) && physioData.history.length > 0) 
-    ? physioData.history.map((item: any) => ({
-        name: item.date ? new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '未知',
-        hrv: item.hrv,
-        hr: item.restingHR || 70
-      })).filter((item: any) => item.hrv !== null && item.hrv !== undefined)
+    ? [...physioData.history]
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map((item: any) => ({
+          name: item.date ? new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '未知',
+          hrv: item.hrv,
+          hr: item.restingHR || 70
+        })).filter((item: any) => item.hrv !== null && item.hrv !== undefined)
     : [];
 
   const workloadData = [
     { name: '授课', value: behavioralData?.workload.classHours || 0, color: '#10b981' },
     { name: '会议', value: behavioralData?.workload.meetingHours || 0, color: '#059669' },
-    { name: '非教学', value: behavioralData?.workload.nonTeachingTasks || 0, color: '#34d399' },
+    { name: '非教学', value: behavioralData?.workload.nonTeachingTasks || 0, color: '#6ee7b7' },
   ];
 
   const activityData = [
@@ -190,12 +212,40 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
   ];
 
   const sleepData = (physioData?.history && Array.isArray(physioData.history) && physioData.history.length > 0)
-    ? physioData.history.map((item: any) => ({
-        name: item.date ? new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '未知',
-        sleepDuration: item.sleepDuration || 0,
-        deepSleepRatio: item.deepSleepRatio || 0
-      })).filter((item: any) => item.sleepDuration > 0 || item.deepSleepRatio > 0)
+    ? [...physioData.history]
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map((item: any) => ({
+          name: item.date ? new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '未知',
+          sleepDuration: item.sleepDuration || 0,
+          deepSleepRatio: item.deepSleepRatio || 0
+        })).filter((item: any) => item.sleepDuration > 0 || item.deepSleepRatio > 0)
     : [];
+
+  const getScaleColor = (type: string) => {
+    const colors: Record<string, string> = {
+      scl90: '#10b981',
+      sas: '#3b82f6',
+      sds: '#f59e0b',
+      mbi: '#ef4444',
+      phq9: '#8b5cf6',
+      gad7: '#ec4899'
+    };
+    return colors[type] || '#78716c';
+  };
+
+  const uniqueDates = [...new Set(assessmentTrend.map(item => item.date))];
+  const uniqueTypes = [...new Set(assessmentTrend.map(item => item.type))];
+  
+  const multiLineData = uniqueDates.map(date => {
+    const dataPoint: any = { date };
+    uniqueTypes.forEach(type => {
+      const item = assessmentTrend.find(a => a.date === date && a.type === type);
+      if (item) {
+        dataPoint[type] = item.score;
+      }
+    });
+    return dataPoint;
+  });
 
   return (
     <div className="space-y-6">
@@ -275,27 +325,41 @@ const PsychologicalProfile: React.FC<PsychologicalProfileProps> = ({ profile }) 
           transition={{ delay: 0.2 }}
           className="lg:col-span-2 bg-white p-6 rounded-[24px] border border-stone-100 shadow-sm"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={16} className="text-emerald-500" />
-            <h3 className="text-sm font-semibold text-stone-800">心理指标趋势</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-emerald-500" />
+              <h3 className="text-sm font-semibold text-stone-800">心理指标趋势</h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold">
+              {uniqueTypes.map(type => (
+                <span key={type} className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: getScaleColor(type) }} /> 
+                  {getScaleName(type).split(' ')[0]}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="h-[220px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={assessmentTrend} margin={{ left: 5, right: 5, top: 5, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#059669" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#059669" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+              <AreaChart data={multiLineData} margin={{ left: 5, right: 5, top: 5, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a8a29e', fontSize: 10 }} width={35} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  cursor={{ fill: 'rgba(5, 150, 105, 0.05)' }}
+                  formatter={(value: number, name: string) => [value, getScaleName(name)]}
                 />
-                <Area type="monotone" dataKey="score" stroke="#059669" strokeWidth={2.5} fill="url(#colorScore)" />
+                {uniqueTypes.map(type => (
+                  <Area 
+                    key={type}
+                    type="monotone" 
+                    dataKey={type} 
+                    stroke={getScaleColor(type)} 
+                    strokeWidth={2.5} 
+                    fill="transparent"
+                    connectNulls={true}
+                  />
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </div>

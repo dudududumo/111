@@ -591,6 +591,7 @@ export const personalInfoApi = {
     grade?: string;
     title?: string;
     bio?: string;
+    teachingExperience?: number;
   }) => {
     return fetchApi("/personal-info", {
       method: "POST",

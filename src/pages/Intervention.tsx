@@ -565,9 +565,13 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
   const handleAddActivity = async () => {
     if (!profile || !newActivity.title) return;
     try {
+      const activityToCreate = { 
+        ...newActivity, 
+        visibility: (profile.role === UserRole.ADMIN || profile.role === UserRole.PSYCHOLOGIST) ? 'school' : newActivity.visibility 
+      };
       await apiCall('/api/activities', {
         method: 'POST',
-        body: JSON.stringify(newActivity)
+        body: JSON.stringify(activityToCreate)
       });
       setShowAddActivity(false);
       setNewActivity({ title: "", type: "tea", description: "", date: "", location: "", visibility: "group", maxParticipants: 20 });
@@ -1831,10 +1835,9 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-stone-400 uppercase">可见范围</label>
                     {(profile?.role === UserRole.ADMIN || profile?.role === UserRole.PSYCHOLOGIST) ? (
-                      <select value={newActivity.visibility} onChange={(e) => setNewActivity({...newActivity, visibility: e.target.value as 'group' | 'school'})} className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm">
-                        <option value="group">本组可见</option>
-                        <option value="school">全校可见</option>
-                      </select>
+                      <div className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl text-sm text-stone-600">
+                        全校可见
+                      </div>
                     ) : (
                       <div className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl text-sm text-stone-600">
                         本组可见
