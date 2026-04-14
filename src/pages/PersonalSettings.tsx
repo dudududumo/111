@@ -1337,6 +1337,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <option value="体育">体育</option>
                       <option value="美术">美术</option>
                       <option value="信息科技">信息科技</option>
+                      <option value="心理健康">心理健康</option>
                     </select>
                     <BookOpen className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
                     <ChevronDown className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
@@ -1770,6 +1771,8 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       <option value="音乐">音乐</option>
                       <option value="体育">体育</option>
                       <option value="美术">美术</option>
+                      <option value="信息科技">信息科技</option>
+                      <option value="心理健康">心理健康</option>
                     </select>
                     <BookOpen className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />
                     <ChevronDown className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-stone-400 sm:w-3.5 sm:h-3.5" size={12} />

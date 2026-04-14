@@ -72,7 +72,7 @@ const AdminCockpit: React.FC<AdminCockpitProps> = ({ profile }) => {
   // const [suggestions, setSuggestions] = useState<any[]>([]);
 
   const grades = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"];
-  const subjects = ["语文", "数学", "英语", "科学", "道法", "音乐", "体育", "美术", "信息科技"];
+  const subjects = ["语文", "数学", "英语", "科学", "道法", "音乐", "体育", "美术", "信息科技", "心理健康"];
 
   useEffect(() => {
     fetchCockpitData();

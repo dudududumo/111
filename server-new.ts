@@ -87,7 +87,7 @@ async function startServer() {
         passwordHash,
         displayName,
         role: role || "teacher",
-        school,
+        school: school || "南部县第二小学",
         department
       });
 
@@ -2642,7 +2642,7 @@ async function startServer() {
         dateFilter = "AND timestamp >= datetime('now', '-90 days')";
       }
 
-      const allTeachers = userDb.getAll().filter(u => u.role === 'teacher' && u.school === '南部县第二小学');
+      const allTeachers = userDb.getAll().filter(u => u.role !== 'admin' && (u.school === '南部县第二小学' || u.school === '' || u.school === null));
       const filteredTeachers = allTeachers.filter(teacher => {
         if (selectedSubject !== 'all') {
           const subjectMap: Record<string, string> = {
@@ -2654,7 +2654,8 @@ async function startServer() {
             '音乐': '音乐',
             '体育': '体育',
             '美术': '美术',
-            '信息科技': '信息科技'
+            '信息科技': '信息科技',
+            '心理健康': '心理健康'
           };
           const expectedDepartment = subjectMap[selectedSubject];
           if (expectedDepartment && !teacher.department?.includes(expectedDepartment)) return false;
@@ -2706,10 +2707,9 @@ async function startServer() {
         ? Math.round((completedTasks.length / allInterventionTasks.length) * 100) 
         : 0;
 
-      const dateFilterClause = dateFilter ? `WHERE ${dateFilter.replace('AND ', '')}` : '';
       const allToolUsage = db.prepare(`
         SELECT * FROM tool_usage 
-        ${dateFilterClause}
+        WHERE user_id IN ('${teacherIds || ''}') ${dateFilter}
       `).all();
 
       const uniqueToolUsers = new Set(allToolUsage.map((u: any) => u.user_id));
@@ -2808,7 +2808,7 @@ async function startServer() {
       }
 
       const grades = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'];
-      const subjects = ['语文', '数学', '英语', '科学', '道法', '音乐', '体育', '美术', '信息科技'];
+      const subjects = ['语文', '数学', '英语', '科学', '道法', '音乐', '体育', '美术', '信息科技', '心理健康'];
       
       const riskHeatmap: any[] = [];
       
@@ -2823,7 +2823,8 @@ async function startServer() {
             '音乐': '音乐',
             '体育': '体育',
             '美术': '美术',
-            '信息科技': '信息科技'
+            '信息科技': '信息科技',
+            '心理健康': '心理健康'
           };
           
           const expectedDepartment = subjectMap[subject];
@@ -3100,7 +3101,9 @@ async function startServer() {
           '道法': '道法',
           '音乐': '音乐',
           '体育': '体育',
-          '美术': '美术'
+          '美术': '美术',
+          '信息科技': '信息科技',
+          '心理健康': '心理健康'
         };
         
         const expectedDepartment = subjectMap[subject];
@@ -3437,7 +3440,7 @@ async function startServer() {
         phone: user.phone || "",
         email: user.email || "",
         department: user.department || "",
-        subject: user.department || "", // department 就是学科
+        subject: user.subject || user.department || "", // 使用 user.subject，如果不存在则使用 user.department
         grade: user.grade || "",
         title: user.title || "",
         bio: user.bio || "",
@@ -3882,7 +3885,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
-    console.log(`Database: SQLite (mental_health.db)`);
+    console.log(`Database: SQLite (school_mental_health.db)`);
   });
 }
 
