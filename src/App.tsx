@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
-import { getCurrentUser, logout, login, register } from "./services/auth";
-import { userApi, notificationApi } from "./services/api";
+import { getCurrentUser, logout, login, register, forgotPassword } from "./services/auth";
+import { userApi, notificationApi, authApi } from "./services/api";
 import { UserProfile, UserRole } from "./types";
 import { 
   LayoutDashboard, 
@@ -17,7 +17,9 @@ import {
   Heart,
   UserPlus,
   ChevronRight,
-  User
+  User,
+  Mail,
+  CheckCircle
 } from "lucide-react";
 import NotificationDropdown from "./components/NotificationDropdown";
 import { motion, AnimatePresence } from "motion/react";
@@ -114,12 +116,14 @@ const App: React.FC = () => {
     localStorage.getItem('sidebarOpen') === 'false' ? false : true
   );
   const [showLogin, setShowLogin] = useState(true); // true = 登录, false = 注册
+  const [showForgotPassword, setShowForgotPassword] = useState(false); // true = 找回密码
   
   // 登录/注册表单状态
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [authError, setAuthError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   useEffect(() => {
     // 检查是否已登录
@@ -300,6 +304,26 @@ const App: React.FC = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setResetSuccess(false);
+    try {
+      // 调用后端的密码重置API
+      await forgotPassword(email);
+
+      // 显示成功消息
+      setResetSuccess(true);
+      
+      // 3秒后清空成功消息
+      setTimeout(() => {
+        setResetSuccess(false);
+      }, 3000);
+    } catch (error: any) {
+      setAuthError(error.message || "发送重置链接失败");
+    }
+  };
+
   const handleLogout = () => {
     logout();
     setUser(null);
@@ -356,8 +380,8 @@ const App: React.FC = () => {
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl blur-xl opacity-30"></div>
                     <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-300/50">
-                      <Heart size={40} sm={48} fill="white" className="text-white" />
-                    </div>
+              <Heart size={40} fill="white" className="text-white" />
+            </div>
                   </div>
                 </motion.div>
                 
@@ -385,7 +409,69 @@ const App: React.FC = () => {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
               >
-                {showLogin ? (
+                {showForgotPassword ? (
+                  <form onSubmit={(e) => handleForgotPassword(e)} className="space-y-4 sm:space-y-5">
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <User size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="email"
+                          placeholder="请输入注册时的邮箱"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    {authError && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
+                      >
+                        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                        <p className="text-red-600 text-sm">{authError}</p>
+                      </motion.div>
+                    )}
+                    
+                    {resetSuccess && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="flex items-center gap-2 px-4 py-3 bg-green-50 rounded-xl border border-green-100"
+                      >
+                        <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                        <p className="text-green-600 text-sm">密码重置链接已发送到您的邮箱，请查收</p>
+                      </motion.div>
+                    )}
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
+                    >
+                      <Mail size={18} />
+                      发送重置链接
+                    </motion.button>
+                    
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(false)}
+                        className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                      >
+                        返回登录
+                      </button>
+                    </div>
+                  </form>
+                ) : showLogin ? (
                   <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                     <div className="space-y-4">
                       <div className="relative group">
@@ -442,7 +528,14 @@ const App: React.FC = () => {
                       登录
                     </motion.button>
                     
-                    <div className="text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                      >
+                        忘记密码？
+                      </button>
                       <p className="text-sm text-stone-500">
                         还没有账号？{" "}
                         <button
@@ -606,7 +699,7 @@ const App: React.FC = () => {
             </button>
             <div className="flex-1 flex items-center justify-end px-4 gap-4">
               <span className="text-sm text-stone-500 hidden sm:block">{new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <NotificationDropdown />
+              <NotificationDropdown profile={profile} />
             </div>
           </header>
 
@@ -630,6 +723,16 @@ const App: React.FC = () => {
               </Routes>
             </AnimatePresence>
           </main>
+          
+          {/* Footer */}
+          <footer className="bg-white border-t border-stone-100 py-4 px-6 text-center text-xs text-stone-500">
+            <div className="flex items-center justify-center gap-4">
+              <span className="font-medium text-stone-700">南部县第二小学</span>
+              <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-stone-700 transition-colors">
+                蜀ICP备2026018222号-1
+              </a>
+            </div>
+          </footer>
         </div>
       </div>
     </Router>

@@ -3,6 +3,7 @@ import { Bell, CheckCircle, Clock, X, AlertTriangle, UserPlus, Sparkles, Chevron
 import { notificationApi, default as api } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { UserProfile } from '../types';
 
 interface Notification {
   id: string;
@@ -16,7 +17,11 @@ interface Notification {
   read_at: string | null;
 }
 
-const NotificationDropdown: React.FC = () => {
+interface NotificationDropdownProps {
+  profile: UserProfile | null;
+}
+
+const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -50,16 +55,32 @@ const NotificationDropdown: React.FC = () => {
       
       // 如果是预警通知且有 related_id，同步标记对应的预警为已读
       if (notification && notification.type === 'warning' && notification.related_id) {
-        // 判断是否是一级预警
-        const isLevel1 = notification.title === '【心理健康关怀】' || notification.content.includes('一级提醒');
-        
-        if (isLevel1) {
-          try {
-            await api.warning.markAsRead(notification.related_id);
-            console.log(`✅ 已同步标记预警 ${notification.related_id} 为已读`);
-          } catch (error) {
-            console.error('同步标记预警已读失败:', error);
+        try {
+          // 先获取预警详细信息，了解预警级别
+          const warning = await api.warning.getById(notification.related_id);
+          
+          // 判断预警级别
+          const isLevel1 = notification.title === '【心理健康关怀】' || notification.content.includes('一级提醒');
+          const isLevel2 = notification.title === '【心理健康关注】' || notification.content.includes('二级关注');
+          
+          if (isLevel1 || isLevel2) {
+            if (profile) {
+              // 检查是否是教师本人（不管是一级还是二级预警）
+              const isTeacherSelf = profile.uid === warning.user_id;
+              
+              if (isTeacherSelf) {
+                // 教师本人标记已读
+                await api.warning.markAsRead(notification.related_id);
+                console.log(`✅ 教师本人已同步标记预警 ${notification.related_id} 为已读`);
+              } else if (profile.role === 'dept_head') {
+                // 教研组长标记已读
+                await api.warning.markDeptHeadAsRead(notification.related_id);
+                console.log(`✅ 教研组长已同步标记预警 ${notification.related_id} 为已读`);
+              }
+            }
           }
+        } catch (error) {
+          console.error('同步标记预警已读失败:', error);
         }
       }
       
@@ -154,18 +175,9 @@ const NotificationDropdown: React.FC = () => {
       const unreadNotifications = notifications.filter(n => n.status === 'unread');
       await Promise.all(
         unreadNotifications.map(notification => 
-          notificationApi.markAsRead(notification.id)
+          markAsRead(notification.id)
         )
       );
-      // 更新本地状态
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.status === 'unread'
-            ? { ...notification, status: 'read', read_at: new Date().toISOString() }
-            : notification
-        )
-      );
-      setUnreadCount(0);
     } catch (error) {
       console.error('标记所有通知已读失败:', error);
     }

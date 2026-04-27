@@ -143,6 +143,14 @@ export const authApi = {
 
   // 检查是否已登录
   isAuthenticated: () => !!getToken(),
+  
+  // 忘记密码
+  forgotPassword: async (email: string) => {
+    return fetchApi("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
 };
 
 // ==================== 用户相关 API ====================
@@ -234,7 +242,7 @@ export const warningApi = {
   // 创建或更新预警（避免重复）
   upsert: async (data: {
     userId: string;
-    teacherName?: string;
+    teacherName: string;
     level: string;
     riskScore: number;
     factors: string[];
@@ -289,6 +297,18 @@ export const warningApi = {
     return fetchApi(`/warnings/${id}/mark-read`, {
       method: "POST",
     });
+  },
+  
+  // 标记二级预警为教研组长已读
+  markDeptHeadAsRead: async (id: string) => {
+    return fetchApi(`/warnings/${id}/mark-dept-head-read`, {
+      method: "POST",
+    });
+  },
+  
+  // 根据ID获取预警
+  getById: async (id: string) => {
+    return fetchApi(`/warnings/${id}`);
   },
 };
 

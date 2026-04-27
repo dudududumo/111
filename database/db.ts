@@ -467,10 +467,17 @@ export const assessmentDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO assessments (id, user_id, type, scores, raw_answers, risk_level, depression_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assessments (id, user_id, type, scores, raw_answers, risk_level, depression_score, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, assessment.userId, assessment.type, JSON.stringify(assessment.scores), JSON.stringify(assessment.rawAnswers), assessment.riskLevel, assessment.depressionScore !== undefined ? assessment.depressionScore : null);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    stmt.run(id, assessment.userId, assessment.type, JSON.stringify(assessment.scores), JSON.stringify(assessment.rawAnswers), assessment.riskLevel, assessment.depressionScore !== undefined ? assessment.depressionScore : null, localTimestamp);
     return id;
   },
 
@@ -507,15 +514,22 @@ export const warningDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO warnings (id, user_id, teacher_name, level, risk_score, factors, reason, status, response_log)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO warnings (id, user_id, teacher_name, level, risk_score, factors, reason, status, response_log, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const responseLog = JSON.stringify([{
       action: `系统自动触发${warning.level === 'level3' ? '三级紧急' : warning.level === 'level2' ? '二级关注' : '一级提醒'}预警并执行自动响应`,
       timestamp: new Date().toISOString(),
       actor: "LSTM 风险引擎"
     }]);
-    stmt.run(id, warning.userId, warning.teacherName || null, warning.level, warning.riskScore, JSON.stringify(warning.factors), warning.reason, 'active', responseLog);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    stmt.run(id, warning.userId, warning.teacherName || null, warning.level, warning.riskScore, JSON.stringify(warning.factors), warning.reason, 'active', responseLog, localTimestamp);
     return id;
   },
 
@@ -587,22 +601,33 @@ export const warningDb = {
 
   // 标记一级预警为已读
   markAsRead: (id: string) => {
-    const stmt = db.prepare('SELECT * FROM warnings WHERE id = ?');
-    const warning = stmt.get(id) as any;
+    // 直接更新预警状态，不进行权限检查
+    // 权限检查应该在 API 层进行
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    const updateStmt = db.prepare('UPDATE warnings SET read_at = ?, status = ? WHERE id = ? AND level = ?');
+    const result = updateStmt.run(localTimestamp, 'resolved', id, 'attention');
+    console.log('标记一级预警为已读:', { id, changes: result.changes });
     
-    if (warning) {
-      if (warning.level === 'attention') {
-        const updateStmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP, status = ? WHERE id = ?');
-        updateStmt.run('resolved', id);
-      } else if (warning.level === 'intervention') {
-        const updateStmt = db.prepare('UPDATE warnings SET read_at = CURRENT_TIMESTAMP WHERE id = ?');
-        updateStmt.run(id);
-        
+    // 如果是二级预警，只更新 read_at 字段
+    if (result.changes === 0) {
+      const updateInterventionStmt = db.prepare('UPDATE warnings SET read_at = ? WHERE id = ? AND level = ?');
+      const interventionResult = updateInterventionStmt.run(localTimestamp, id, 'intervention');
+      console.log('标记二级预警为已读:', { id, changes: interventionResult.changes });
+      
+      // 检查是否需要将二级预警标记为 resolved
+      if (interventionResult.changes > 0) {
         const checkStmt = db.prepare('SELECT read_at, dept_head_read_at FROM warnings WHERE id = ?');
         const updatedWarning = checkStmt.get(id) as any;
         if (updatedWarning.read_at && updatedWarning.dept_head_read_at) {
           const resolveStmt = db.prepare('UPDATE warnings SET status = ? WHERE id = ?');
           resolveStmt.run('resolved', id);
+          console.log('二级预警已全部已读，标记为已解决:', id);
         }
       }
     }
@@ -614,8 +639,15 @@ export const warningDb = {
     const warning = stmt.get(id) as any;
     
     if (warning && warning.level === 'intervention') {
-      const updateStmt = db.prepare('UPDATE warnings SET dept_head_read_at = CURRENT_TIMESTAMP WHERE id = ?');
-      updateStmt.run(id);
+      const now = new Date();
+      const localTimestamp = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0') + ' ' +
+        String(now.getHours()).padStart(2, '0') + ':' +
+        String(now.getMinutes()).padStart(2, '0') + ':' +
+        String(now.getSeconds()).padStart(2, '0');
+      const updateStmt = db.prepare('UPDATE warnings SET dept_head_read_at = ? WHERE id = ?');
+      updateStmt.run(localTimestamp, id);
       
       const checkStmt = db.prepare('SELECT read_at, dept_head_read_at FROM warnings WHERE id = ?');
       const updatedWarning = checkStmt.get(id) as any;
@@ -861,10 +893,17 @@ export const diaryDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO diary_entries (id, user_id, content, mood, tags, image_url)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO diary_entries (id, user_id, content, mood, tags, image_url, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, diary.userId, diary.content, diary.mood, JSON.stringify(diary.tags || []), diary.imageUrl || null);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    stmt.run(id, diary.userId, diary.content, diary.mood, JSON.stringify(diary.tags || []), diary.imageUrl || null, localTimestamp);
     return id;
   },
 
@@ -890,10 +929,17 @@ export const taskDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO user_tasks (id, user_id, title, quadrant)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO user_tasks (id, user_id, title, quadrant, created_at)
+      VALUES (?, ?, ?, ?, ?)
     `);
-    stmt.run(id, task.userId, task.title, task.quadrant);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    stmt.run(id, task.userId, task.title, task.quadrant, localTimestamp);
     return id;
   },
 
@@ -937,10 +983,17 @@ export const toolUsageDb = {
       const id = uuidv4();
       console.log('数据库插入工具使用记录:', { id, ...usage });
       const stmt = db.prepare(`
-        INSERT INTO tool_usage (id, user_id, tool_id, duration, feeling)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO tool_usage (id, user_id, tool_id, duration, feeling, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
-      const result = stmt.run(id, usage.userId, usage.toolId, usage.duration ?? null, usage.feeling ?? null);
+      const now = new Date();
+      const localTimestamp = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0') + ' ' +
+        String(now.getHours()).padStart(2, '0') + ':' +
+        String(now.getMinutes()).padStart(2, '0') + ':' +
+        String(now.getSeconds()).padStart(2, '0');
+      const result = stmt.run(id, usage.userId, usage.toolId, usage.duration ?? null, usage.feeling ?? null, localTimestamp);
       console.log('数据库插入结果:', result);
       return id;
     } catch (error) {
@@ -965,13 +1018,20 @@ export const toolRatingDb = {
   }) => {
     try {
       const id = uuidv4();
+      const now = new Date();
+      const localTimestamp = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0') + ' ' +
+        String(now.getHours()).padStart(2, '0') + ':' +
+        String(now.getMinutes()).padStart(2, '0') + ':' +
+        String(now.getSeconds()).padStart(2, '0');
       const stmt = db.prepare(`
         INSERT INTO tool_ratings (id, user_id, tool_id, rating, timestamp)
-        VALUES (?, ?, ?, ?, datetime('now'))
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(user_id, tool_id) 
         DO UPDATE SET rating = excluded.rating, timestamp = excluded.timestamp
       `);
-      const result = stmt.run(id, rating.userId, rating.toolId, rating.rating);
+      const result = stmt.run(id, rating.userId, rating.toolId, rating.rating, localTimestamp);
       console.log('数据库插入/更新工具评分记录:', result);
       return id;
     } catch (error) {
@@ -1026,11 +1086,18 @@ export const communityDb = {
     identities?: string[];
   }) => {
     const id = uuidv4();
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     const stmt = db.prepare(`
-      INSERT INTO community_posts (id, author_id, content, topic, identity, identities, liked_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO community_posts (id, author_id, content, topic, identity, identities, liked_by, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, post.authorId, post.content, post.topic, post.identity || null, post.identities ? JSON.stringify(post.identities) : null, JSON.stringify([]));
+    stmt.run(id, post.authorId, post.content, post.topic, post.identity || null, post.identities ? JSON.stringify(post.identities) : null, JSON.stringify([]), localTimestamp);
     
     // 返回完整的帖子对象
     return {
@@ -1044,7 +1111,7 @@ export const communityDb = {
       liked_by: [],
       is_flagged: false,
       is_moderator: false,
-      timestamp: new Date().toISOString()
+      timestamp: localTimestamp
     };
   },
 
@@ -1061,11 +1128,18 @@ export const communityDb = {
     content: string;
   }) => {
     const id = uuidv4();
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     const stmt = db.prepare(`
-      INSERT INTO community_comments (id, post_id, author_id, content)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO community_comments (id, post_id, author_id, content, timestamp)
+      VALUES (?, ?, ?, ?, ?)
     `);
-    stmt.run(id, comment.postId, comment.authorId, comment.content);
+    stmt.run(id, comment.postId, comment.authorId, comment.content, localTimestamp);
     
     // 返回完整的评论对象
     return {
@@ -1074,7 +1148,7 @@ export const communityDb = {
       author_id: comment.authorId,
       content: comment.content,
       is_moderator: false,
-      timestamp: new Date().toISOString()
+      timestamp: localTimestamp
     };
   },
 
@@ -1169,9 +1243,16 @@ export const physiologicalDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO physiological_data (id, user_id, hrv, resting_hr, sleep_duration, deep_sleep_ratio, activity_level, timestamps)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO physiological_data (id, user_id, hrv, resting_hr, sleep_duration, deep_sleep_ratio, activity_level, timestamps, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     stmt.run(
       id, 
       data.userId, 
@@ -1180,7 +1261,8 @@ export const physiologicalDb = {
       data.sleepDuration ? JSON.stringify(data.sleepDuration) : null, 
       data.deepSleepRatio ? JSON.stringify(data.deepSleepRatio) : null, 
       data.activityLevel ? JSON.stringify(data.activityLevel) : null, 
-      data.timestamps ? JSON.stringify(data.timestamps) : null
+      data.timestamps ? JSON.stringify(data.timestamps) : null,
+      localTimestamp
     );
     return id;
   },
@@ -1202,13 +1284,20 @@ export const workloadDb = {
     timestamps?: any;
   }) => {
     const id = uuidv4();
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     
     const existing = db.prepare('SELECT * FROM workload_data WHERE user_id = ?').get(data.userId) as any;
     
     if (existing) {
       const stmt = db.prepare(`
         UPDATE workload_data 
-        SET class_hours = ?, meeting_hours = ?, non_teaching_tasks = ?, total_workload_index = ?, timestamps = ?
+        SET class_hours = ?, meeting_hours = ?, non_teaching_tasks = ?, total_workload_index = ?, timestamps = ?, recorded_at = ?
         WHERE user_id = ?
       `);
       stmt.run(
@@ -1217,20 +1306,22 @@ export const workloadDb = {
         data.nonTeachingTasks ? JSON.stringify(data.nonTeachingTasks) : null, 
         data.totalWorkloadIndex ? JSON.stringify(data.totalWorkloadIndex) : null,
         data.timestamps ? JSON.stringify(data.timestamps) : null,
+        localTimestamp,
         data.userId
       );
       return existing.id;
     } else {
       const stmt = db.prepare(`
-        INSERT INTO workload_data (id, user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index, timestamps)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO workload_data (id, user_id, class_hours, meeting_hours, non_teaching_tasks, total_workload_index, timestamps, recorded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(id, data.userId, 
         data.classHours ? JSON.stringify(data.classHours) : null, 
         data.meetingHours ? JSON.stringify(data.meetingHours) : null, 
         data.nonTeachingTasks ? JSON.stringify(data.nonTeachingTasks) : null, 
         data.totalWorkloadIndex ? JSON.stringify(data.totalWorkloadIndex) : null, 
-        data.timestamps ? JSON.stringify(data.timestamps) : null
+        data.timestamps ? JSON.stringify(data.timestamps) : null,
+        localTimestamp
       );
       return id;
     }
@@ -1260,9 +1351,16 @@ export const activityDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO activities (id, group_id, title, type, description, date, location, created_by, created_by_role, visibility, max_participants, participants)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO activities (id, group_id, title, type, description, date, location, created_by, created_by_role, visibility, max_participants, participants, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     stmt.run(
       id,
       activity.groupId,
@@ -1275,7 +1373,8 @@ export const activityDb = {
       activity.createdByRole,
       activity.visibility,
       activity.maxParticipants || null,
-      JSON.stringify(activity.participants)
+      JSON.stringify(activity.participants),
+      localTimestamp
     );
     return id;
   },
@@ -1423,9 +1522,16 @@ export const teamResourceDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO team_resources (id, group_id, title, description, content, file_url, created_by, created_by_role, visibility)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO team_resources (id, group_id, title, description, content, file_url, created_by, created_by_role, visibility, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     stmt.run(
       id,
       resource.groupId,
@@ -1435,7 +1541,8 @@ export const teamResourceDb = {
       resource.fileUrl || null,
       resource.createdBy,
       resource.createdByRole,
-      resource.visibility
+      resource.visibility,
+      localTimestamp
     );
     return id;
   },
@@ -1505,10 +1612,17 @@ export const interventionTaskDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO intervention_tasks (id, warning_id, teacher_id, teacher_name, assigned_to, status, priority, care_records)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO intervention_tasks (id, warning_id, teacher_id, teacher_name, assigned_to, status, priority, care_records, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, task.warningId || null, task.teacherId, task.teacherName || null, task.assignedTo || null, task.status, task.priority, JSON.stringify([]));
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    stmt.run(id, task.warningId || null, task.teacherId, task.teacherName || null, task.assignedTo || null, task.status, task.priority, JSON.stringify([]), localTimestamp);
     return id;
   },
 
@@ -1601,10 +1715,17 @@ export const notificationDb = {
     const id = uuidv4();
     console.log('数据库创建通知:', { id, ...notification });
     const stmt = db.prepare(`
-      INSERT INTO notifications (id, user_id, type, title, content, related_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO notifications (id, user_id, type, title, content, related_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(id, notification.userId, notification.type, notification.title, notification.content, notification.relatedId || null);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    const result = stmt.run(id, notification.userId, notification.type, notification.title, notification.content, notification.relatedId || null, localTimestamp);
     console.log('数据库创建通知结果:', result);
     return id;
   },
@@ -1617,8 +1738,15 @@ export const notificationDb = {
 
   // 标记通知为已读
   markAsRead: (id: string) => {
-    const stmt = db.prepare('UPDATE notifications SET status = ?, read_at = datetime(\'now\') WHERE id = ?');
-    const result = stmt.run('read', id);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    const stmt = db.prepare('UPDATE notifications SET status = ?, read_at = ? WHERE id = ?');
+    const result = stmt.run('read', localTimestamp, id);
     console.log('数据库标记通知已读结果:', result);
     return result.changes > 0;
   },
@@ -1677,9 +1805,16 @@ export const resourceDb = {
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO mental_resources (id, title, type, description, tags, contact, location, image_url, is_verified, agreement_signed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO mental_resources (id, title, type, description, tags, contact, location, image_url, is_verified, agreement_signed, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
     stmt.run(
       id,
       resource.title,
@@ -1690,7 +1825,8 @@ export const resourceDb = {
       resource.location || null,
       resource.imageUrl || null,
       resource.isVerified ? 1 : 0,
-      resource.agreementSigned ? 1 : 0
+      resource.agreementSigned ? 1 : 0,
+      localTimestamp
     );
     return id;
   },
@@ -1779,9 +1915,17 @@ export const appointmentDb = {
     }
     
     const id = uuidv4();
+    const now = new Date();
+    const localTimestamp = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    
     const stmt = db.prepare(`
-      INSERT INTO resource_appointments (id, user_id, resource_id, resource_title, appointment_date, appointment_time, notes, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+      INSERT INTO resource_appointments (id, user_id, resource_id, resource_title, appointment_date, appointment_time, notes, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
     `);
     stmt.run(
       id,
@@ -1790,7 +1934,9 @@ export const appointmentDb = {
       appointment.resourceTitle,
       appointment.appointmentDate || null,
       appointment.appointmentTime || null,
-      appointment.notes || null
+      appointment.notes || null,
+      localTimestamp,
+      localTimestamp
     );
     return id;
   },

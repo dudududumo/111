@@ -55,6 +55,11 @@ export const getCurrentUser = async (): Promise<User | null> => {
 // 检查是否已登录
 export const isAuthenticated = () => authApi.isAuthenticated();
 
+// 忘记密码
+export const forgotPassword = async (email: string) => {
+  return await authApi.forgotPassword(email);
+};
+
 // 监听认证状态变化（模拟 Firebase 的 onAuthStateChanged）
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   // 立即检查一次

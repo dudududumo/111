@@ -60,6 +60,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -129,7 +130,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
             factors: Array.isArray(warning.factors) ? warning.factors : [],
             reason: warning.reason || '',
             status,
-            timestamp: warning.created_at || new Date().toISOString()
+            timestamp: warning.timestamp || new Date().toISOString()
           };
         });
         
@@ -288,8 +289,16 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
   const userRole = profile?.role || UserRole.TEACHER;
 
   const filteredWarnings = warnings.filter(w => {
-    if (filter === "all") return true;
-    return w.level === filter;
+    // 按预警级别过滤
+    const levelMatch = filter === "all" || w.level === filter;
+    
+    // 按搜索词过滤
+    const searchMatch = 
+      searchTerm.trim() === "" || 
+      w.teacherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      w.id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return levelMatch && searchMatch;
   });
 
   const stats = {
@@ -541,7 +550,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
             factors: Array.isArray(warning.factors) ? warning.factors : [],
             reason: warning.reason || '',
             status,
-            timestamp: warning.created_at || new Date().toISOString()
+            timestamp: warning.timestamp || new Date().toISOString()
           };
         });
         
@@ -667,6 +676,8 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                   <input 
                     type="text" 
                     placeholder="搜索教师姓名或预警编号..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 bg-stone-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-stone-200"
                   />
                 </div>
@@ -801,38 +812,6 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                               </div>
                             </div>
                             <div className="flex flex-col gap-3">
-                              {/* 一级预警：显示已读按钮（只有教师自己能看到） */}
-                              {selectedWarning.level === 'level1' && selectedWarning.status !== 'resolved' && profile?.uid === selectedWarning.uid && (
-                                <button 
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    try {
-                                      await api.warning.markAsRead(selectedWarning.id!);
-                                      // 更新本地状态
-                                      const updatedWarnings = warnings.map(warning => 
-                                        warning.id === selectedWarning.id ? { ...warning, status: 'resolved' as const } : warning
-                                      );
-                                      setWarnings(updatedWarnings);
-                                      setSelectedWarning({ ...selectedWarning, status: 'resolved' });
-                                      showModal({
-                                        type: "success",
-                                        title: "已读确认",
-                                        message: "感谢您的关注！系统已记录您已阅读此提醒。"
-                                      });
-                                    } catch (error) {
-                                      console.error('标记已读失败:', error);
-                                      showModal({
-                                        type: "error",
-                                        title: "操作失败",
-                                        message: "标记已读失败，请稍后重试。"
-                                      });
-                                    }
-                                  }}
-                                  className="w-full py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
-                                >
-                                  <CheckCircle size={18} /> 确认已读
-                                </button>
-                              )}
                               
                               {/* 显示响应状态 */}
                               <div className={`p-4 rounded-2xl border ${

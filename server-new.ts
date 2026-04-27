@@ -178,6 +178,70 @@ async function startServer() {
     }
   });
 
+  // 发送密码重置链接
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      // 设置响应头
+      res.setHeader('Content-Type', 'application/json');
+      
+      const { email } = req.body;
+      
+      // 查找用户
+      const user = userDb.findByEmail(email);
+      if (!user) {
+        // 为了安全，即使邮箱不存在也返回成功消息
+        return res.json({ success: true, message: "密码重置链接已发送到您的邮箱，请查收" });
+      }
+
+      // 生成重置令牌（有效期1小时）
+      const resetToken = jwt.sign(
+        { userId: user.id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+
+      // 模拟发送邮件（实际应用中应该使用邮件服务）
+      console.log(`发送密码重置链接到 ${email}，令牌：${resetToken}`);
+
+      res.json({ success: true, message: "密码重置链接已发送到您的邮箱，请查收" });
+    } catch (error) {
+      console.error("发送密码重置链接错误:", error);
+      res.status(500).json({ error: "发送重置链接失败" });
+    }
+  });
+
+  // 重置密码
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      
+      // 验证令牌
+      let decoded;
+      try {
+        decoded = jwt.verify(token, JWT_SECRET);
+      } catch (error) {
+        return res.status(401).json({ error: "无效的重置链接" });
+      }
+
+      // 查找用户
+      const user = userDb.findById(decoded.userId);
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+
+      // 加密新密码
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      // 更新密码
+      userDb.update(user.id, { passwordHash });
+
+      res.json({ success: true, message: "密码重置成功" });
+    } catch (error) {
+      console.error("重置密码错误:", error);
+      res.status(500).json({ error: "重置密码失败" });
+    }
+  });
+
   // 获取当前用户信息
   app.get("/api/auth/me", authMiddleware, (req: any, res) => {
     try {
@@ -302,7 +366,20 @@ async function startServer() {
       if (!user) {
         return res.status(404).json({ error: "用户不存在" });
       }
-      res.json(user);
+      res.json({
+        id: user.id,
+        email: user.email,
+        displayName: user.display_name,
+        role: user.role,
+        school: user.school,
+        department: user.department,
+        deptId: user.dept_id,
+        managerId: user.manager_id,
+        consentAccepted: user.consent_accepted,
+        wearableBrand: user.wearable_brand,
+        syncFrequency: user.sync_frequency,
+        favoriteTools: user.favorite_tools ? JSON.parse(user.favorite_tools) : []
+      });
     } catch (error) {
       res.status(500).json({ error: "获取用户信息失败" });
     }
@@ -799,6 +876,44 @@ async function startServer() {
   });
 
   // 标记一级预警为已读（用户自己操作）
+  // 根据ID获取预警
+  app.get("/api/warnings/:id", authMiddleware, (req: any, res) => {
+    try {
+      const warnings = warningDb.getAll();
+      const warning = warnings.find(w => w.id === req.params.id);
+      
+      if (!warning) {
+        return res.status(404).json({ error: "预警不存在" });
+      }
+      
+      res.json(warning);
+    } catch (error) {
+      console.error("获取预警详情失败:", error);
+      res.status(500).json({ error: "获取预警详情失败" });
+    }
+  });
+  
+  // 标记二级预警为教研组长已读
+  app.post("/api/warnings/:id/mark-dept-head-read", authMiddleware, (req: any, res) => {
+    try {
+      const warnings = warningDb.getAll();
+      const warning = warnings.find(w => w.id === req.params.id);
+      
+      if (!warning) {
+        return res.status(404).json({ error: "预警不存在" });
+      }
+      
+      // 标记为教研组长已读
+      console.log('开始标记二级预警为教研组长已读:', req.params.id);
+      warningDb.markDeptHeadAsRead(req.params.id);
+      console.log('标记二级预警为教研组长已读成功:', req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("标记教研组长已读失败:", error);
+      res.status(500).json({ error: "标记失败" });
+    }
+  });
+  
   app.post("/api/warnings/:id/mark-read", authMiddleware, (req: any, res) => {
     try {
       // 获取预警
@@ -809,15 +924,13 @@ async function startServer() {
         return res.status(404).json({ error: "预警不存在" });
       }
       
-      // 检查权限：只有预警的创建者（教师本人）可以标记为已读
-      if (warning.user_id !== req.user.userId) {
-        return res.status(403).json({ error: "无权操作此预警" });
-      }
-      
       // 标记为已读
+      console.log('开始标记预警为已读:', req.params.id);
       warningDb.markAsRead(req.params.id);
+      console.log('标记预警为已读成功:', req.params.id);
       res.json({ success: true });
     } catch (error) {
+      console.error('标记已读失败:', error);
       res.status(500).json({ error: "标记已读失败" });
     }
   });
@@ -843,6 +956,37 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "标记已读失败" });
+    }
+  });
+
+  // 更新预警状态
+  app.patch("/api/warnings/:id/status", authMiddleware, (req: any, res) => {
+    try {
+      // 获取预警
+      const warnings = warningDb.getAll();
+      const warning = warnings.find(w => w.id === req.params.id);
+      
+      if (!warning) {
+        return res.status(404).json({ error: "预警不存在" });
+      }
+      
+      // 检查权限：只有管理员、心理医生和教研组长可以更新状态
+      if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
+        return res.status(403).json({ error: "无权操作此预警" });
+      }
+      
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "缺少状态参数" });
+      }
+      
+      // 更新预警状态
+      warningDb.update(req.params.id, { status });
+      console.log(`预警 ${req.params.id} 状态更新为 ${status}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('更新预警状态失败:', error);
+      res.status(500).json({ error: "更新预警状态失败" });
     }
   });
 
@@ -3798,7 +3942,10 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        allowedHosts: ['localhost', 'xqjsgh.cn', 'www.xqjsgh.cn']
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

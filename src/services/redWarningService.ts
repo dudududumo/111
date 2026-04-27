@@ -1,7 +1,7 @@
 // 红色预警模块核心服务
 // 基于LSTM的风险识别与自动响应
 
-import api from "./api";
+import api, { warningApi, userApi } from "./api";
 import { Warning, UserProfile } from "../types";
 
 // 预警级别定义
@@ -114,6 +114,8 @@ interface InputFeatures {
   hrvData: number[]; // HRV指标时序数据
   activityChangeRate: number; // 近一周行为活跃度变化率
   workloadIndex: number; // 工作量负荷指数
+  // 新增：带有时间戳的测评数据
+  assessmentScoresWithTimestamps?: Array<{ score: number; timestamp: string }>;
   // 新增：生理数据
   physiologicalData?: {
     hrv?: number; // HRV值
@@ -182,8 +184,23 @@ export const predictRiskWithLSTM = (features: InputFeatures, configs?: WarningCo
   if (latestScore >= level3DepressionThreshold) {
     baseRisk = 0.95; // 极高风险
   } else if (latestScore >= level2DepressionThreshold) {
-    // 检查是否连续
-    const hasConsecutive = recentScores.length >= 2 && recentScores.every(score => score >= level2DepressionThreshold);
+    // 检查是否连续（需要至少两周的时间间隔）
+    let hasConsecutive = false;
+    if (recentScores.length >= 2) {
+      // 检查最近两次测评的时间间隔是否至少为一周
+      const latestAssessment = features.assessmentScoresWithTimestamps?.[0];
+      const previousAssessment = features.assessmentScoresWithTimestamps?.[1];
+      
+      if (latestAssessment && previousAssessment) {
+        const latestDate = new Date(latestAssessment.timestamp);
+        const previousDate = new Date(previousAssessment.timestamp);
+        const daysBetween = (latestDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24);
+        hasConsecutive = daysBetween >= 7 && recentScores.every(score => score >= level2DepressionThreshold);
+      } else {
+        // 如果没有时间戳信息，使用旧的逻辑
+        hasConsecutive = recentScores.every(score => score >= level2DepressionThreshold);
+      }
+    }
     baseRisk = hasConsecutive ? 0.8 : 0.7; // 连续更高风险
   } else if (latestScore >= level1DepressionThreshold) {
     baseRisk = 0.6; // 中等风险
@@ -476,37 +493,7 @@ export const analyzeTeacherRisk = async (
       };
     }
     
-    const inputFeatures: InputFeatures = {
-      assessmentScores,
-      hrvData: [],
-      activityChangeRate: 0,
-      workloadIndex: 0,
-      physiologicalData,
-      behavioralData
-    };
-    
-    // 6. 使用LSTM模型预测风险（传入配置）
-    const riskScore = predictRiskWithLSTM(inputFeatures, configs);
-    
-    // 使用提供的配置或默认配置
-    const warningConfigs = configs || WARNING_CONFIGS;
-    const level1Config = warningConfigs.find(c => c.level === 'level1');
-    const level2Config = warningConfigs.find(c => c.level === 'level2');
-    const level3Config = warningConfigs.find(c => c.level === 'level3');
-    
-    // 7. 检查抑郁因子分触发条件（使用配置的变量）
-    // 从variables中提取阈值，如果不存在则使用默认值
-    const level1DepressionThreshold = level1Config?.variables?.depressionThreshold ?? 2.0;
-    const level1RiskThreshold = level1Config?.variables?.riskThreshold ?? 0.6;
-    const level2DepressionThreshold = level2Config?.variables?.depressionThreshold ?? 2.0;
-    const level2RiskThreshold = level2Config?.variables?.riskThreshold ?? 0.7;
-    const level3DepressionThreshold = level3Config?.variables?.depressionThreshold ?? 2.5;
-    const level3RiskThreshold = level3Config?.variables?.riskThreshold ?? 0.8;
-    
-    // 获取连续次数要求
-    const level2ConsecutiveCount = level2Config?.variables?.consecutiveWeeks ?? 1;
-    
-    // 计算抑郁因子分
+    // 计算抑郁因子分 - 必须在使用之前定义
     const getDepressionScore = (assessment: any): number => {
       try {
         // 优先使用数据库中存储的抑郁因子分
@@ -560,14 +547,128 @@ export const analyzeTeacherRisk = async (
       }
     };
     
+    // 使用提供的配置或默认配置
+    const warningConfigs = configs || WARNING_CONFIGS;
+    const level1Config = warningConfigs.find(c => c.level === 'level1');
+    const level2Config = warningConfigs.find(c => c.level === 'level2');
+    const level3Config = warningConfigs.find(c => c.level === 'level3');
+    
+    // 检查抑郁因子分触发条件（使用配置的变量）
+    // 从variables中提取阈值，如果不存在则使用默认值
+    const level1DepressionThreshold = level1Config?.variables?.depressionThreshold ?? 2.0;
+    const level1RiskThreshold = level1Config?.variables?.riskThreshold ?? 0.6;
+    const level2DepressionThreshold = level2Config?.variables?.depressionThreshold ?? 2.0;
+    const level2RiskThreshold = level2Config?.variables?.riskThreshold ?? 0.7;
+    const level3DepressionThreshold = level3Config?.variables?.depressionThreshold ?? 2.5;
+    const level3RiskThreshold = level3Config?.variables?.riskThreshold ?? 0.8;
+    
+    // 获取连续次数要求，确保至少为 1
+    const level2ConsecutiveCount = Math.max(1, level2Config?.variables?.consecutiveWeeks ?? 1);
+    
+    // 构建输入特征
+    const inputFeatures: any = {
+      assessmentScores,
+      hrvData: [],
+      activityChangeRate: 0,
+      workloadIndex: 0,
+      assessmentScoresWithTimestamps: assessments.map(a => ({
+        score: getDepressionScore(a),
+        timestamp: a.timestamp
+      })),
+      physiologicalData,
+      behavioralData
+    };
+    
+    // 使用LSTM模型预测风险（传入配置）
+    const riskScore = predictRiskWithLSTM(inputFeatures, configs);
+    
     // 只使用最新的评估记录来判断预警触发条件（因为数据是按时间倒序排列的）
     const hasHighDepression = assessmentScores.length > 0 && assessmentScores[0] >= level1DepressionThreshold;
     
     const hasVeryHighDepression = assessmentScores.length > 0 && assessmentScores[0] >= level3DepressionThreshold;
     
-    const hasConsecutiveHighDepression = assessmentScores.length >= 2 && 
-      assessmentScores[0] >= level2DepressionThreshold && 
-      assessmentScores[1] >= level2DepressionThreshold;
+    // 检查是否有连续两周的高抑郁因子分
+    let hasConsecutiveHighDepression = false;
+    console.log(`开始检查连续高抑郁因子分，教师: ${teacherName}，测评数量: ${assessments.length}`);
+    if (assessments.length >= 2) {
+      // 确保测评数据按时间顺序排序（最新的在前）
+      const sortedAssessments = [...assessments].sort((a, b) => {
+        const dateA = new Date(a.timestamp).getTime();
+        const dateB = new Date(b.timestamp).getTime();
+        return dateB - dateA; // 降序排序
+      });
+      
+      // 过滤出近 4 周的测评
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const recentAssessments = sortedAssessments.filter(a => new Date(a.timestamp) >= fourWeeksAgo);
+      
+      // 过滤出不同天的测评，只保留每天的最新测评
+      const dailyAssessments: any[] = [];
+      const processedDates = new Set<string>();
+      
+      for (const assessment of recentAssessments) {
+        const date = new Date(assessment.timestamp).toISOString().split('T')[0];
+        if (!processedDates.has(date)) {
+          processedDates.add(date);
+          dailyAssessments.push(assessment);
+        }
+      }
+      
+      console.log(`过滤后的测评数据:`, {
+        sortedAssessmentsCount: sortedAssessments.length,
+        recentAssessmentsCount: recentAssessments.length,
+        dailyAssessmentsCount: dailyAssessments.length,
+        processedDates: Array.from(processedDates)
+      });
+      
+      // 检查是否有至少两天的测评，并且时间间隔至少为一周
+      if (dailyAssessments.length >= 2) {
+        // 检查是否所有测评的抑郁因子分都超过了阈值，并且至少有一个测评的抑郁因子分大于 0
+        const depressionScores = dailyAssessments.map(a => getDepressionScore(a));
+        const allScoresAboveThreshold = depressionScores.every(score => score >= level2DepressionThreshold) && depressionScores.some(score => score > 0);
+        
+        // 检查测评的时间范围是否至少为管理员设置的连续周数
+        const earliestAssessment = dailyAssessments[dailyAssessments.length - 1];
+        const latestAssessment = dailyAssessments[0];
+        const earliestDate = new Date(earliestAssessment.timestamp);
+        const latestDate = new Date(latestAssessment.timestamp);
+        const daysBetween = (latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24);
+        const requiredDays = level2ConsecutiveCount * 7; // 转换为天数
+        
+        // 只有当所有测评的抑郁因子分都超过了阈值，并且时间间隔至少为一周时，才认为是连续的高抑郁因子分
+        hasConsecutiveHighDepression = allScoresAboveThreshold && daysBetween >= requiredDays;
+        
+        console.log(`连续高抑郁因子分检查:`, {
+          teacherName,
+          allScoresAboveThreshold,
+          depressionScores,
+          level2DepressionThreshold,
+          daysBetween,
+          requiredDays,
+          level2ConsecutiveCount,
+          hasConsecutiveHighDepression,
+          latestDate: latestDate.toISOString(),
+          earliestDate: earliestDate.toISOString(),
+          dailyAssessmentsCount: dailyAssessments.length,
+          recentAssessmentsCount: recentAssessments.length
+        });
+      } else {
+        console.log(`连续高抑郁因子分检查: 教师 ${teacherName} 只有 ${dailyAssessments.length} 天的测评数据，不满足连续要求`);
+      }
+    } else {
+      console.log(`连续高抑郁因子分检查: 教师 ${teacherName} 只有 ${assessments.length} 条测评，不满足至少 2 条的要求`);
+    }
+    
+    // 输出最终的 hasConsecutiveHighDepression 值
+    console.log(`最终的 hasConsecutiveHighDepression 值:`, hasConsecutiveHighDepression);
+    
+    // 检查 riskScore 是否达到二级预警阈值
+    console.log(`风险分数检查:`, {
+      riskScore,
+      level2RiskThreshold,
+      riskScoreAboveThreshold: riskScore >= level2RiskThreshold
+    });
     
     // 8. 确定预警级别
     let warningTriggered = false;
@@ -596,25 +697,12 @@ export const analyzeTeacherRisk = async (
       }
       reason = reasonParts.join("或");
       triggeredBy = level3Config?.name || "三级干预（专业）";
-    } else if (hasConsecutiveHighDepression || riskScore >= level2RiskThreshold) {
+    } else if (hasConsecutiveHighDepression) {
       // 二级预警触发条件
       warningTriggered = true;
       warningLevel = "level2";
-      factors = [];
-      if (hasConsecutiveHighDepression) {
-        factors.push(`抑郁因子分持续≥${level2DepressionThreshold}超过1周`);
-      }
-      if (riskScore >= level2RiskThreshold) {
-        factors.push(`LSTM风险指数 (${(riskScore * 100).toFixed(0)}%) 超过中风险阈值 (${(level2RiskThreshold * 100).toFixed(0)}%)`);
-      }
-      const reasonParts: string[] = [];
-      if (hasConsecutiveHighDepression) {
-        reasonParts.push(`抑郁因子分持续超标`);
-      }
-      if (riskScore >= level2RiskThreshold) {
-        reasonParts.push(`LSTM风险指数达到中风险水平 (${(level2RiskThreshold * 100).toFixed(0)}%)`);
-      }
-      reason = reasonParts.join("或");
+      factors = [`抑郁因子分持续≥${level2DepressionThreshold}超过1周`];
+      reason = `抑郁因子分持续超标`;
       triggeredBy = level2Config?.name || "二级关注（互助）";
     } else if (hasHighDepression || riskScore >= level1RiskThreshold) {
       // 一级预警触发条件
@@ -847,39 +935,51 @@ const executeResponseAction = async (
         break;
 
       case 'manager':
-        // 向教研组长/年级主任推送（脱敏信息）
+        // 向与教师绑定的教研组长推送（脱敏信息）
         if (type === 'notification') {
           try {
-            const managers = await api.user.getManagers();
+            // 获取该教师的完整用户信息，找到 manager_id
+            const teacherProfile = await userApi.getUserById(userId);
+            console.log('教师完整信息:', teacherProfile);
             
-            // 根据预警级别生成不同的通知内容
-            let riskLevelText = '二级关注';
-            let suggestionText = '建议进行非正式关怀与观察';
-            
-            if (warningLevel === 'level1') {
-              riskLevelText = '一级提醒';
-              suggestionText = '建议进行自我调适';
-            } else if (warningLevel === 'level2') {
-              riskLevelText = '二级关注';
-              suggestionText = '建议进行非正式关怀与观察';
-            } else if (warningLevel === 'level3') {
-              riskLevelText = '三级干预';
-              suggestionText = '建议立即启动专业干预流程';
+            if (teacherProfile && teacherProfile.managerId) {
+              // 获取该教研组长的用户信息
+              const manager = await userApi.getUserById(teacherProfile.managerId);
+              console.log('找到绑定的教研组长:', manager);
+              
+              if (manager) {
+                // 根据预警级别生成不同的通知内容
+                let riskLevelText = '二级关注';
+                let suggestionText = '建议进行非正式关怀与观察';
+                
+                if (warningLevel === 'level1') {
+                  riskLevelText = '一级提醒';
+                  suggestionText = '建议进行自我调适';
+                } else if (warningLevel === 'level2') {
+                  riskLevelText = '二级关注';
+                  suggestionText = '建议进行非正式关怀与观察';
+                } else if (warningLevel === 'level3') {
+                  riskLevelText = '三级干预';
+                  suggestionText = '建议立即启动专业干预流程';
+                }
+                
+                await api.notificationApi.create({
+                  userId: manager.id,
+                  type: 'warning',
+                  title: '【团队心理关怀提醒】',
+                  content: `您组内教师${teacherName}触发${riskLevelText}。${suggestionText}。系统已同步增加该教师的心理测评建议频率。`,
+                  relatedId: warningId
+                });
+                
+                console.log(`✅ 已向绑定的教研组长 ${manager.displayName} 推送预警`);
+              } else {
+                console.warn(`⚠️ 未找到 manager_id 为 ${teacherProfile.managerId} 的教研组长`);
+              }
+            } else {
+              console.warn(`⚠️ 教师 ${teacherName} 没有绑定教研组长`);
             }
-            
-            for (const manager of managers) {
-              await api.notificationApi.create({
-                userId: manager.id,
-                type: 'warning',
-                title: '【团队心理关怀提醒】',
-                content: `您所在团队有教师需要关注。风险等级：${riskLevelText}。${suggestionText}。系统已同步增加该教师的心理测评建议频率。`,
-                relatedId: warningId
-              });
-            }
-            
-            console.log(`✅ 已向管理人员推送脱敏预警`);
           } catch (error) {
-            console.error(`❌ 向管理人员推送通知失败:`, error);
+            console.error(`❌ 向教研组长推送通知失败:`, error);
           }
         }
         break;
@@ -994,69 +1094,84 @@ export const scanTeachersRisk = async (
   const results = [];
   console.log(`[scanTeachersRisk] 开始扫描 ${teachers.length} 位教师...`);
 
-  // 先清除所有旧的预警，确保每次扫描都是全新的
-  try {
-    console.log('[scanTeachersRisk] 清除所有旧预警...');
-    const allWarnings = await api.warning.getAll();
-    for (const warning of allWarnings) {
-      try {
-        await api.warning.delete(warning.id);
-        console.log(`[scanTeachersRisk] 已删除预警: ${warning.teacher_name} (${warning.id})`);
-      } catch (deleteError) {
-        console.error(`[scanTeachersRisk] 删除预警失败: ${warning.id}`, deleteError);
-      }
+  // 首先获取所有未解决的预警
+  const allPendingWarnings = await warningApi.getAll();
+  const pendingWarningMap = new Map<string, any>();
+  for (const warning of allPendingWarnings) {
+    if (warning.status !== 'resolved') {
+      pendingWarningMap.set(warning.userId, warning);
     }
-    console.log('[scanTeachersRisk] 旧预警清除完成');
-  } catch (error) {
-    console.error('[scanTeachersRisk] 清除旧预警失败:', error);
   }
+  console.log(`[scanTeachersRisk] 找到 ${pendingWarningMap.size} 个未解决的预警`);
 
-  for (let i = 0; i < teachers.length; i++) {
-    const teacher = teachers[i];
-    console.log(`[scanTeachersRisk] 分析第 ${i + 1}/${teachers.length} 位教师: ${teacher.name}`);
-
-    try {
-      console.log(`[scanTeachersRisk] 调用 analyzeTeacherRisk for ${teacher.name}...`);
-      const analysis = await analyzeTeacherRisk(teacher.uid, teacher.name, configs);
-      console.log(`[scanTeachersRisk] analyzeTeacherRisk 返回:`, { warningTriggered: analysis.warningTriggered, warningLevel: analysis.warningLevel });
-
-      if (analysis.warningTriggered) {
-        console.log(`[scanTeachersRisk] 教师 ${teacher.name} 触发预警，调用 triggerWarning...`);
+  // 使用并行处理来提高扫描速度，限制并发数为 5
+  const concurrencyLimit = 5;
+  const teacherChunks = [];
+  
+  // 将教师列表分成多个小块，每个小块的大小为 concurrencyLimit
+  for (let i = 0; i < teachers.length; i += concurrencyLimit) {
+    teacherChunks.push(teachers.slice(i, i + concurrencyLimit));
+  }
+  
+  // 逐个处理每个小块
+  for (const chunk of teacherChunks) {
+    console.log(`[scanTeachersRisk] 开始处理教师块，包含 ${chunk.length} 位教师...`);
+    
+    // 并行处理当前块中的所有教师
+    const chunkResults = await Promise.all(
+      chunk.map(async (teacher) => {
+        console.log(`[scanTeachersRisk] 分析教师: ${teacher.name}`);
+        
         try {
-          // 确定预警级别后，先清除该教师已有的未处理预警，防止重复消息
-          try {
-            // 这里的逻辑是在 triggerWarning 中处理的，但为了更保险，我们在这里加个日志
-            console.log(`[scanTeachersRisk] 教师 ${teacher.name} 触发 ${analysis.warningLevel}，准备调用 triggerWarning...`);
-          } catch (e) {
-            console.error('清除旧预警失败', e);
-          }
+          console.log(`[scanTeachersRisk] 调用 analyzeTeacherRisk for ${teacher.name}...`);
+          const analysis = await analyzeTeacherRisk(teacher.uid, teacher.name, configs);
+          console.log(`[scanTeachersRisk] analyzeTeacherRisk 返回:`, { warningTriggered: analysis.warningTriggered, warningLevel: analysis.warningLevel });
 
-          const warningId = await triggerWarning(teacher.uid, teacher.name, analysis);
-          console.log(`[scanTeachersRisk] triggerWarning 返回:`, warningId);
-          results.push({ teacher, analysis, warningId });
+          if (analysis.warningTriggered) {
+            console.log(`[scanTeachersRisk] 教师 ${teacher.name} 触发预警，调用 triggerWarning...`);
+            try {
+              const warningId = await triggerWarning(teacher.uid, teacher.name, analysis);
+              console.log(`[scanTeachersRisk] triggerWarning 返回:`, warningId);
+              return { teacher, analysis, warningId };
+            } catch (error) {
+              console.error(`[scanTeachersRisk] 触发预警失败 for ${teacher.name}:`, error);
+              return { teacher, analysis, warningId: null, error: '触发预警失败' };
+            }
+          } else {
+            console.log(`[scanTeachersRisk] 教师 ${teacher.name} 未触发预警`);
+            // 如果这个教师有未解决的预警，关闭它
+            const existingWarning = pendingWarningMap.get(teacher.uid);
+            if (existingWarning) {
+            try {
+              console.log(`[scanTeachersRisk] 关闭教师 ${teacher.name} 的旧预警:`, existingWarning.id);
+              await warningApi.updateStatus(existingWarning.id, 'resolved');
+              console.log(`[scanTeachersRisk] 已成功关闭教师 ${teacher.name} 的旧预警`);
+            } catch (error) {
+              console.error(`[scanTeachersRisk] 关闭旧预警失败 for ${teacher.name}:`, error);
+            }
+          }
+            return { teacher, analysis, warningId: null };
+          }
         } catch (error) {
-          console.error(`[scanTeachersRisk] 触发预警失败 for ${teacher.name}:`, error);
-          results.push({ teacher, analysis, warningId: null, error: '触发预警失败' });
+          console.error(`[scanTeachersRisk] 分析教师风险失败 for ${teacher.name}:`, error);
+          return {
+            teacher,
+            analysis: {
+              warningTriggered: false,
+              riskScore: 0,
+              factors: [],
+              reason: '分析过程出错',
+              triggeredBy: '系统错误'
+            },
+            warningId: null,
+            error: '分析过程出错'
+          };
         }
-      } else {
-        console.log(`[scanTeachersRisk] 教师 ${teacher.name} 未触发预警`);
-        results.push({ teacher, analysis, warningId: null });
-      }
-    } catch (error) {
-      console.error(`[scanTeachersRisk] 分析教师风险失败 for ${teacher.name}:`, error);
-      results.push({
-        teacher,
-        analysis: {
-          warningTriggered: false,
-          riskScore: 0,
-          factors: [],
-          reason: '分析过程出错',
-          triggeredBy: '系统错误'
-        },
-        warningId: null,
-        error: '分析过程出错'
-      });
-    }
+      })
+    );
+    
+    // 将当前块的结果添加到总结果中
+    results.push(...chunkResults);
   }
 
   console.log(`[scanTeachersRisk] 扫描完成，共 ${results.length} 条结果`);
