@@ -151,7 +151,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
       try {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const year = yesterday.getFullYear();
+        const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+        const day = String(yesterday.getDate()).padStart(2, '0');
+        const yesterdayStr = `${year}-${month}-${day}`;
         
         const [personalInfoData, physio, workload] = await Promise.all([
           api.personalInfo.get(),
@@ -299,7 +302,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
   const handleOpenDataForm = () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const year = yesterday.getFullYear();
+    const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+    const day = String(yesterday.getDate()).padStart(2, '0');
+    const yesterdayStr = `${year}-${month}-${day}`;
     setSelectedDate(yesterdayStr);
     setHrvValue("");
     setRestingHRValue("");
@@ -369,7 +375,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
       if (profile) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const year = yesterday.getFullYear();
+        const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+        const day = String(yesterday.getDate()).padStart(2, '0');
+        const yesterdayStr = `${year}-${month}-${day}`;
         
         const [physio, workload] = await Promise.all([
           api.physiological.getDataByDate(profile.uid, yesterdayStr),
@@ -1440,7 +1449,10 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
                       max={(() => {
                         const yesterday = new Date();
                         yesterday.setDate(yesterday.getDate() - 1);
-                        return yesterday.toISOString().split('T')[0];
+                        const year = yesterday.getFullYear();
+                        const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+                        const day = String(yesterday.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
                       })()}
                       className="w-full px-3 sm:px-4 py-2.5 bg-white border border-stone-100 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none text-[10px] sm:text-xs text-stone-700 font-medium"
                     />

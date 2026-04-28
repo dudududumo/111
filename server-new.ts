@@ -1285,7 +1285,10 @@ async function startServer() {
       }
       
       if (date) {
-        const targetDate = new Date(date as string).toDateString();
+        // 正确处理YYYY-MM-DD格式的日期，确保使用本地时间
+        const dateStr = date as string;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const targetDate = new Date(year, month - 1, day).toDateString();
         let foundData = {
           hrv: null,
           restingHR: null,
@@ -1382,8 +1385,19 @@ async function startServer() {
       let newDeepSleepRatio = existingData?.deep_sleep_ratio ? JSON.parse(existingData.deep_sleep_ratio) : [];
       let newTimestamps = existingData?.timestamps ? JSON.parse(existingData.timestamps) : [];
       
-      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
-      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
+      let targetDate: string;
+      let timestamp: string;
+      
+      if (date) {
+        // 正确处理YYYY-MM-DD格式的日期
+        const [year, month, day] = date.split('-').map(Number);
+        const d = new Date(year, month - 1, day);
+        targetDate = d.toDateString();
+        timestamp = d.toISOString();
+      } else {
+        targetDate = new Date().toDateString();
+        timestamp = new Date().toISOString();
+      }
       
       let foundIndex = -1;
       for (let i = 0; i < newTimestamps.length; i++) {
@@ -1494,7 +1508,10 @@ async function startServer() {
       console.log('解析后的工作负载数据:', { classHours, meetingHours, nonTeachingTasks, totalWorkloadIndex, timestamps });
       
       if (date) {
-        const targetDate = new Date(date as string).toDateString();
+        // 正确处理YYYY-MM-DD格式的日期，确保使用本地时间
+        const dateStr = date as string;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const targetDate = new Date(year, month - 1, day).toDateString();
         console.log('日期匹配调试:', {
           dateParam: date,
           targetDate: targetDate,
@@ -1634,8 +1651,19 @@ async function startServer() {
         newTimestamps = existingData?.timestamps !== null ? [existingData.timestamps] : [];
       }
       
-      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
-      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
+      let targetDate: string;
+      let timestamp: string;
+      
+      if (date) {
+        // 正确处理YYYY-MM-DD格式的日期
+        const [year, month, day] = date.split('-').map(Number);
+        const d = new Date(year, month - 1, day);
+        targetDate = d.toDateString();
+        timestamp = d.toISOString();
+      } else {
+        targetDate = new Date().toDateString();
+        timestamp = new Date().toISOString();
+      }
       
       const totalWorkloadIndex = Math.min(100, (classHours || 0) * 3 + (meetingHours || 0) * 2 + (nonTeachingTasks || 0) * 2);
       
