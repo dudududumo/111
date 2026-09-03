@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, toolRatingDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb, verificationCodeDb } from "./database/db.js";
+import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, toolRatingDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, appointmentDb, verificationCodeDb } from "./database/db.js";
 
 // 阿里云短信服务 - 在函数内动态 require（避免 ESM 导入问题）
 
@@ -132,7 +132,7 @@ async function startServer() {
       });
 
       // 生成 JWT
-      const token = jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: "7d" });
+      const token = jwt.sign({ userId, email, role, deptId: null, managerId: null }, JWT_SECRET, { expiresIn: "7d" });
 
       res.json({
         success: true,
@@ -190,6 +190,7 @@ async function startServer() {
           userId: user.id, 
           email: user.email, 
           role: user.role,
+          deptId: user.dept_id,
           managerId: user.manager_id
         },
         JWT_SECRET,
@@ -435,6 +436,7 @@ async function startServer() {
           userId: user.id, 
           email: user.email, 
           role: user.role,
+          deptId: user.dept_id,
           managerId: user.manager_id
         },
         JWT_SECRET,
@@ -486,6 +488,7 @@ async function startServer() {
           userId: user.id, 
           email: user.email, 
           role: user.role,
+          deptId: user.dept_id,
           managerId: user.manager_id
         },
         JWT_SECRET,
@@ -592,7 +595,7 @@ async function startServer() {
           // 生成新的token
           const user = userDb.findById(id);
           const newToken = jwt.sign(
-            { userId: user.id, email: user.email, role: updates.role },
+            { userId: user.id, email: user.email, role: updates.role, deptId: user.dept_id, managerId: user.manager_id },
             JWT_SECRET,
             { expiresIn: "7d" }
           );
@@ -1170,27 +1173,6 @@ async function startServer() {
     } catch (error) {
       console.error("获取预警详情失败:", error);
       res.status(500).json({ error: "获取预警详情失败" });
-    }
-  });
-  
-  // 标记二级预警为教研组长已读
-  app.post("/api/warnings/:id/mark-dept-head-read", authMiddleware, (req: any, res) => {
-    try {
-      const warnings = warningDb.getAll();
-      const warning = warnings.find(w => w.id === req.params.id);
-      
-      if (!warning) {
-        return res.status(404).json({ error: "预警不存在" });
-      }
-      
-      // 标记为教研组长已读
-      console.log('开始标记二级预警为教研组长已读:', req.params.id);
-      warningDb.markDeptHeadAsRead(req.params.id);
-      console.log('标记二级预警为教研组长已读成功:', req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("标记教研组长已读失败:", error);
-      res.status(500).json({ error: "标记失败" });
     }
   });
   
@@ -2062,16 +2044,6 @@ async function startServer() {
     }
   });
 
-  // 获取所有工具的平均评分（管理员接口）
-  app.get("/api/tool-ratings/average", authMiddleware, (req: any, res) => {
-    try {
-      const avgRatings = toolRatingDb.getAverageRatings();
-      res.json(avgRatings);
-    } catch (error) {
-      res.status(500).json({ error: "获取平均评分失败" });
-    }
-  });
-
   // ==================== 任务相关 API ====================
 
   app.post("/api/tasks", authMiddleware, (req: any, res) => {
@@ -2371,57 +2343,6 @@ async function startServer() {
       res.json({ success: true, message: "活动已删除" });
     } catch (error) {
       res.status(500).json({ error: "删除活动失败" });
-    }
-  });
-
-  // ==================== 团队资源相关 API ====================
-
-  // 创建团队资源
-  app.post("/api/team-resources", authMiddleware, (req: any, res) => {
-    try {
-      const { title, description, content, fileUrl, visibility } = req.body;
-      const resourceId = teamResourceDb.create({
-        groupId: req.user.deptId || "general",
-        title,
-        description,
-        content,
-        fileUrl,
-        createdBy: req.user.userId,
-        createdByRole: req.user.role,
-        visibility: visibility || 'group'
-      });
-      res.json({ success: true, id: resourceId });
-    } catch (error) {
-      res.status(500).json({ error: "创建资源失败" });
-    }
-  });
-
-  // 获取用户可见的团队资源
-  app.get("/api/team-resources", authMiddleware, (req: any, res) => {
-    try {
-      const resources = teamResourceDb.getByUser(req.user.userId, req.user.role, req.user.deptId);
-      res.json(resources);
-    } catch (error) {
-      res.status(500).json({ error: "获取资源失败" });
-    }
-  });
-
-  // 删除团队资源
-  app.delete("/api/team-resources/:id", authMiddleware, (req: any, res) => {
-    try {
-      const { id } = req.params;
-      
-      // 检查权限：只有创建者或管理员可以删除
-      // 这里简化处理，暂时只让管理员删除
-      if (req.user.role !== 'admin') {
-        res.status(403).json({ error: "无权删除此资源" });
-        return;
-      }
-      
-      teamResourceDb.delete(id);
-      res.json({ success: true, message: "资源已删除" });
-    } catch (error) {
-      res.status(500).json({ error: "删除资源失败" });
     }
   });
 

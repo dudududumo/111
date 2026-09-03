@@ -16,17 +16,6 @@ const encryptData = (data: any): string => {
   }
 };
 
-// 简单的解密函数
-const decryptData = (encryptedData: string): any => {
-  try {
-    const jsonString = decodeURIComponent(escape(atob(encryptedData)));
-    return JSON.parse(jsonString);
-  } catch (error) {
-    console.error('解密失败:', error);
-    return encryptedData;
-  }
-};
-
 // 检查是否需要加密的端点
 const needsEncryption = (endpoint: string): boolean => {
   const sensitiveEndpoints = [
@@ -44,8 +33,6 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getToken();
 
-  console.log('API 请求准备:', { endpoint, hasToken: !!token, tokenPreview: token ? token.substring(0, 20) + '...' : 'none' });
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -61,7 +48,6 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
   if (options.body && needsEncryption(endpoint)) {
     try {
       const bodyData = JSON.parse(options.body as string);
-      console.log('加密前的数据:', bodyData);
       const encryptedBody = encryptData(bodyData);
       encryptedOptions.body = JSON.stringify({ encrypted: encryptedBody });
       headers["X-Encrypted"] = "true";
@@ -70,29 +56,19 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
     }
   }
 
-  console.log('API 请求:', url);
-  console.log('请求头:', { ...headers, Authorization: headers.Authorization ? 'Bearer ***' : undefined });
-  console.log('请求数据:', options.body);
-
   try {
     const response = await fetch(url, {
       ...encryptedOptions,
       headers,
     });
 
-    console.log('响应状态:', response.status);
-
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: "请求失败" }));
-      console.log('错误:', error);
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
-    const data = await response.json();
-    console.log('成功:', data);
-    return data;
+    return await response.json();
   } catch (error) {
-    console.log('网络错误:', error);
     throw error;
   }
 }

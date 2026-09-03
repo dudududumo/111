@@ -20,7 +20,6 @@ import {
   X,
   Info,
   Tag,
-  BookOpen,
   ShieldCheck,
   Trash2,
   Square,
@@ -88,17 +87,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     visibility: "group" as 'group' | 'school',
     maxParticipants: 20
   });
-  const [showResourceShare, setShowResourceShare] = useState(false);
-  const [newResource, setNewResource] = useState({
-    title: "",
-    type: "article" as any,
-    url: "",
-    description: ""
-  });
-  const [teamResources, setTeamResources] = useState<any[]>([]);
   const [interventionTasks, setInterventionTasks] = useState<InterventionTask[]>([]);
-  const [users, setUsers] = useState<Record<string, { displayName: string }>>({});
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [atmosphereData, setAtmosphereData] = useState([
     { name: '活力', value: 0 },
     { name: '支持', value: 0 },
@@ -910,12 +899,6 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                           className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg text-[10px] font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-md shadow-orange-200/50 whitespace-nowrap"
                         >
                           <Plus size={12} className="sm:w-3.5 sm:h-3.5" /> 发起活动
-                        </button>
-                        <button
-                          onClick={() => setShowResourceShare(true)}
-                          className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-stone-800 to-stone-900 text-white rounded-lg text-[10px] font-semibold hover:from-stone-700 hover:to-stone-800 transition-all shadow-md whitespace-nowrap"
-                        >
-                          <Plus size={12} className="sm:w-3.5 sm:h-3.5" /> 分享资源
                         </button>
                       </div>
                     )}
@@ -1866,80 +1849,6 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
                     className="flex-1 py-3 rounded-2xl bg-orange-600 text-white font-semibold hover:bg-orange-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     确认发布
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {showResourceShare && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
-            >
-              <div className="text-center space-y-4 mb-6">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto">
-                  <BookOpen className="w-8 h-8 text-orange-600" />
-                </div>
-                <h3 className="text-xl font-bold text-stone-900">分享团队资源</h3>
-                <p className="text-stone-500">分享有价值的资源给团队成员</p>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-stone-400 uppercase">资源标题</label>
-                  <input type="text" value={newResource.title} onChange={(e) => setNewResource({...newResource, title: e.target.value})} placeholder="如：教师压力管理指南" className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-400 uppercase">类型</label>
-                    <select value={newResource.type} onChange={(e) => setNewResource({...newResource, type: e.target.value as any})} className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm">
-                      <option value="article">文章</option>
-                      <option value="video">视频</option>
-                      <option value="tool">工具</option>
-                      <option value="other">其他</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-stone-400 uppercase">资源链接</label>
-                  <input type="url" value={newResource.url} onChange={(e) => setNewResource({...newResource, url: e.target.value})} placeholder="https://" className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-stone-400 uppercase">资源描述</label>
-                  <textarea value={newResource.description} onChange={(e) => setNewResource({...newResource, description: e.target.value})} placeholder="简要描述资源内容" className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none resize-none h-24 text-sm" />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowResourceShare(false)}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
-                  >
-                    取消
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const resource = {
-                        id: Date.now().toString(),
-                        ...newResource,
-                        createdAt: new Date().toISOString(),
-                        author: profile?.displayName || '匿名组长'
-                      };
-                      setTeamResources(prev => [resource, ...prev]);
-                      setShowResourceShare(false);
-                      setNewResource({
-                        title: "",
-                        type: "article",
-                        url: "",
-                        description: ""
-                      });
-                    }}
-                    disabled={!newResource.title || !newResource.url}
-                    className="flex-1 py-3 rounded-2xl bg-orange-600 text-white font-semibold hover:bg-orange-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    分享资源
                   </button>
                 </div>
               </div>
