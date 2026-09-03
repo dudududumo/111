@@ -555,14 +555,6 @@ export const interventionApi = {
     });
   },
 
-  // 指派任务
-  assignTask: async (id: string, assignedTo: string) => {
-    return fetchApi(`/intervention-tasks/${id}/assign`, {
-      method: "PATCH",
-      body: JSON.stringify({ assignedTo }),
-    });
-  },
-
   // 添加关怀记录
   addCareRecord: async (id: string, record: {
     date: string;
@@ -583,13 +575,6 @@ export const interventionApi = {
   // 根据预警ID获取关联的任务
   getTaskByWarningId: async (warningId: string) => {
     return fetchApi(`/intervention-tasks/by-warning/${warningId}`);
-  },
-
-  // 删除所有干预任务
-  deleteAllTasks: async () => {
-    return fetchApi("/intervention-tasks", {
-      method: "DELETE",
-    });
   },
 };
 

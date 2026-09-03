@@ -23,7 +23,6 @@ import {
 import api from "../services/api";
 import { SCALES, Scale, Question } from "../data/scales";
 import ConsentModal from "../components/ConsentModal";
-import WearableSync from "../components/WearableSync";
 import PsychologicalProfile from "../components/PsychologicalProfile";
 import CustomModal from "../components/CustomModal";
 import { 
@@ -177,15 +176,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
       setConsentGiven(true);
     } catch (err: any) {
       console.error('更新用户同意状态失败:', err);
-    }
-  };
-
-  const handleWearableSync = async (brand: string) => {
-    if (!profile) return;
-    try {
-      await api.user.update(profile.uid, { wearableBrand: brand });
-    } catch (err) {
-      console.error("同步可穿戴设备失败:", err);
     }
   };
 
@@ -529,8 +519,6 @@ const AssessmentPage: React.FC<AssessmentPageProps> = ({ profile, onProfileUpdat
           <>
             {step === 0 && (
               <div className="space-y-6 sm:space-y-8">
-                <WearableSync currentBrand={profile?.wearableBrand || null} onSync={(brand) => handleWearableSync(brand)} />
-
                 {Object.keys(unfinishedAssessments).length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}

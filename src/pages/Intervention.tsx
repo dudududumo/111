@@ -657,62 +657,6 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
     }
   };
 
-  const handleAssignTask = async (taskId: string, assignedTo: string) => {
-    try {
-      const { default: api } = await import('../services/api');
-      await api.intervention.assignTask(taskId, assignedTo);
-      
-      setInterventionTasks(prev => prev.map(task =>
-        task.id === taskId ? { ...task, assignedTo } : task
-      ));
-    } catch (error) {
-      console.error('指派任务失败:', error);
-      showModal({
-        type: "error",
-        title: "指派失败",
-        message: "指派任务失败，请稍后重试"
-      });
-    }
-  };
-
-  const handleAddCareRecord = async (taskId: string, record: { date: string; summary: string; createdBy: string }) => {
-    try {
-      const { default: api } = await import('../services/api');
-      await api.intervention.addCareRecord(taskId, record);
-      
-      setInterventionTasks(prev => prev.map(task =>
-        task.id === taskId ? { ...task, careRecords: [...(task.careRecords || []), record] } : task
-      ));
-    } catch (error) {
-      console.error('添加关怀记录失败:', error);
-      showModal({
-        type: "error",
-        title: "添加失败",
-        message: "添加关怀记录失败，请稍后重试"
-      });
-    }
-  };
-
-  const handleClearAllTasks = async () => {
-    try {
-      const { default: api } = await import('../services/api');
-      await api.intervention.deleteAllTasks();
-      setInterventionTasks([]);
-      showModal({
-        type: "success",
-        title: "清空成功",
-        message: "已清空所有干预任务！"
-      });
-    } catch (error) {
-      console.error('清空干预任务失败:', error);
-      showModal({
-        type: "error",
-        title: "清空失败",
-        message: "清空失败，请稍后重试"
-      });
-    }
-  };
-
   // 标签管理函数
   const handleAddTag = async (resourceId: string, tag: string) => {
     try {
