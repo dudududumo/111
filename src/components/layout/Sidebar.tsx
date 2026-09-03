@@ -35,7 +35,7 @@ export default function Sidebar({ profile, onLogout, isOpen, onClose }: SidebarP
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-ink-900/25 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-ink-900/20 backdrop-blur-sm lg:hidden"
           />
         )}
       </AnimatePresence>
@@ -44,11 +44,11 @@ export default function Sidebar({ profile, onLogout, isOpen, onClose }: SidebarP
       <AnimatePresence>
         {isOpen && (
           <motion.aside
-            initial={{ x: -280, opacity: 0 }}
+            initial={{ x: -240, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -280, opacity: 0 }}
+            exit={{ x: -240, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-y-0 left-0 z-50 w-72 glass border-r border-white/60 lg:relative lg:z-30 lg:flex-shrink-0"
+            className="fixed inset-y-0 left-0 z-50 w-60 glass-nav border-r border-white/60 lg:relative lg:z-30 lg:flex-shrink-0"
           >
             <SidebarContent profile={profile} onLogout={onLogout} isMobile={isMobile} onClose={onClose} />
           </motion.aside>

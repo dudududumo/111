@@ -26,7 +26,7 @@ export default function Avatar({ name = "师", src, size = 40, className = "" }:
   return (
     <div
       style={{ width: size, height: size, fontSize: size * 0.4 }}
-      className={`flex items-center justify-center rounded-[35%] font-bold text-white flex-shrink-0 bg-gradient-to-br from-mist-500 to-mist-700 ${className}`}
+      className={`flex items-center justify-center rounded-[35%] font-bold text-white flex-shrink-0 bg-gradient-to-br from-ink-800 to-ink-900 ${className}`}
     >
       {name?.[0] || "师"}
     </div>

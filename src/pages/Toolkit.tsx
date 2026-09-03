@@ -26,6 +26,7 @@ import {
   Image as ImageIcon,
   TrendingUp,
   MessageSquare,
+  Check,
   Users,
   Calendar
 } from "lucide-react";
@@ -33,6 +34,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { UserProfile, ToolUsage, DiaryEntry, Task, CommunityPost } from "../types";
 import api from "../services/api";
 import StarRating from "../components/StarRating";
+import PageContainer from "../components/layout/PageContainer";
+import { GlassCard, Button, PageHeader, Tabs, IconButton } from "../components/ui";
+import { chartTheme, chartGradients, barRadius } from "../components/ui/chartTheme";
 
 
 interface ToolkitProps {
@@ -734,14 +738,14 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   }, [isPauseActive, pauseTimer]);
 
   const tools = [
-    { id: 'breathing', title: '3×3 呼吸引导', icon: Wind, color: 'bg-blue-500', desc: '动画引导腹式呼吸，平复心境' },
-    { id: 'pause', title: '情绪暂停角', icon: Clock, color: 'bg-indigo-500', desc: '60秒冷静空间，阻断负面情绪' },
-    { id: 'anxiety-box', title: '焦虑收纳箱', icon: Trash2, color: 'bg-stone-500', desc: '将烦恼"扔"进箱子，设定处理时间' },
-    { id: 'quadrants', title: '四象限工作法', icon: LayoutGrid, color: 'bg-blue-500', desc: '科学分类任务，缓解工作焦虑' },
-    { id: 'mindfulness', title: '正念冥想音频库', icon: Music, color: 'bg-violet-500', desc: '3-15分钟引导式冥想课程' },
-    { id: 'diary', title: '情绪日记本', icon: BookOpen, color: 'bg-amber-500', desc: '记录每日心情，生成波动曲线' },
-    { id: 'cards', title: '积极心理卡片', icon: Heart, color: 'bg-rose-500', desc: '每日感恩练习与心理名言' },
-    { id: 'boundaries', title: '沟通边界卡模拟', icon: ShieldCheck, color: 'bg-teal-500', desc: '情景模拟练习，设定工作边界' },
+    { id: 'breathing', title: '3×3 呼吸引导', icon: Wind, desc: '动画引导腹式呼吸，平复心境' },
+    { id: 'pause', title: '情绪暂停角', icon: Clock, desc: '60秒冷静空间，阻断负面情绪' },
+    { id: 'anxiety-box', title: '焦虑收纳箱', icon: Trash2, desc: '将烦恼"扔"进箱子，设定处理时间' },
+    { id: 'quadrants', title: '四象限工作法', icon: LayoutGrid, desc: '科学分类任务，缓解工作焦虑' },
+    { id: 'mindfulness', title: '正念冥想音频库', icon: Music, desc: '3-15分钟引导式冥想课程' },
+    { id: 'diary', title: '情绪日记本', icon: BookOpen, desc: '记录每日心情，生成波动曲线' },
+    { id: 'cards', title: '积极心理卡片', icon: Heart, desc: '每日感恩练习与心理名言' },
+    { id: 'boundaries', title: '沟通边界卡模拟', icon: ShieldCheck, desc: '情景模拟练习，设定工作边界' },
   ];
 
   const handleAddTask = async () => {
@@ -1097,701 +1101,692 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-50"
-    >
-      <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 sm:px-6 lg:px-8 py-8">
+    <PageContainer className="space-y-6 pb-20">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-stone-900 flex items-center gap-3">
-              <Wind className="text-blue-500" size={24} />
-              蓝色调适：心晴调适驿站
-            </h1>
-            <p className="text-stone-500 mt-1">数字化心理工具包与匿名支持社区</p>
-          </div>
-          <div className="inline-flex bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl sm:rounded-2xl p-1 shadow-lg shadow-blue-200/50 w-fit">
-          <button
-            onClick={() => setActiveTab('tools')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'tools' ? 'bg-blue-600 text-white shadow-md' : 'text-stone-500 hover:text-stone-700'}`}
-          >
-            心理工具包
-          </button>
-          <button
-            onClick={() => setActiveTab('community')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'community' ? 'bg-blue-600 text-white shadow-md' : 'text-stone-500 hover:text-stone-700'}`}
-          >
-            匿名社区
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="蓝色调适：心晴调适驿站"
+        subtitle="数字化心理工具包与匿名支持社区"
+        actions={
+          <Tabs
+            accent="breeze"
+            items={[
+              { key: 'tools', label: '心理工具包' },
+              { key: 'community', label: '匿名社区' },
+            ]}
+            active={activeTab}
+            onChange={(k) => setActiveTab(k as 'tools' | 'community')}
+          />
+        }
+      />
 
       {activeTab === 'tools' ? (
         <>
           {/* Tools Grid */}
           {!activeTool ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-6 md:gap-8">
-          {tools.map((tool) => (
-            <motion.div
-              key={tool.id}
-              whileHover={{ y: -5 }}
-              className="relative group"
-            >
-              <button
-                  onClick={() => setActiveTool(tool.id)}
-                  className="w-full h-full flex flex-col items-start p-4 bg-gradient-to-br from-white to-blue-50 rounded-[32px] border border-blue-100 shadow-lg shadow-blue-200/50 hover:shadow-xl hover:shadow-blue-300/30 transition-all text-left"
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {tools.map((tool) => (
+                <motion.div
+                  key={tool.id}
+                  whileHover={{ y: -5 }}
+                  className="relative group"
                 >
-                <div className="w-full flex justify-between items-start mb-4">
-                  <div className={`p-3 bg-gradient-to-br ${tool.color === 'bg-blue-500' ? 'from-blue-500 to-blue-600' : tool.color === 'bg-indigo-500' ? 'from-indigo-500 to-indigo-600' : tool.color === 'bg-stone-500' ? 'from-stone-500 to-stone-600' : tool.color === 'bg-violet-500' ? 'from-violet-500 to-violet-600' : tool.color === 'bg-amber-500' ? 'from-amber-500 to-amber-600' : tool.color === 'bg-rose-500' ? 'from-rose-500 to-rose-600' : tool.color === 'bg-teal-500' ? 'from-teal-500 to-teal-600' : 'from-stone-500 to-stone-600'} rounded-2xl group-hover:${tool.color === 'bg-blue-500' ? 'from-blue-600 to-blue-700' : tool.color === 'bg-indigo-500' ? 'from-indigo-600 to-indigo-700' : tool.color === 'bg-stone-500' ? 'from-stone-600 to-stone-700' : tool.color === 'bg-violet-500' ? 'from-violet-600 to-violet-700' : tool.color === 'bg-amber-500' ? 'from-amber-600 to-amber-700' : tool.color === 'bg-rose-500' ? 'from-rose-600 to-rose-700' : tool.color === 'bg-teal-500' ? 'from-teal-600 to-teal-700' : 'from-stone-600 to-stone-700'} transition-all flex items-center justify-center`}>
-                      <tool.icon size={24} className={`${tool.color === 'bg-blue-500' ? 'text-white' : tool.color === 'bg-indigo-500' ? 'text-white' : tool.color === 'bg-stone-500' ? 'text-white' : tool.color === 'bg-violet-500' ? 'text-white' : tool.color === 'bg-amber-500' ? 'text-white' : tool.color === 'bg-rose-500' ? 'text-white' : tool.color === 'bg-teal-500' ? 'text-white' : 'text-white'}`} />
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <div 
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <StarRating
-                        toolId={tool.id}
-                        initialRating={toolRatings[tool.id]?.rating || 0}
-                        lastRatedAt={toolRatings[tool.id]?.timestamp}
-                        onRatingChange={(rating) => saveToolRating(tool.id, rating)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <h3 className="font-bold text-stone-900 mb-2">{tool.title}</h3>
-                <p className="text-xs text-stone-500 leading-relaxed">{tool.desc}</p>
-                <div className="mt-4 flex items-center text-xs font-bold text-stone-400 group-hover:text-stone-900 transition-colors">
-                  开始使用 <ChevronRight size={14} />
-                </div>
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(tool.id); }}
-                className={`absolute bottom-4 right-4 p-2 rounded-xl transition-all ${favorites.includes(tool.id) ? 'text-amber-500 bg-amber-50' : 'text-stone-300 hover:text-amber-500 hover:bg-stone-50'}`}
-              >
-                <Heart size={16} fill={favorites.includes(tool.id) ? "currentColor" : "none"} />
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-[40px] border border-stone-100 shadow-xl overflow-hidden min-h-[600px] flex flex-col">
-          {/* Tool Header */}
-          <div className="p-4 border-b border-stone-50 flex items-center justify-between bg-stone-50/50">
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setActiveTool(null)}
-                className="p-2 hover:bg-white rounded-xl transition-colors text-stone-400 hover:text-stone-900"
-              >
-                <X size={24} />
-              </button>
-              <h2 className="text-xl font-bold text-stone-900">
-                {tools.find(t => t.id === activeTool)?.title}
-              </h2>
-            </div>
-            {activeTool === 'breathing' && (
-              <div className="flex items-center gap-2">
-                <audio 
-                  ref={breathAudioRef} 
-                  loop 
-                  src="/assets/audio/relax-meditation.mp3"
-                  onError={() => {
-                    console.warn("Breathing audio failed to load");
-                    setIsMuted(true);
-                  }}
-                />
-                <button onClick={() => setIsMuted(!isMuted)} className="p-2 hover:bg-white rounded-xl transition-colors text-stone-400">
-                  {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Tool Content */}
-          <div className="flex-1 p-6 flex flex-col items-center justify-center">
-            <AnimatePresence mode="wait">
-              {activeTool === 'breathing' && (
-                <motion.div 
-                  key="breathing"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="text-center space-y-12"
-                >
-                  <div className="relative flex items-center justify-center">
-                    <motion.div 
-                      animate={{ 
-                        scale: breathPhase === 'inhale' ? 1.5 : (breathPhase === 'exhale' ? 1 : 1.5),
-                        opacity: breathPhase === 'hold' ? 0.8 : 1
-                      }}
-                      transition={{ duration: 3, ease: "easeInOut" }}
-                      className="h-48 w-48 rounded-full bg-blue-500/20 flex items-center justify-center"
-                    >
-                      <motion.div 
-                        animate={{ 
-                          scale: breathPhase === 'inhale' ? 1.2 : (breathPhase === 'exhale' ? 0.8 : 1.2)
-                        }}
-                        transition={{ duration: 3, ease: "easeInOut" }}
-                        className="h-32 w-32 rounded-full bg-blue-500 shadow-2xl shadow-blue-200"
-                      />
-                    </motion.div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-white drop-shadow-md uppercase tracking-widest">
-                        {breathPhase === 'inhale' ? '吸气' : (breathPhase === 'hold' ? '屏息' : '呼气')}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-stone-400 font-medium">已完成 {breathCount} 组循环</p>
-                    <p className="text-stone-500 text-sm">跟随圆圈的节奏，深度放松你的身心</p>
-                  </div>
-                </motion.div>
-              )}
-
-              {activeTool === 'pause' && (
-                <motion.div 
-                  key="pause"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center space-y-8 max-w-md"
-                >
-                  {!isPauseActive && pauseTimer === 60 ? (
-                    <>
-                      <div className="h-32 w-32 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500">
-                        <Clock size={64} />
+                  <GlassCard
+                    as="button"
+                    onClick={() => setActiveTool(tool.id)}
+                    className="w-full h-full flex flex-col items-start p-5 text-left"
+                  >
+                    <div className="w-full flex justify-between items-start mb-4">
+                      <div className="p-3 rounded-2xl bg-breeze-500 text-white flex items-center justify-center shadow-lg shadow-breeze-200/60">
+                        <tool.icon size={24} />
                       </div>
-                      <h3 className="text-2xl font-bold text-stone-900">情绪暂停角</h3>
-                      <p className="text-stone-500">当感到愤怒、焦虑或压力过大时，给自己60秒的留白时间。</p>
-                      <button 
-                        onClick={() => setIsPauseActive(true)}
-                        className="w-full py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-2xl font-semibold hover:from-indigo-600 hover:to-indigo-700 transition-all shadow-md shadow-indigo-200/50 flex items-center justify-center gap-2"
-                      >
-                        立即开始 (60s)
-                      </button>
-                    </>
-                  ) : (
-                    <div className="space-y-8">
-                      <div className="text-8xl font-black text-stone-900 tabular-nums">
-                        {pauseTimer}s
-                      </div>
-                      <p className="text-stone-500 italic">“在刺激和反应之间，有一个空间。在那个空间里，我们有选择反应的自由和力量。”</p>
-                      {pauseTimer === 0 && (
-                        <button 
-                          onClick={() => { setPauseTimer(60); setActiveTool(null); logToolUsage('pause', 60); }}
-                          className="px-8 py-3 bg-stone-900 text-white rounded-xl font-bold"
+                      <div className="flex flex-col items-end gap-1">
+                        <div
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          完成
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {activeTool === 'anxiety-box' && (
-                <motion.div 
-                  key="anxiety-box"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="w-full max-w-xl space-y-8"
-                >
-                  {!isBoxClosed ? (
-                    <>
-                      <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-stone-900">写下或说出你的烦恼</h3>
-                        <div className="relative">
-                          <textarea 
-                            value={anxietyText}
-                            onChange={(e) => setAnxietyText(e.target.value)}
-                            placeholder="此时此刻，什么让你感到焦虑？"
-                            className="w-full h-48 p-6 bg-stone-50 border border-stone-100 rounded-3xl focus:ring-2 focus:ring-stone-200 outline-none resize-none text-stone-700"
+                          <StarRating
+                            toolId={tool.id}
+                            initialRating={toolRatings[tool.id]?.rating || 0}
+                            lastRatedAt={toolRatings[tool.id]?.timestamp}
+                            onRatingChange={(rating) => saveToolRating(tool.id, rating)}
                           />
-                          <button 
-                            onClick={() => {
-                              if (isRecording) {
-                                // Stop logic if needed, but usually recognition.stop() is handled by onend or manual
-                                setIsRecording(false);
-                              } else {
-                                startSpeechRecognition();
-                              }
-                            }}
-                            className={`absolute bottom-4 right-4 p-4 rounded-full shadow-lg transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white text-stone-400 hover:text-stone-900'}`}
-                          >
-                            <Mic size={20} />
-                          </button>
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                          <span className="text-sm font-bold text-stone-500 whitespace-nowrap">设定处理时间:</span>
-                          <div className="flex gap-2">
-                            {['今晚', '明天', '周末', '下周'].map(t => (
-                              <button
-                                key={t}
-                                onClick={() => setProcessingTime(t)}
-                                className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${processingTime === t ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500'}`}
-                              >
-                                {t}
-                              </button>
-                            ))}
-                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-4">
-                        <button 
-                          onClick={() => { setIsBoxClosed(true); logToolUsage('anxiety-box', undefined, 'better'); }}
-                          className="flex-1 py-4 bg-stone-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2"
-                        >
-                          <Send size={20} /> 封存烦恼
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center space-y-6">
-                      <motion.div 
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="h-32 w-32 bg-stone-100 rounded-3xl flex items-center justify-center mx-auto text-stone-400"
-                      >
-                        <ShieldCheck size={64} />
-                      </motion.div>
-                      <h3 className="text-2xl font-bold text-stone-900">烦恼已封存</h3>
-                      <p className="text-stone-500">这些烦恼已被安全存放在虚拟箱子中，并预约在 <span className="text-stone-900 font-bold">{processingTime}</span> 处理。现在，请把注意力转回到当下。</p>
-                      <button 
-                        onClick={() => { setIsBoxClosed(false); setAnxietyText(""); setActiveTool(null); }}
-                        className="px-8 py-3 border border-stone-100 rounded-xl font-bold text-stone-600 hover:bg-stone-50"
-                      >
-                        返回驿站
-                      </button>
                     </div>
-                  )}
+                    <h3 className="font-bold text-ink-900 mb-2">{tool.title}</h3>
+                    <p className="text-xs text-ink-500 leading-relaxed">{tool.desc}</p>
+                    <div className="mt-4 flex items-center text-xs font-bold text-ink-400 group-hover:text-breeze-600 transition-colors">
+                      开始使用 <ChevronRight size={14} />
+                    </div>
+                  </GlassCard>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(tool.id); }}
+                    className={`absolute bottom-4 right-4 p-2 rounded-xl transition-all ${favorites.includes(tool.id) ? 'text-breeze-500 bg-breeze-50' : 'text-ink-300 hover:text-breeze-500 hover:bg-frost-50'}`}
+                  >
+                    <Heart size={16} fill={favorites.includes(tool.id) ? "currentColor" : "none"} />
+                  </button>
                 </motion.div>
-              )}
-
-              {activeTool === 'quadrants' && (
-                <div className="w-full h-full flex flex-col gap-4 sm:gap-6">
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                    <input
-                      value={newTaskTitle}
-                      onChange={(e) => setNewTaskTitle(e.target.value)}
-                      placeholder="添加新任务..."
-                      className="flex-1 px-4 sm:px-6 py-3 bg-stone-50 border border-stone-100 rounded-xl focus:ring-2 focus:ring-emerald-200 outline-none"
+              ))}
+            </div>
+          ) : (
+            <GlassCard className="overflow-hidden min-h-[600px] flex flex-col" hover={false}>
+              {/* Tool Header */}
+              <div className="p-4 border-b border-frost-100 flex items-center justify-between bg-frost-50/50">
+                <div className="flex items-center gap-4">
+                  <IconButton
+                    onClick={() => setActiveTool(null)}
+                    icon={X}
+                    label="返回工具列表"
+                  />
+                  <h2 className="text-xl font-bold text-ink-900">
+                    {tools.find(t => t.id === activeTool)?.title}
+                  </h2>
+                </div>
+                {activeTool === 'breathing' && (
+                  <div className="flex items-center gap-2">
+                    <audio
+                      ref={breathAudioRef}
+                      loop
+                      src="/assets/audio/relax-meditation.mp3"
+                      onError={() => {
+                        console.warn("Breathing audio failed to load");
+                        setIsMuted(true);
+                      }}
                     />
-                    <div className="flex gap-2 shrink-0">
-                      <select
-                        value={selectedQuadrant}
-                        onChange={(e) => setSelectedQuadrant(Number(e.target.value) as any)}
-                        className="px-3 sm:px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl outline-none text-sm"
-                      >
-                        <option value={1}>重要且紧急</option>
-                        <option value={2}>重要不紧急</option>
-                        <option value={3}>紧急不重要</option>
-                        <option value={4}>不紧急不重要</option>
-                      </select>
-                      <button
-                        onClick={handleAddTask}
-                        className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shrink-0"
-                      >
-                        <Plus size={20} />
-                      </button>
-                      {tasks.some(t => t.completed) && (
-                        <button
-                          onClick={clearCompletedTasks}
-                          className="p-3 text-stone-400 hover:text-rose-500 transition-colors shrink-0"
-                          title="清理已完成任务"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </div>
+                    <IconButton
+                      onClick={() => setIsMuted(!isMuted)}
+                      icon={isMuted ? VolumeX : Volume2}
+                      label={isMuted ? "开启声音" : "静音"}
+                    />
                   </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 flex-1">
-                    {[1, 2, 3, 4].map((q) => {
-                      const quadrantNames: Record<number, string> = {
-                        1: '重要紧急',
-                        2: '重要不紧急',
-                        3: '紧急不重要',
-                        4: '不紧急不重要'
-                      };
-                      return (
-                      <div key={q} className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl border ${q === 1 ? 'bg-rose-50 border-rose-100' : q === 2 ? 'bg-blue-50 border-blue-100' : q === 3 ? 'bg-amber-50 border-amber-100' : 'bg-stone-50 border-stone-100'}`}>
-                        <h4 className="text-xs font-bold uppercase tracking-wider mb-2 sm:mb-4 flex items-center gap-1.5 sm:gap-2">
-                          <span className={`h-2 w-2 rounded-full ${q === 1 ? 'bg-rose-500' : q === 2 ? 'bg-blue-500' : q === 3 ? 'bg-amber-500' : 'bg-stone-500'}`} />
-                          <span className="truncate">{q === 1 ? '重要且紧急' : q === 2 ? '重要不紧急' : q === 3 ? '紧急不重要' : '不紧急不重要'}</span>
-                        </h4>
-                        <div className="space-y-2 max-h-[180px] sm:max-h-[200px] overflow-y-auto pr-2">
-                          {tasks.filter(t => t.quadrant === quadrantNames[q]).map(task => (
-                            <div key={task.id} className="flex items-center gap-3 p-2 bg-white/60 rounded-lg group">
-                              <button onClick={() => toggleTask(task)} className="text-stone-400 hover:text-blue-500">
-                                {task.completed ? <CheckCircle2 size={18} className="text-blue-500" /> : <Circle size={18} />}
-                              </button>
-                              <span className={`text-sm flex-1 ${task.completed ? 'line-through text-stone-400' : 'text-stone-700'}`}>{task.title}</span>
-                              <button onClick={() => deleteTask(task.id)} className="opacity-60 hover:opacity-100 text-stone-400 hover:text-rose-500 transition-opacity">
-                                <Trash2 size={16} />
+                )}
+              </div>
+
+              {/* Tool Content */}
+              <div className="flex-1 p-6 flex flex-col items-center justify-center">
+                <AnimatePresence mode="wait">
+                  {activeTool === 'breathing' && (
+                    <motion.div
+                      key="breathing"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="text-center space-y-12"
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <motion.div
+                          animate={{
+                            scale: breathPhase === 'inhale' ? 1.5 : (breathPhase === 'exhale' ? 1 : 1.5),
+                            opacity: breathPhase === 'hold' ? 0.8 : 1
+                          }}
+                          transition={{ duration: 3, ease: "easeInOut" }}
+                          className="h-48 w-48 rounded-full bg-breeze-500/20 flex items-center justify-center"
+                        >
+                          <motion.div
+                            animate={{
+                              scale: breathPhase === 'inhale' ? 1.2 : (breathPhase === 'exhale' ? 0.8 : 1.2)
+                            }}
+                            transition={{ duration: 3, ease: "easeInOut" }}
+                            className="h-32 w-32 rounded-full bg-breeze-500 shadow-2xl shadow-breeze-200"
+                          />
+                        </motion.div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-2xl font-bold text-white drop-shadow-md uppercase tracking-widest">
+                            {breathPhase === 'inhale' ? '吸气' : (breathPhase === 'hold' ? '屏息' : '呼气')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-ink-400 font-medium">已完成 {breathCount} 组循环</p>
+                        <p className="text-ink-500 text-sm">跟随圆圈的节奏，深度放松你的身心</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {activeTool === 'pause' && (
+                    <motion.div
+                      key="pause"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center space-y-8 max-w-md"
+                    >
+                      {!isPauseActive && pauseTimer === 60 ? (
+                        <>
+                          <div className="h-32 w-32 bg-breeze-500 rounded-full flex items-center justify-center mx-auto text-white shadow-lg shadow-breeze-200/60">
+                            <Clock size={64} />
+                          </div>
+                          <h3 className="text-2xl font-bold text-ink-900">情绪暂停角</h3>
+                          <p className="text-ink-500">当感到愤怒、焦虑或压力过大时，给自己60秒的留白时间。</p>
+                          <Button
+                            onClick={() => setIsPauseActive(true)}
+                            className="w-full"
+                            icon={Clock}
+                          >
+                            立即开始 (60s)
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="space-y-8">
+                          <div className="text-8xl font-black text-ink-900 tabular-nums">
+                            {pauseTimer}s
+                          </div>
+                          <p className="text-ink-500 italic">“在刺激和反应之间，有一个空间。在那个空间里，我们有选择反应的自由和力量。”</p>
+                          {pauseTimer === 0 && (
+                            <Button
+                              onClick={() => { setPauseTimer(60); setActiveTool(null); logToolUsage('pause', 60); }}
+                            >
+                              完成
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {activeTool === 'anxiety-box' && (
+                    <motion.div
+                      key="anxiety-box"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="w-full max-w-xl space-y-8"
+                    >
+                      {!isBoxClosed ? (
+                        <>
+                          <div className="space-y-4">
+                            <h3 className="text-xl font-bold text-ink-900">写下或说出你的烦恼</h3>
+                            <div className="relative">
+                              <textarea
+                                value={anxietyText}
+                                onChange={(e) => setAnxietyText(e.target.value)}
+                                placeholder="此时此刻，什么让你感到焦虑？"
+                                className="w-full h-48 p-6 bg-frost-50 border border-frost-100 rounded-3xl focus:ring-2 focus:ring-breeze-200 outline-none resize-none text-ink-700"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (isRecording) {
+                                    // Stop logic if needed, but usually recognition.stop() is handled by onend or manual
+                                    setIsRecording(false);
+                                  } else {
+                                    startSpeechRecognition();
+                                  }
+                                }}
+                                className={`absolute bottom-4 right-4 p-4 rounded-full shadow-lg transition-all ${isRecording ? 'bg-breeze-500 text-white animate-pulse' : 'bg-white text-ink-400 hover:text-ink-900'}`}
+                              >
+                                <Mic size={20} />
                               </button>
                             </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                              <span className="text-sm font-bold text-ink-500 whitespace-nowrap">设定处理时间:</span>
+                              <div className="flex gap-2">
+                                {['今晚', '明天', '周末', '下周'].map(t => (
+                                  <button
+                                    key={t}
+                                    onClick={() => setProcessingTime(t)}
+                                    className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${processingTime === t ? 'bg-breeze-600 text-white' : 'bg-frost-100 text-ink-500'}`}
+                                  >
+                                    {t}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-4">
+                            <Button
+                              onClick={() => { setIsBoxClosed(true); logToolUsage('anxiety-box', undefined, 'better'); }}
+                              className="flex-1"
+                              icon={Send}
+                            >
+                              封存烦恼
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center space-y-6">
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="h-32 w-32 bg-frost-100 rounded-3xl flex items-center justify-center mx-auto text-ink-400"
+                          >
+                            <ShieldCheck size={64} />
+                          </motion.div>
+                          <h3 className="text-2xl font-bold text-ink-900">烦恼已封存</h3>
+                          <p className="text-ink-500">这些烦恼已被安全存放在虚拟箱子中，并预约在 <span className="text-ink-900 font-bold">{processingTime}</span> 处理。现在，请把注意力转回到当下。</p>
+                          <Button
+                            variant="secondary"
+                            onClick={() => { setIsBoxClosed(false); setAnxietyText(""); setActiveTool(null); }}
+                          >
+                            返回驿站
+                          </Button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {activeTool === 'quadrants' && (
+                    <div className="w-full h-full flex flex-col gap-4 sm:gap-6">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                        <input
+                          value={newTaskTitle}
+                          onChange={(e) => setNewTaskTitle(e.target.value)}
+                          placeholder="添加新任务..."
+                          className="flex-1 px-4 sm:px-6 py-3 bg-frost-50 border border-frost-100 rounded-xl focus:ring-2 focus:ring-breeze-200 outline-none"
+                        />
+                        <div className="flex gap-2 shrink-0">
+                          <select
+                            value={selectedQuadrant}
+                            onChange={(e) => setSelectedQuadrant(Number(e.target.value) as any)}
+                            className="px-3 sm:px-4 py-3 bg-frost-50 border border-frost-100 rounded-xl outline-none text-sm"
+                          >
+                            <option value={1}>重要且紧急</option>
+                            <option value={2}>重要不紧急</option>
+                            <option value={3}>紧急不重要</option>
+                            <option value={4}>不紧急不重要</option>
+                          </select>
+                          <Button
+                            onClick={handleAddTask}
+                            icon={Plus}
+                            className="shrink-0"
+                            aria-label="添加任务"
+                          >
+                            添加
+                          </Button>
+                          {tasks.some(t => t.completed) && (
+                            <IconButton
+                              onClick={clearCompletedTasks}
+                              icon={Trash2}
+                              label="清理已完成任务"
+                              className="shrink-0"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 flex-1">
+                        {[1, 2, 3, 4].map((q) => {
+                          const quadrantNames: Record<number, string> = {
+                            1: '重要紧急',
+                            2: '重要不紧急',
+                            3: '紧急不重要',
+                            4: '不紧急不重要'
+                          };
+                          return (
+                            <div key={q} className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl border ${q === 1 ? 'bg-breeze-100 border-breeze-200' : q === 2 ? 'bg-breeze-50 border-breeze-100' : q === 3 ? 'bg-frost-100 border-frost-200' : 'bg-frost-50 border-frost-100'}`}>
+                              <h4 className="text-xs font-bold uppercase tracking-wider mb-2 sm:mb-4 flex items-center gap-1.5 sm:gap-2">
+                                <span className={`h-2 w-2 rounded-full ${q === 1 ? 'bg-breeze-600' : q === 2 ? 'bg-breeze-500' : q === 3 ? 'bg-ink-400' : 'bg-ink-300'}`} />
+                                <span className="truncate">{q === 1 ? '重要且紧急' : q === 2 ? '重要不紧急' : q === 3 ? '紧急不重要' : '不紧急不重要'}</span>
+                              </h4>
+                              <div className="space-y-2 max-h-[180px] sm:max-h-[200px] overflow-y-auto pr-2">
+                                {tasks.filter(t => t.quadrant === quadrantNames[q]).map(task => (
+                                  <div key={task.id} className="flex items-center gap-3 p-2 bg-white/60 rounded-lg group">
+                                    <button onClick={() => toggleTask(task)} className="text-ink-400 hover:text-breeze-500">
+                                      {task.completed ? <CheckCircle2 size={18} className="text-breeze-500" /> : <Circle size={18} />}
+                                    </button>
+                                    <span className={`text-sm flex-1 ${task.completed ? 'line-through text-ink-400' : 'text-ink-700'}`}>{task.title}</span>
+                                    <button onClick={() => deleteTask(task.id)} className="opacity-60 hover:opacity-100 text-ink-400 hover:text-breeze-500 transition-opacity">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTool === 'diary' && (
+                    <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xl font-bold text-ink-900">记录此刻心情</h3>
+                          <button
+                            onClick={() => setShowMoodCurve(!showMoodCurve)}
+                            className="flex items-center gap-2 text-xs font-bold text-breeze-600 hover:text-breeze-700"
+                          >
+                            <TrendingUp size={16} />
+                            {showMoodCurve ? "返回记录" : "查看情绪曲线"}
+                          </button>
+                        </div>
+
+                        {showMoodCurve ? (
+                          <GlassCard className="h-[400px] w-full px-4 py-6" hover={false}>
+                            <h4 className="text-sm font-bold text-ink-400 uppercase tracking-widest mb-6">最近 7 次心情波动</h4>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={[...diaryEntries].reverse().slice(-7).map(e => ({ date: new Date(e.timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }), mood: e.mood }))} margin={{ left: -35, right: 10, top: 10, bottom: 10 }}>
+                                <CartesianGrid {...chartTheme.grid} />
+                                <XAxis dataKey="date" {...chartTheme.axis} />
+                                <YAxis domain={[0, 10]} {...chartTheme.axis} />
+                                <RechartsTooltip {...chartTheme.tooltip} />
+                                <Line
+                                  type="monotone"
+                                  dataKey="mood"
+                                  stroke="#0095da"
+                                  strokeWidth={3}
+                                  dot={{ r: 6, fill: '#0095da', strokeWidth: 2, stroke: '#fff' }}
+                                  activeDot={{ r: 8, fill: '#0095da' }}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </GlassCard>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <span className="text-sm font-medium text-ink-500">心情指数: {newDiary.mood}</span>
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
+                                  <button
+                                    key={m}
+                                    onClick={() => setNewDiary(prev => ({ ...prev, mood: m }))}
+                                    className={`h-6 w-6 rounded-md text-[9px] font-bold transition-all ${newDiary.mood === m ? 'bg-breeze-500 text-white' : 'bg-frost-100 text-ink-400 hover:bg-frost-200'}`}
+                                  >
+                                    {m}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="relative">
+                              <textarea
+                                value={newDiary.content}
+                                onChange={(e) => setNewDiary(prev => ({ ...prev, content: e.target.value }))}
+                                placeholder="写下今天让你印象深刻的事..."
+                                className="w-full h-64 p-6 bg-frost-50 border border-frost-100 rounded-3xl outline-none resize-none text-ink-700"
+                              />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const canvas = document.createElement('canvas');
+                                    const ctx = canvas.getContext('2d');
+                                    const img = new Image();
+
+                                    img.onload = () => {
+                                      // 设置压缩后的图片尺寸
+                                      const maxWidth = 800;
+                                      const maxHeight = 600;
+                                      let { width, height } = img;
+
+                                      if (width > maxWidth) {
+                                        height = (height * maxWidth) / width;
+                                        width = maxWidth;
+                                      }
+                                      if (height > maxHeight) {
+                                        width = (width * maxHeight) / height;
+                                        height = maxHeight;
+                                      }
+
+                                      canvas.width = width;
+                                      canvas.height = height;
+                                      ctx?.drawImage(img, 0, 0, width, height);
+
+                                      // 将压缩后的图片转换为DataURL
+                                      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                      setNewDiary(prev => ({ ...prev, imageUrl: compressedDataUrl }));
+                                    };
+
+                                    img.src = URL.createObjectURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                                id="image-upload"
+                              />
+                              <div className="absolute bottom-4 right-4 flex gap-2">
+                                {newDiary.imageUrl && (
+                                  <div className="relative group">
+                                    <img src={newDiary.imageUrl} alt="Upload" className="h-12 w-12 rounded-lg object-cover border border-white shadow-sm" />
+                                    <button
+                                      onClick={() => setNewDiary(prev => ({ ...prev, imageUrl: "" }))}
+                                      className="absolute -top-2 -right-2 bg-breeze-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => document.getElementById('image-upload')?.click()}
+                                  className="p-3 bg-white text-ink-400 hover:text-breeze-500 rounded-2xl shadow-sm border border-frost-100 transition-all"
+                                >
+                                  <ImageIcon size={20} />
+                                </button>
+                              </div>
+                            </div>
+                            <Button
+                              onClick={handleSaveDiary}
+                              className="w-full"
+                              icon={Save}
+                            >
+                              保存日记
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-6">
+                        <h3 className="text-xl font-bold text-ink-900">往期回顾</h3>
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
+                          {diaryEntries.map(entry => (
+                            <GlassCard key={entry.id} className="p-6 space-y-3 relative group" hover={false}>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs font-bold text-ink-400">{new Date(entry.timestamp).toLocaleDateString()}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-1 bg-breeze-100 text-breeze-700 text-[10px] font-bold rounded-lg">心情 {entry.mood}</span>
+                                  <button
+                                    onClick={() => entry.id && handleDeleteDiary(entry.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-ink-300 hover:text-breeze-500 transition-all"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-sm text-ink-700 leading-relaxed line-clamp-3">{entry.content}</p>
+                              {entry.imageUrl && (
+                                <img src={entry.imageUrl} alt="Diary" className="w-full h-32 object-cover rounded-2xl mt-2" referrerPolicy="no-referrer" />
+                              )}
+                            </GlassCard>
                           ))}
                         </div>
                       </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {activeTool === 'diary' && (
-                <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-stone-900">记录此刻心情</h3>
-                      <button 
-                        onClick={() => setShowMoodCurve(!showMoodCurve)}
-                        className="flex items-center gap-2 text-xs font-bold text-amber-600 hover:text-amber-700"
-                      >
-                        <TrendingUp size={16} />
-                        {showMoodCurve ? "返回记录" : "查看情绪曲线"}
-                      </button>
                     </div>
+                  )}
 
-                    {showMoodCurve ? (
-                      <div className="h-[400px] w-full bg-stone-50 rounded-3xl px-4 py-6 border border-stone-100">
-                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-6">最近 7 次心情波动</h4>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={[...diaryEntries].reverse().slice(-7).map(e => ({ date: new Date(e.timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }), mood: e.mood }))} margin={{ left: -35, right: 10, top: 10, bottom: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                            <YAxis domain={[0, 10]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                            <RechartsTooltip 
-                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="mood" 
-                              stroke="#f59e0b" 
-                              strokeWidth={3} 
-                              dot={{ r: 6, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }}
-                              activeDot={{ r: 8, fill: '#f59e0b' }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                          <span className="text-sm font-medium text-stone-500">心情指数: {newDiary.mood}</span>
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
-                              <button
-                                key={m}
-                                onClick={() => setNewDiary(prev => ({ ...prev, mood: m }))}
-                                className={`h-6 w-6 rounded-md text-[9px] font-bold transition-all ${newDiary.mood === m ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-400 hover:bg-stone-200'}`}
-                              >
-                                {m}
-                              </button>
-                            ))}
-                          </div>
+                  {activeTool === 'mindfulness' && (
+                    <div className="w-full max-w-2xl space-y-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-2xl font-bold text-ink-900">正念冥想库</h3>
                         </div>
-                        <div className="relative">
-                          <textarea 
-                            value={newDiary.content}
-                            onChange={(e) => setNewDiary(prev => ({ ...prev, content: e.target.value }))}
-                            placeholder="写下今天让你印象深刻的事..."
-                            className="w-full h-64 p-6 bg-stone-50 border border-stone-100 rounded-3xl outline-none resize-none text-stone-700"
-                          />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const canvas = document.createElement('canvas');
-                                const ctx = canvas.getContext('2d');
-                                const img = new Image();
-                                
-                                img.onload = () => {
-                                  // 设置压缩后的图片尺寸
-                                  const maxWidth = 800;
-                                  const maxHeight = 600;
-                                  let { width, height } = img;
-                                  
-                                  if (width > maxWidth) {
-                                    height = (height * maxWidth) / width;
-                                    width = maxWidth;
-                                  }
-                                  if (height > maxHeight) {
-                                    width = (width * maxHeight) / height;
-                                    height = maxHeight;
-                                  }
-                                  
-                                  canvas.width = width;
-                                  canvas.height = height;
-                                  ctx?.drawImage(img, 0, 0, width, height);
-                                  
-                                  // 将压缩后的图片转换为DataURL
-                                  const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                  setNewDiary(prev => ({ ...prev, imageUrl: compressedDataUrl }));
-                                };
-                                
-                                img.src = URL.createObjectURL(file);
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-2">
+                        {mindfulnessTracks.map(track => (
+                          <button
+                            key={track.id}
+                            onClick={() => {
+                              if (selectedAudio?.id === track.id) {
+                                setIsPlaying(!isPlaying);
+                              } else {
+                                setSelectedAudio(track);
+                                setIsPlaying(true);
+                                // 不在这里记录使用时长，由 activeTool 的 useEffect 统一追踪实际使用时长
                               }
                             }}
-                            className="hidden"
-                            id="image-upload"
-                          />
-                          <div className="absolute bottom-4 right-4 flex gap-2">
-                            {newDiary.imageUrl && (
-                              <div className="relative group">
-                                <img src={newDiary.imageUrl} alt="Upload" className="h-12 w-12 rounded-lg object-cover border border-white shadow-sm" />
-                                <button 
-                                  onClick={() => setNewDiary(prev => ({ ...prev, imageUrl: "" }))}
-                                  className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X size={10} />
-                                </button>
-                              </div>
-                            )}
-                            <button 
-                              onClick={() => document.getElementById('image-upload')?.click()}
-                              className="p-3 bg-white text-stone-400 hover:text-amber-500 rounded-2xl shadow-sm border border-stone-100 transition-all"
-                            >
-                              <ImageIcon size={20} />
-                            </button>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={handleSaveDiary}
-                          className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-2xl font-semibold hover:from-amber-600 hover:to-amber-700 transition-all shadow-md shadow-amber-200/50 flex items-center justify-center gap-2"
-                        >
-                          <Save size={20} /> 保存日记
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                    <div className="space-y-6">
-                      <h3 className="text-xl font-bold text-stone-900">往期回顾</h3>
-                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
-                        {diaryEntries.map(entry => (
-                          <div key={entry.id} className="p-6 bg-stone-50 rounded-3xl border border-stone-100 space-y-3 relative group">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-bold text-stone-400">{new Date(entry.timestamp).toLocaleDateString()}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg">心情 {entry.mood}</span>
-                                <button 
-                                  onClick={() => entry.id && handleDeleteDiary(entry.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 text-stone-300 hover:text-rose-500 transition-all"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                            className={`p-4 rounded-2xl border transition-all flex items-center gap-4 ${selectedAudio?.id === track.id ? 'bg-breeze-50 border-breeze-500 shadow-lg shadow-breeze-100' : 'bg-white border-frost-100 hover:bg-frost-50'}`}
+                          >
+                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${selectedAudio?.id === track.id ? 'bg-breeze-500 text-white' : 'bg-frost-100 text-ink-400'}`}>
+                              {selectedAudio?.id === track.id && isPlaying ? <Activity size={20} /> : <Music size={20} />}
+                            </div>
+                            <div className="flex-1 text-left min-w-0">
+                              <h4 className="font-bold text-ink-900 text-xs leading-tight">{track.title}</h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] px-1.5 py-0.5 bg-frost-100 text-ink-500 rounded font-bold">{track.category}</span>
+                                <span className="text-[10px] text-ink-400">{track.duration}</span>
                               </div>
                             </div>
-                            <p className="text-sm text-stone-700 leading-relaxed line-clamp-3">{entry.content}</p>
-                            {entry.imageUrl && (
-                              <img src={entry.imageUrl} alt="Diary" className="w-full h-32 object-cover rounded-2xl mt-2" referrerPolicy="no-referrer" />
-                            )}
-                          </div>
+                          </button>
                         ))}
                       </div>
-                    </div>
-                </div>
-              )}
 
-              {activeTool === 'mindfulness' && (
-                <div className="w-full max-w-2xl space-y-8">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-bold text-stone-900">正念冥想库</h3>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 max-h-[450px] overflow-y-auto pr-2">
-                    {mindfulnessTracks.map(track => (
-                      <button
-                        key={track.id}
-                        onClick={() => {
-                          if (selectedAudio?.id === track.id) {
-                            setIsPlaying(!isPlaying);
-                          } else {
-                            setSelectedAudio(track);
-                            setIsPlaying(true);
-                            // 不在这里记录使用时长，由 activeTool 的 useEffect 统一追踪实际使用时长
-                          }
-                        }}
-                        className={`p-4 rounded-2xl border transition-all flex items-center gap-4 ${selectedAudio?.id === track.id ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-200' : 'bg-white border-stone-100 hover:bg-stone-50'}`}
-                      >
-                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${selectedAudio?.id === track.id ? 'bg-violet-500 text-white' : 'bg-stone-100 text-stone-400'}`}>
-                          {selectedAudio?.id === track.id && isPlaying ? <Activity size={20} /> : <Music size={20} />}
-                        </div>
-                        <div className="flex-1 text-left min-w-0">
-                          <h4 className="font-bold text-stone-900 text-xs leading-tight">{track.title}</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded font-bold">{track.category}</span>
-                            <span className="text-[10px] text-stone-400">{track.duration}</span>
+                      {selectedAudio && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-5 glass rounded-[32px] flex items-center gap-5 shadow-2xl"
+                        >
+                          <audio
+                            ref={audioRef}
+                            src={selectedAudio?.url}
+                            controls
+                            className="hidden"
+                            onEnded={() => setIsPlaying(false)}
+                            onError={(e) => {
+                              console.error("音频加载失败");
+                              setIsPlaying(false);
+                            }}
+                          />
+                          <div className="h-12 w-12 rounded-2xl bg-breeze-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-breeze-200/60">
+                            <Music size={24} />
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {selectedAudio && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-5 bg-stone-900 rounded-[32px] text-white flex items-center gap-5 shadow-2xl"
-                    >
-                      <audio 
-                        ref={audioRef} 
-                        src={selectedAudio?.url}
-                        controls
-                        className="hidden"
-                        onEnded={() => setIsPlaying(false)}
-                        onError={(e) => {
-                          console.error("音频加载失败");
-                          setIsPlaying(false);
-                        }}
-                      />
-                      <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
-                        <Music size={24} className="text-violet-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-white/40 uppercase mb-0.5">{isPlaying ? "正在播放" : "已暂停"}</p>
-                        <p className="font-bold text-sm truncate">{selectedAudio.title}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button 
-                          onClick={() => setIsPlaying(!isPlaying)}
-                          className="h-12 w-12 rounded-full bg-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20 hover:scale-105 transition-transform"
-                        >
-                          {isPlaying ? <Pause size={24} /> : <Music size={24} />}
-                        </button>
-                      </div>
-                    </motion.div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold text-ink-400 uppercase mb-0.5">{isPlaying ? "正在播放" : "已暂停"}</p>
+                            <p className="font-bold text-sm text-ink-900 truncate">{selectedAudio.title}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => setIsPlaying(!isPlaying)}
+                              className="h-12 w-12 rounded-full bg-breeze-500 flex items-center justify-center shadow-lg shadow-breeze-500/20 hover:scale-105 transition-transform"
+                            >
+                              {isPlaying ? <Pause size={24} /> : <Music size={24} />}
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {activeTool === 'cards' && (
-                <div className="w-full max-w-md space-y-6">
-                  <motion.div 
-                    initial={{ rotateY: 90 }}
-                    animate={{ rotateY: 0 }}
-                    className="aspect-[3/4] sm:aspect-[4/5] bg-white rounded-[40px] border border-stone-100 shadow-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 left-0 w-full h-2 bg-rose-500" />
-                    <div className="text-rose-500">
-                      <Heart size={40} className="sm:hidden" fill="currentColor" />
-                      <Heart size={48} className="hidden sm:block" fill="currentColor" />
-                    </div>
-                    <div className="space-y-3">
-                      <p className="text-lg sm:text-xl font-serif italic text-stone-800 leading-relaxed">{dailyCard.quote}</p>
-                      <p className="text-xs sm:text-sm font-bold text-stone-400">— {dailyCard.author}</p>
-                    </div>
-                    <div className="w-full h-px bg-stone-100" />
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">今日练习</p>
-                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">{dailyCard.practice}</p>
-                    </div>
-                  </motion.div>
-                  <button 
-                    onClick={() => { logToolUsage('cards', undefined, 'better'); setActiveTool(null); }}
-                    className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 text-white rounded-2xl font-semibold hover:from-rose-600 hover:to-rose-700 transition-all shadow-md shadow-rose-200/50 flex items-center justify-center gap-2"
-                  >
-                    完成今日练习
-                  </button>
-                </div>
-              )}
-
-              {activeTool === 'boundaries' && (
-                <div className="w-full space-y-6">
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-stone-900">沟通边界模拟</h3>
-                    <p className="text-stone-500">练习在不同情景下设定健康的职场边界</p>
-                  </div>
-                  
-                  <div className="p-6 sm:p-8 bg-stone-50 rounded-[32px] border border-stone-100 space-y-6">
-                    <div className="flex items-center gap-3 text-teal-600 font-bold">
-                      <ShieldCheck size={24} />
-                      <span>情景 {currentScenario + 1} / {boundaryScenarios.length}</span>
-                    </div>
-                    <p className="text-lg font-medium text-stone-800 leading-relaxed">
-                      {boundaryScenarios[currentScenario].context}
-                    </p>
-                    <div className="grid grid-cols-1 gap-3">
-                      {boundaryScenarios[currentScenario].options.map((opt, i) => (
-                        <button 
-                          key={i}
-                          onClick={() => {
-                            setSelectedOption(i);
-                            setBoundaryFeedback(opt.feedback);
-                          }}
-                          className={`p-4 border rounded-2xl text-left text-sm font-medium transition-all ${selectedOption === i ? 'bg-teal-600 text-white border-teal-600 shadow-lg' : 'bg-white border-stone-100 hover:border-teal-500 hover:bg-teal-50 text-stone-700'}`}
-                        >
-                          {opt.text}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <AnimatePresence>
-                    {boundaryFeedback && (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-6 bg-teal-900 text-white rounded-3xl space-y-4"
+                  {activeTool === 'cards' && (
+                    <div className="w-full max-w-md space-y-6">
+                      <motion.div
+                        initial={{ rotateY: 90 }}
+                        animate={{ rotateY: 0 }}
+                        className="aspect-[3/4] sm:aspect-[4/5] glass rounded-[40px] p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden"
                       >
-                        <div className="flex items-center gap-2 font-bold">
-                          <Info size={18} />
-                          <span>专家建议</span>
+                        <div className="absolute top-0 left-0 w-full h-2 bg-breeze-500" />
+                        <div className="text-breeze-500">
+                          <Heart size={40} className="sm:hidden" fill="currentColor" />
+                          <Heart size={48} className="hidden sm:block" fill="currentColor" />
                         </div>
-                        <p className="text-sm leading-relaxed text-teal-100">{boundaryFeedback}</p>
-                        <button 
-                          onClick={() => {
-                            if (currentScenario < boundaryScenarios.length - 1) {
-                              setCurrentScenario(prev => prev + 1);
-                              setBoundaryFeedback(null);
-                              setSelectedOption(null);
-                            } else {
-                              logToolUsage('boundaries', undefined, 'better');
-                              setActiveTool(null);
-                            }
-                          }}
-                          className="w-full py-3 bg-white text-teal-900 rounded-xl font-bold flex items-center justify-center gap-2"
-                        >
-                          {currentScenario < boundaryScenarios.length - 1 ? "下一题" : "完成练习"} <ArrowRight size={18} />
-                        </button>
+                        <div className="space-y-3">
+                          <p className="text-lg sm:text-xl font-serif italic text-ink-800 leading-relaxed">{dailyCard.quote}</p>
+                          <p className="text-xs sm:text-sm font-bold text-ink-400">— {dailyCard.author}</p>
+                        </div>
+                        <div className="w-full h-px bg-frost-100" />
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-breeze-500 uppercase tracking-widest">今日练习</p>
+                          <p className="text-xs sm:text-sm text-ink-600 leading-relaxed">{dailyCard.practice}</p>
+                        </div>
                       </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      )}
+                      <Button
+                        onClick={() => { logToolUsage('cards', undefined, 'better'); setActiveTool(null); }}
+                        className="w-full"
+                      >
+                        完成今日练习
+                      </Button>
+                    </div>
+                  )}
 
+                  {activeTool === 'boundaries' && (
+                    <div className="w-full space-y-6">
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-ink-900">沟通边界模拟</h3>
+                        <p className="text-ink-500">练习在不同情景下设定健康的职场边界</p>
+                      </div>
+
+                      <GlassCard className="p-6 sm:p-8 space-y-6" hover={false}>
+                        <div className="flex items-center gap-3 text-breeze-600 font-bold">
+                          <ShieldCheck size={24} />
+                          <span>情景 {currentScenario + 1} / {boundaryScenarios.length}</span>
+                        </div>
+                        <p className="text-lg font-medium text-ink-800 leading-relaxed">
+                          {boundaryScenarios[currentScenario].context}
+                        </p>
+                        <div className="grid grid-cols-1 gap-3">
+                          {boundaryScenarios[currentScenario].options.map((opt, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setSelectedOption(i);
+                                setBoundaryFeedback(opt.feedback);
+                              }}
+                              className={`p-4 border rounded-2xl text-left text-sm font-medium transition-all ${selectedOption === i ? 'bg-breeze-600 text-white border-breeze-600 shadow-lg' : 'bg-white border-frost-100 hover:border-breeze-500 hover:bg-breeze-50 text-ink-700'}`}
+                            >
+                              {opt.text}
+                            </button>
+                          ))}
+                        </div>
+                      </GlassCard>
+
+                      <AnimatePresence>
+                        {boundaryFeedback && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="p-6 bg-breeze-600 text-white rounded-3xl space-y-4"
+                          >
+                            <div className="flex items-center gap-2 font-bold">
+                              <Info size={18} />
+                              <span>专家建议</span>
+                            </div>
+                            <p className="text-sm leading-relaxed text-white/90">{boundaryFeedback}</p>
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                if (currentScenario < boundaryScenarios.length - 1) {
+                                  setCurrentScenario(prev => prev + 1);
+                                  setBoundaryFeedback(null);
+                                  setSelectedOption(null);
+                                } else {
+                                  logToolUsage('boundaries', undefined, 'better');
+                                  setActiveTool(null);
+                                }
+                              }}
+                              className="w-full"
+                            >
+                              {currentScenario < boundaryScenarios.length - 1 ? "下一题" : "完成练习"} <ArrowRight size={18} />
+                            </Button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </GlassCard>
+          )}
         </>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Community Sidebar */}
           <div className="space-y-4">
-            <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm space-y-2">
-              <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">话题小组</h3>
+            <GlassCard className="p-6 space-y-2" hover={false}>
+              <h3 className="text-xs font-bold text-ink-400 uppercase tracking-widest mb-4">话题小组</h3>
               {TOPICS.map((topic) => (
                 <button
                   key={topic.id}
                   onClick={() => setActiveTopic(topic.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${activeTopic === topic.id ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-stone-500 hover:bg-stone-50'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${activeTopic === topic.id ? 'bg-breeze-50 text-breeze-600 shadow-sm' : 'text-ink-500 hover:bg-frost-50'}`}
                 >
                   <topic.icon size={18} />
                   {topic.name}
                 </button>
               ))}
-            </div>
-            <button 
-                onClick={() => setShowNewPost(true)}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all shadow-md shadow-blue-200/50 flex items-center justify-center gap-2"
-              >
-              <Plus size={20} /> 发布心声
-            </button>
+            </GlassCard>
+            <Button
+              onClick={() => setShowNewPost(true)}
+              className="w-full"
+              icon={Plus}
+            >
+              发布心声
+            </Button>
           </div>
 
           {/* Community Feed */}
@@ -1801,54 +1796,54 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                 key={post.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-8 rounded-[32px] border border-stone-100 shadow-sm space-y-6 relative"
+                className="glass rounded-2xl p-8 space-y-6 relative"
               >
                 {/* 主题标签 - 右上角 */}
                 <div className="absolute top-7 right-4">
-                  <span className="px-2 py-1 bg-stone-50 text-stone-500 text-[10px] font-bold rounded-md whitespace-nowrap">
+                  <span className="px-2 py-1 bg-frost-50 text-ink-500 text-[10px] font-bold rounded-md whitespace-nowrap">
                     {TOPICS.find(t => t.id === post.topic)?.name}
                   </span>
                 </div>
-                
+
                 {/* 头像和用户信息 */}
                 <div className="flex items-start gap-3">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${Boolean(post.isModerator) ? 'bg-blue-100 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${Boolean(post.isModerator) ? 'bg-breeze-100 text-breeze-600' : 'bg-frost-100 text-ink-400'}`}>
                     {Boolean(post.isModerator) ? <ShieldCheck size={20} /> : <Users size={20} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     {/* 第一排：昵称 */}
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-bold text-stone-900">{Boolean(post.isModerator) ? "社区专家" : "匿名教师"}</p>
-                      {Boolean(post.isModerator) && <span className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
+                      <p className="text-sm font-bold text-ink-900">{Boolean(post.isModerator) ? "社区专家" : "匿名教师"}</p>
+                      {Boolean(post.isModerator) && <span className="px-2 py-1 bg-breeze-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
                     </div>
-                    
+
                     {/* 第二排：身份标签 */}
                     {Array.isArray(post.identities) && post.identities.length > 0 && (
                       <div className="flex items-center gap-2 flex-wrap mb-2">
                         {post.identities.map(identity => (
-                          <span key={identity} className="px-2 py-1 bg-blue-100 text-blue-600 text-[10px] font-bold rounded-md mr-1">{IDENTITY_TAGS.find(tag => tag.id === identity)?.name}</span>
+                          <span key={identity} className="px-2 py-1 bg-breeze-100 text-breeze-600 text-[10px] font-bold rounded-md mr-1">{IDENTITY_TAGS.find(tag => tag.id === identity)?.name}</span>
                         ))}
                       </div>
                     )}
-                    
+
                     {/* 第三排：日期 */}
-                    <p className="text-[12px] text-stone-400 font-medium">{post.timestamp ? new Date(post.timestamp.replace(' ', 'T')).toLocaleString() : ''}</p>
+                    <p className="text-[12px] text-ink-400 font-medium">{post.timestamp ? new Date(post.timestamp.replace(' ', 'T')).toLocaleString() : ''}</p>
                   </div>
                 </div>
 
-                <p className="text-stone-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                <p className="text-ink-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
-                <div className="flex items-center gap-6 pt-4 border-t border-stone-50">
-                  <button 
+                <div className="flex items-center gap-6 pt-4 border-t border-frost-100">
+                  <button
                     onClick={() => handleLike(post)}
-                    className={`flex items-center gap-2 text-sm font-bold transition-colors ${post.likedBy?.includes(profile?.uid || '') ? 'text-blue-600' : 'text-stone-400 hover:text-blue-600'}`}
+                    className={`flex items-center gap-2 text-sm font-bold transition-colors ${post.likedBy?.includes(profile?.uid || '') ? 'text-breeze-600' : 'text-ink-400 hover:text-breeze-600'}`}
                   >
                     <Heart size={18} fill={post.likedBy?.includes(profile?.uid || '') ? "currentColor" : "none"} />
                     {post.likes}
                   </button>
-                  <button 
+                  <button
                     onClick={() => setReplyingTo(post)}
-                    className="flex items-center gap-2 text-sm font-bold text-stone-400 hover:text-stone-600 transition-colors"
+                    className="flex items-center gap-2 text-sm font-bold text-ink-400 hover:text-ink-600 transition-colors"
                   >
                     <MessageSquare size={18} />
                     回复 {comments[post.id || '']?.length || 0}
@@ -1856,36 +1851,36 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                 </div>
 
                 {comments[post.id || ''] && (
-                  <div className="mt-4 space-y-4 pl-8 border-l-2 border-stone-50">
+                  <div className="mt-4 space-y-4 pl-8 border-l-2 border-frost-100">
                     {comments[post.id || ''].map((comment) => (
                       <div key={comment.id} className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold ${comment.isModerator ? 'text-blue-600' : 'text-stone-500'}`}>
+                            <span className={`text-[10px] font-bold ${comment.isModerator ? 'text-breeze-600' : 'text-ink-500'}`}>
                               {comment.isModerator ? "专家回复" : "匿名回复"}
                             </span>
-                            <span className="text-[8px] text-stone-300">{comment.timestamp ? new Date(comment.timestamp.replace(' ', 'T')).toLocaleTimeString() : ''}</span>
+                            <span className="text-[8px] text-ink-300">{comment.timestamp ? new Date(comment.timestamp.replace(' ', 'T')).toLocaleTimeString() : ''}</span>
                           </div>
                           {comment.author_id === profile?.uid && (
-                            <button 
+                            <button
                               onClick={() => handleDeleteComment(comment.id, post.id || '')}
-                              className="p-1 text-stone-300 hover:text-rose-500 transition-colors"
+                              className="p-1 text-ink-300 hover:text-breeze-500 transition-colors"
                               title="删除我的回复"
                             >
                               <Trash2 size={12} />
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-stone-600">{comment.content}</p>
+                        <p className="text-xs text-ink-600">{comment.content}</p>
                       </div>
                     ))}
                   </div>
                 )}
-                
+
                 {/* 删除按钮 - 整个帖子的右下角 */}
                 {post.authorId === profile?.uid && (
                   <div className="absolute bottom-4 right-4">
-                    <button 
+                    <button
                       type="button"
                       onClick={async (e) => {
                         e.preventDefault();
@@ -1908,7 +1903,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                           console.log("Delete error:", e);
                         }
                       }}
-                      className="p-2 text-stone-300 hover:text-rose-500 transition-colors bg-white/80 rounded-full shadow-sm"
+                      className="p-2 text-ink-300 hover:text-breeze-500 transition-colors bg-white/80 rounded-full shadow-sm"
                       title="删除我的发布"
                     >
                       <Trash2 size={16} />
@@ -1923,33 +1918,77 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
 
       {/* Modals */}
       {showNewPost && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div onClick={() => setShowNewPost(false)} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" />
-            <div className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden">
-              <div className="p-6 border-b border-stone-100 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-stone-900">发布心声</h2>
-                <button onClick={() => setShowNewPost(false)} className="p-2 hover:bg-stone-50 rounded-xl transition-colors"><X size={20} className="text-stone-400" /></button>
+        <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative w-full max-w-2xl glass rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh_-_5rem)]"
+          >
+            <button onClick={() => setShowNewPost(false)} className="absolute top-4 right-4 p-2 text-ink-400 hover:text-ink-600 hover:bg-frost-100 rounded-xl transition-all z-10">
+              <X size={18} />
+            </button>
+            <div className="p-6 sm:p-7 pb-4 border-b border-frost-100 flex-shrink-0">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold text-ink-900">发布心声</h3>
+                  <p className="text-xs text-ink-500">匿名分享，温暖彼此</p>
+                </div>
               </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <p className="text-sm font-bold text-stone-700 mb-2">选择身份标签</p>
-                  <div className="flex flex-wrap gap-2">
-                    {IDENTITY_TAGS.map(tag => (
-                      <button key={tag.id} onClick={() => setSelectedIdentities(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedIdentities.includes(tag.id) ? 'bg-blue-600 text-white' : 'bg-stone-50 text-stone-500'}`}>{tag.name}</button>
-                    ))}
+            </div>
+            <div className="p-6 sm:p-7 space-y-5 max-h-[60vh] overflow-y-auto flex-1 min-h-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-7">
+                {/* 左列：身份标签 */}
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[10px] font-bold text-ink-400 uppercase tracking-widest mb-2.5">教师身份</p>
+                    <div className="flex flex-wrap gap-2">
+                      {IDENTITY_TAGS.filter(t => t.id === 'headteacher').map(tag => (
+                        <button key={tag.id} onClick={() => setSelectedIdentities(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedIdentities.includes(tag.id) ? 'bg-breeze-600 text-white' : 'bg-frost-50 text-ink-500'}`}>{tag.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-ink-400 uppercase tracking-widest mb-2.5">学科</p>
+                    <div className="flex flex-wrap gap-2">
+                      {IDENTITY_TAGS.filter(t => ['chinese', 'math', 'english', 'other-subject'].includes(t.id)).map(tag => (
+                        <button key={tag.id} onClick={() => setSelectedIdentities(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedIdentities.includes(tag.id) ? 'bg-breeze-600 text-white' : 'bg-frost-50 text-ink-500'}`}>{tag.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-ink-400 uppercase tracking-widest mb-2.5">年级</p>
+                    <div className="flex flex-wrap gap-2">
+                      {IDENTITY_TAGS.filter(t => t.id.startsWith('grade')).map(tag => (
+                        <button key={tag.id} onClick={() => setSelectedIdentities(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedIdentities.includes(tag.id) ? 'bg-breeze-600 text-white' : 'bg-frost-50 text-ink-500'}`}>{tag.name}</button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {TOPICS.filter(t => t.id !== 'all').map(topic => (
-                    <button key={topic.id} onClick={() => setSelectedTopic(topic.id)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedTopic === topic.id ? 'bg-blue-600 text-white' : 'bg-stone-50 text-stone-500'}`}>{topic.name}</button>
-                  ))}
+                {/* 右列：话题 + 内容 */}
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[10px] font-bold text-ink-400 uppercase tracking-widest mb-2.5">选择话题</p>
+                    <div className="flex flex-wrap gap-2">
+                      {TOPICS.filter(t => t.id !== 'all').map(topic => (
+                        <button key={topic.id} onClick={() => setSelectedTopic(topic.id)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedTopic === topic.id ? 'bg-breeze-600 text-white' : 'bg-frost-50 text-ink-500'}`}>{topic.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="md:h-full md:flex md:flex-col">
+                    <textarea value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} placeholder="分享您的心声..." className="w-full h-36 md:flex-1 p-5 bg-frost-50 border border-frost-100 rounded-2xl outline-none resize-none text-ink-700" />
+                  </div>
                 </div>
-                <textarea value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} placeholder="分享您的心声..." className="w-full h-32 p-6 bg-stone-50 border border-stone-100 rounded-3xl outline-none resize-none text-stone-700" />
-                {moderationError && <p className="text-xs text-rose-600">{moderationError}</p>}
               </div>
-              <div className="p-6 bg-stone-50 flex justify-end gap-4">
-                <button onClick={() => setShowNewPost(false)} className="px-6 py-2 text-stone-500 font-bold">取消</button>
-                <button onClick={async (e) => {
+              {moderationError && <p className="text-xs text-coral-600">{moderationError}</p>}
+            </div>
+            <div className="p-6 sm:p-7 pt-4 bg-frost-50/50 border-t border-frost-100 flex flex-col sm:flex-row gap-3 flex-shrink-0">
+              <button onClick={() => setShowNewPost(false)} className="flex-1 py-3 rounded-2xl bg-white/70 text-ink-700 border border-frost-200 font-semibold hover:bg-white transition-all flex items-center justify-center gap-2">
+                <X size={18} /> 取消
+              </button>
+              <button
+                type="button"
+                onClick={async (e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   console.log("=== 发布按钮 V2 被点击 ===");
@@ -1979,67 +2018,100 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                     console.log("发布失败:", e);
                   }
                   setIsSubmitting(false);
-                }} disabled={isSubmitting || !newPostContent.trim()} type="button" className="px-10 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all shadow-md shadow-blue-200/50">确认发布</button>
-              </div>
+                }}
+                disabled={isSubmitting || !newPostContent.trim()}
+                className="flex-1 py-3 rounded-2xl bg-breeze-500 hover:bg-breeze-600 text-white font-semibold transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Check size={18} /> 确认发布
+              </button>
             </div>
+          </motion.div>
           </div>
-        )}
+        </div>
+      )}
 
-        {replyingTo && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div onClick={() => setReplyingTo(null)} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" />
-            <div className="relative w-full max-w-lg bg-white rounded-[40px] shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-stone-900">回复心声</h2>
-                <button onClick={() => setReplyingTo(null)} className="p-2 hover:bg-stone-50 rounded-xl transition-colors"><X size={24} className="text-stone-400" /></button>
-              </div>
-              <div className="p-8 space-y-4">
-                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100 text-sm text-stone-600 italic">"{replyingTo.content}"</div>
-                <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="写下您的回复..." className="w-full h-32 p-4 bg-stone-50 border border-stone-100 rounded-2xl outline-none resize-none text-stone-700" />
-              </div>
-              <div className="p-8 bg-stone-50 flex justify-end gap-4">
-                <button onClick={() => setReplyingTo(null)} className="px-6 py-2 text-stone-500 font-bold">取消</button>
-                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSubmitReply(); }} disabled={isSubmitting || !replyContent.trim()} className="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all shadow-md shadow-blue-200/50">确认回复</button>
+      {replyingTo && (
+        <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-lg glass rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh_-_5rem)]"
+          >
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="absolute top-4 right-4 p-2 text-ink-400 hover:text-ink-600 hover:bg-frost-100 rounded-xl transition-all z-10"
+            >
+              <X size={18} />
+            </button>
+            <div className="p-6 sm:p-7 pb-4 border-b border-frost-100 flex-shrink-0">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold text-ink-900">回复心声</h3>
+                  <p className="text-xs text-ink-500">回复匿名社区中的心声</p>
+                </div>
               </div>
             </div>
+            <div className="p-6 sm:p-7 space-y-4 overflow-y-auto flex-1 min-h-0">
+              <div className="p-4 bg-frost-50 rounded-2xl border border-frost-100 text-sm text-ink-600 italic">"{replyingTo.content}"</div>
+              <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="写下您的回复..." className="w-full h-32 p-4 bg-frost-50 border border-frost-100 rounded-2xl outline-none resize-none text-ink-700" />
+            </div>
+            <div className="p-6 sm:p-7 pt-4 bg-frost-50/50 border-t border-frost-100 flex flex-col sm:flex-row gap-3 flex-shrink-0">
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="flex-1 py-3 rounded-2xl bg-white/70 text-ink-700 border border-frost-200 font-semibold hover:bg-white transition-all flex items-center justify-center gap-2"
+              >
+                <X size={18} /> 取消
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSubmitReply(); }}
+                disabled={isSubmitting || !replyContent.trim()}
+                className="flex-1 py-3 rounded-2xl bg-breeze-500 hover:bg-breeze-600 text-white font-semibold transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Check size={18} /> 确认回复
+              </button>
+            </div>
+          </motion.div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 bg-white rounded-3xl border border-stone-100 shadow-sm flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-200/50">
+        <GlassCard className="p-6 flex items-center gap-4" hover={false}>
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-breeze-500 to-breeze-600 text-white flex items-center justify-center shadow-lg shadow-breeze-200/60">
             <Activity size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">累计调适时长</p>
-            <p className="text-2xl font-black text-stone-900">{totalToolUsageMinutes} <span className="text-sm font-normal text-stone-400">分钟</span></p>
+            <p className="text-xs font-bold text-ink-400 uppercase tracking-widest">累计调适时长</p>
+            <p className="text-2xl font-black text-ink-900">{totalToolUsageMinutes} <span className="text-sm font-normal text-ink-400">分钟</span></p>
           </div>
-        </div>
-        <div className="p-6 bg-white rounded-3xl border border-stone-100 shadow-sm flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
+        </GlassCard>
+        <GlassCard className="p-6 flex items-center gap-4" hover={false}>
+          <div className="h-12 w-12 rounded-2xl bg-breeze-500 text-white flex items-center justify-center shadow-lg shadow-breeze-200/60">
             <BookOpen size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">心情记录天数</p>
-            <p className="text-2xl font-black text-stone-900">{diaryEntries.length} <span className="text-sm font-normal text-stone-400">天</span></p>
+            <p className="text-xs font-bold text-ink-400 uppercase tracking-widest">心情记录天数</p>
+            <p className="text-2xl font-black text-ink-900">{diaryEntries.length} <span className="text-sm font-normal text-ink-400">天</span></p>
           </div>
-        </div>
-        <div className="p-6 bg-white rounded-3xl border border-stone-100 shadow-sm flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
+        </GlassCard>
+        <GlassCard className="p-6 flex items-center gap-4" hover={false}>
+          <div className="h-12 w-12 rounded-2xl bg-breeze-500 text-white flex items-center justify-center shadow-lg shadow-breeze-200/60">
             <CheckCircle2 size={24} />
           </div>
           <div>
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">任务完成率</p>
-            <p className="text-2xl font-black text-stone-900">
+            <p className="text-xs font-bold text-ink-400 uppercase tracking-widest">任务完成率</p>
+            <p className="text-2xl font-black text-ink-900">
               {tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0}
-              <span className="text-sm font-normal text-stone-400">%</span>
+              <span className="text-sm font-normal text-ink-400">%</span>
             </p>
           </div>
-        </div>
+        </GlassCard>
       </div>
-    </div>
-  </motion.div>
+    </PageContainer>
   );
 };
 

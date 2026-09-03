@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
-  Heart, User, Mail, Phone, Key, LogIn, UserPlus, CheckCircle
+  User, Mail, Phone, Key, LogIn, UserPlus, CheckCircle
 } from "lucide-react";
+import Logo from "../../components/Logo";
 import {
   login, sendVerificationCode,
   verifyCodeAndResetPassword, loginPhonePassword, loginCode
@@ -238,11 +239,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center bg-frost-50 p-4 sm:p-6 lg:p-8">
-      {/* 柔和光晕背景 */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-mist-200/40 rounded-full halo"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-mist-300/30 rounded-full halo"></div>
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-80 h-80 bg-meadow-100/30 rounded-full halo"></div>
+      {/* 五色光晕背景（与个人主页一致） */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute -top-32 -right-20 w-[34rem] h-[34rem] rounded-full" style={{ background: "radial-gradient(circle, rgba(154,199,59,0.30), transparent 68%)" }} />
+        <div className="absolute top-16 -left-28 w-[30rem] h-[30rem] rounded-full" style={{ background: "radial-gradient(circle, rgba(0,149,218,0.24), transparent 68%)" }} />
+        <div className="absolute top-1/2 -right-40 w-[34rem] h-[34rem] rounded-full" style={{ background: "radial-gradient(circle, rgba(240,129,32,0.24), transparent 68%)" }} />
+        <div className="absolute bottom-0 -right-20 w-[30rem] h-[30rem] rounded-full" style={{ background: "radial-gradient(circle, rgba(232,64,82,0.22), transparent 68%)" }} />
+        <div className="absolute -bottom-28 -left-24 w-[34rem] h-[34rem] rounded-full" style={{ background: "radial-gradient(circle, rgba(212,100,162,0.26), transparent 68%)" }} />
       </div>
 
       <div className="w-full max-w-5xl grid lg:grid-cols-[1fr_1.1fr] gap-10 lg:gap-16 items-center relative z-10">
@@ -253,24 +256,28 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="hidden lg:block"
         >
-          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-mist-500 to-mist-700 flex items-center justify-center shadow-float mb-6">
-            <Heart size={30} fill="white" className="text-white" />
+          <div className="flex items-center gap-5 mb-7">
+            <Logo size={76} />
+            <div>
+              <h1 className="text-4xl font-bold text-ink-900 leading-tight">心桥教师关怀</h1>
+              <p className="mt-1.5 text-sm text-ink-400 font-medium">五色教师心理健康支持系统</p>
+            </div>
           </div>
-          <h1 className="text-4xl font-bold text-ink-900 leading-tight mb-3">
-            心桥教师关怀
-          </h1>
-          <p className="text-lg text-ink-500 mb-10 leading-relaxed">
+          <p className="text-base text-ink-500 mb-9 leading-relaxed">
             数据驱动关怀，守护教师心灵。
             <br />
             用系统化的心理支持，温暖每一份坚守。
           </p>
-          <div className="flex items-center gap-5">
-            {WU_SE.map((item) => (
-              <div key={item.name} className="flex flex-col items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${item.color} shadow-soft`}></span>
-                <span className="text-xs text-ink-500 font-medium">{item.name}</span>
-              </div>
-            ))}
+          <div className="glass rounded-2xl p-6 shadow-soft">
+            <p className="text-[10px] font-bold text-ink-400 uppercase tracking-widest mb-5">五色心理健康模块</p>
+            <div className="flex items-center justify-between gap-2">
+              {WU_SE.map((item) => (
+                <div key={item.name} className="flex flex-col items-center gap-2">
+                  <span className={`h-5 w-5 rounded-full ${item.color} shadow-soft ring-4 ring-white/70`}></span>
+                  <span className="text-xs text-ink-500 font-medium">{item.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
 
@@ -281,12 +288,10 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md mx-auto lg:mx-0"
         >
-          <div className="glass rounded-3xl p-6 sm:p-8">
+          <div className="glass rounded-3xl p-7 sm:p-9">
             {/* 移动端品牌 */}
             <div className="lg:hidden text-center mb-6">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-mist-500 to-mist-700 flex items-center justify-center shadow-float mx-auto mb-3">
-                <Heart size={26} fill="white" className="text-white" />
-              </div>
+              <Logo size={52} className="mx-auto mb-3" />
               <h1 className="text-xl font-bold text-ink-900">心桥教师关怀</h1>
               <p className="mt-1 text-xs text-ink-500">五色心理健康系统 · 守护教师心灵</p>
             </div>
@@ -295,18 +300,18 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               passwordResetDone ? (
                 <div className="text-center py-6">
                   <CheckCircle size={48} className="text-meadow-500 mx-auto mb-4" />
-                  <h2 className="text-lg font-semibold text-ink-800 mb-2">密码重置成功</h2>
+                  <h2 className="text-lg font-bold text-ink-800 mb-2">密码重置成功</h2>
                   <p className="text-sm text-ink-500 mb-6">请使用新密码登录</p>
                   <button
                     onClick={gotoLogin}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-mist-600 px-5 py-3 text-white font-medium hover:bg-mist-700 transition-colors text-sm"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-ink-900 px-5 py-3.5 text-white font-semibold hover:bg-ink-800 transition-colors text-[15px]"
                   >
                     返回登录
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleVerifyAndReset} className="space-y-3.5">
-                  <h2 className="text-lg font-semibold text-ink-800 mb-4">找回密码</h2>
+                  <h2 className="text-xl font-bold text-ink-900 mb-5">找回密码</h2>
                   <AuthTextField
                     icon={User}
                     type="email"
@@ -356,7 +361,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-mist-600 px-5 py-3 text-white font-semibold shadow-soft hover:bg-mist-700 active:translate-y-px transition-all duration-200 text-sm"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-ink-900 px-5 py-3 text-white font-semibold shadow-soft hover:bg-ink-800 active:translate-y-px transition-all duration-200 text-sm"
                   >
                     重置密码
                   </button>
@@ -365,7 +370,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     <button
                       type="button"
                       onClick={gotoLogin}
-                      className="text-sm text-mist-600 font-medium hover:text-mist-700 transition-colors"
+                      className="text-sm text-ink-700 font-medium hover:text-ink-800 transition-colors"
                     >
                       返回登录
                     </button>
@@ -375,9 +380,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
             ) : showLogin ? (
               /* ===== 登录 ===== */
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-ink-800 mb-4">欢迎回来</h2>
+                <h2 className="text-xl font-bold text-ink-900 mb-5 text-center">欢迎回来</h2>
                 {/* 登录方式切换 */}
-                <div className="flex gap-1.5 bg-frost-100 rounded-xl p-1">
+                <div className="flex gap-1.5 glass-nav rounded-xl p-1">
                   {([
                     ['email-password', '邮箱登录'],
                     ['phone-password', '手机号密码'],
@@ -387,9 +392,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       key={key}
                       type="button"
                       onClick={() => setLoginMethod(key)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      className={`flex-1 py-2.5 rounded-xl text-[15px] font-medium transition-all duration-200 ${
                         loginMethod === key
-                          ? 'bg-white text-mist-600 shadow-soft'
+                          ? 'bg-white text-ink-700 shadow-card'
                           : 'text-ink-500 hover:text-ink-600'
                       }`}
                     >
@@ -469,7 +474,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-mist-600 px-6 py-3 text-white font-semibold shadow-soft hover:bg-mist-700 active:translate-y-px transition-all duration-200 text-sm"
+                    className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-ink-900 px-6 py-3.5 text-white font-semibold shadow-soft hover:bg-ink-800 active:translate-y-px transition-all duration-200 text-[15px]"
                   >
                     <LogIn size={17} />
                     登录
@@ -479,7 +484,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     <button
                       type="button"
                       onClick={goForgot}
-                      className="text-sm text-mist-600 font-medium hover:text-mist-700 transition-colors"
+                      className="text-sm text-ink-700 font-medium hover:text-ink-800 transition-colors"
                     >
                       忘记密码？
                     </button>
@@ -488,7 +493,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       <button
                         type="button"
                         onClick={goRegister}
-                        className="text-mist-600 font-medium hover:text-mist-700 transition-colors"
+                        className="text-ink-700 font-medium hover:text-ink-800 transition-colors"
                       >
                         立即注册
                       </button>
@@ -499,7 +504,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
             ) : (
               /* ===== 注册 ===== */
               <form onSubmit={handleRegister} className="space-y-3.5">
-                <h2 className="text-lg font-semibold text-ink-800 mb-4">创建账号</h2>
+                <h2 className="text-xl font-bold text-ink-900 mb-5">创建账号</h2>
                 <AuthTextField
                   icon={User}
                   type="text"
@@ -546,7 +551,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-mist-600 px-6 py-3 text-white font-semibold shadow-soft hover:bg-mist-700 active:translate-y-px transition-all duration-200 text-sm"
+                  className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-ink-900 px-6 py-3.5 text-white font-semibold shadow-soft hover:bg-ink-800 active:translate-y-px transition-all duration-200 text-[15px]"
                 >
                   <UserPlus size={17} />
                   注册
@@ -558,7 +563,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     <button
                       type="button"
                       onClick={goLogin}
-                      className="text-mist-600 font-medium hover:text-mist-700 transition-colors"
+                      className="text-ink-700 font-medium hover:text-ink-800 transition-colors"
                     >
                       立即登录
                     </button>

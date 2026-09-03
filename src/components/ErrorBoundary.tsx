@@ -41,19 +41,19 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-stone-50 p-6">
-          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl border border-stone-100 text-center space-y-6">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-frost-50 p-6">
+          <div className="w-full max-w-md glass rounded-3xl p-8 shadow-xl text-center space-y-6">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-coral-50 text-coral-500">
               <AlertTriangle size={32} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-stone-900 mb-2">应用出错了</h2>
-              <p className="text-stone-500 text-sm">{errorMessage}</p>
+              <h2 className="text-xl font-bold text-ink-900 mb-2">应用出错了</h2>
+              <p className="text-ink-500 text-sm">{errorMessage}</p>
             </div>
             
             {errorDetails && (
-              <div className="bg-stone-50 p-4 rounded-xl text-left overflow-auto max-h-40">
-                <pre className="text-xs text-stone-600 whitespace-pre-wrap font-mono">
+              <div className="bg-coral-50/40 border border-coral-100 p-4 rounded-xl text-left overflow-auto max-h-40">
+                <pre className="text-xs text-coral-700 whitespace-pre-wrap font-mono">
                   {errorDetails}
                 </pre>
               </div>
@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <button
               onClick={() => window.location.reload()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-3 text-white font-medium hover:bg-stone-800 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink-900 px-4 py-3 text-white font-medium hover:bg-ink-800 transition-colors"
             >
               <RefreshCw size={18} />
               重新加载页面

@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
-import { X, LogOut, Heart } from "lucide-react";
+import { X, LogOut } from "lucide-react";
 import { UserProfile } from "../../types";
 import { navItems } from "./navItems";
 import { accents } from "../ui/accents";
+import Logo from "../Logo";
 
 /* ============================================================
    侧边栏内容：Logo + 导航 + 用户信息 + 退出
@@ -24,9 +25,7 @@ export default function SidebarContent({ profile, onLogout, isMobile, onClose }:
       {/* Logo */}
       <div className="flex h-20 items-center justify-between px-5 border-b border-white/50">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-mist-500 to-mist-700 flex items-center justify-center shadow-soft">
-            <Heart size={20} fill="white" className="text-white" />
-          </div>
+          <Logo size={40} />
           <div>
             <h1 className="font-bold text-[15px] text-ink-900 leading-tight">心桥教师关怀</h1>
             <p className="text-[10px] text-ink-400 font-medium mt-0.5">五色心理健康系统</p>
@@ -53,17 +52,12 @@ export default function SidebarContent({ profile, onLogout, isMobile, onClose }:
                 key={item.path}
                 to={item.path}
                 onClick={isMobile ? onClose : undefined}
-                className={`group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? "bg-white text-ink-800 shadow-card"
                     : "text-ink-500 hover:bg-white/70 hover:text-ink-800 hover:shadow-card"
                 }`}
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full transition-all duration-200 flex-shrink-0 ${
-                    isActive ? a.dot : "bg-transparent group-hover:bg-ink-300"
-                  }`}
-                />
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200 ${
                     isActive ? a.iconWrap : "text-ink-400 group-hover:text-ink-700"
@@ -80,7 +74,7 @@ export default function SidebarContent({ profile, onLogout, isMobile, onClose }:
       {/* 用户信息 + 退出 */}
       <div className="p-3.5 border-t border-white/50 space-y-1">
         <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl">
-          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-mist-500 to-mist-700 flex items-center justify-center text-white text-sm font-bold shadow-soft flex-shrink-0">
+          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-ink-800 to-ink-900 flex items-center justify-center text-white text-sm font-bold shadow-soft flex-shrink-0">
             {profile?.displayName?.[0] || "师"}
           </div>
           <div className="flex-1 min-w-0">

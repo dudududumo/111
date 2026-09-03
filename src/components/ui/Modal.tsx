@@ -19,20 +19,21 @@ export default function Modal({ open, onClose, title, children, maxWidth = "max-
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-ink-900/30 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0"
+            className="absolute inset-0 cursor-pointer"
           />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${maxWidth} glass rounded-3xl p-6`}
+            className={`relative w-full ${maxWidth} glass rounded-3xl p-6 pointer-events-auto`}
           >
             {!hideClose && (
               <button
@@ -46,6 +47,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = "max-
             {title && <h3 className="mb-4 text-base font-semibold text-ink-900 pr-8">{title}</h3>}
             {children}
           </motion.div>
+          </div>
         </div>
       )}
     </AnimatePresence>

@@ -80,11 +80,11 @@ const StarRating: React.FC<StarRatingProps> = ({
               className={`relative cursor-pointer transition-transform hover:scale-110 ${readOnly ? "cursor-default" : ""}`}
             >
               <Star
-                className={`w-4 h-4 ${filled ? "text-yellow-400 fill-yellow-400" : "text-stone-300"}`}
+                className={`w-4 h-4 ${filled ? "text-amber-400 fill-amber-400" : "text-frost-200"}`}
               />
               {halfFilled && (
                 <div className="absolute inset-0 overflow-hidden w-1/2">
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                 </div>
               )}
             </div>
@@ -92,7 +92,7 @@ const StarRating: React.FC<StarRatingProps> = ({
         })}
       </div>
       {lastRatedAt && (
-        <span className="text-[10px] text-stone-400">
+        <span className="text-[10px] text-ink-400">
           上次评分：{formatDate(lastRatedAt)}
         </span>
       )}

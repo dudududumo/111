@@ -17,7 +17,7 @@
   --color-frost-100: #f1f3f5;
   --color-frost-200: #e6e9ec;
 
-  /* ===== 墨色 Ink（文字） ===== */
+  /* ===== 墨色 Ink（文字/主操作） ===== */
   --color-ink-400: #9ca3af;
   --color-ink-500: #6b7280;
   --color-ink-600: #4b5563;
@@ -25,54 +25,42 @@
   --color-ink-800: #1f2937;
   --color-ink-900: #111827;
 
-  /* ===== 雾蓝 Mist（全局点缀） ===== */
-  --color-mist-50: #f0f4f7;
-  --color-mist-100: #dfe7ee;
-  --color-mist-200: #c2d0dc;
-  --color-mist-300: #9db3c6;
-  --color-mist-400: #7b98b1;
-  --color-mist-500: #5b7c99;
-  --color-mist-600: #4a6783;
-  --color-mist-700: #3c536b;
-  --color-mist-800: #324556;
-  --color-mist-900: #2a3a49;
-
-  /* ===== 五色强调（柔和，小面积） ===== */
+  /* ===== 五色强调（各板块内部组件凸显，明亮活泼） ===== */
   /* 绿色测评 meadow */
-  --color-meadow-50: #eef7f1;
-  --color-meadow-100: #dceedf;
-  --color-meadow-200: #bbdec4;
-  --color-meadow-500: #4f9d6f;
-  --color-meadow-600: #40815b;
-  --color-meadow-700: #366a4c;
+  --color-meadow-50: #f5f9eb;
+  --color-meadow-100: #ebf4d8;
+  --color-meadow-200: #d7e9b1;
+  --color-meadow-500: #9ac73b;
+  --color-meadow-600: #8bb335;
+  --color-meadow-700: #7b9f2f;
   /* 蓝色调适 breeze */
-  --color-breeze-50: #f0f7f9;
-  --color-breeze-100: #dcecf1;
-  --color-breeze-200: #bcdce6;
-  --color-breeze-500: #4f9dbb;
-  --color-breeze-600: #41839d;
-  --color-breeze-700: #376c82;
+  --color-breeze-50: #e6f4fb;
+  --color-breeze-100: #cceaf8;
+  --color-breeze-200: #99d5f0;
+  --color-breeze-500: #0095da;
+  --color-breeze-600: #0086c4;
+  --color-breeze-700: #0077ae;
   /* 橙色干预 terra */
-  --color-terra-50: #faf4ee;
-  --color-terra-100: #f4e5d6;
-  --color-terra-200: #e9cbaa;
-  --color-terra-500: #d18a5a;
-  --color-terra-600: #b57249;
-  --color-terra-700: #975d3d;
+  --color-terra-50: #fef2e9;
+  --color-terra-100: #fce6d2;
+  --color-terra-200: #f9cda6;
+  --color-terra-500: #f08120;
+  --color-terra-600: #d8741d;
+  --color-terra-700: #c0671a;
   /* 红色预警 coral */
-  --color-coral-50: #faf1f1;
-  --color-coral-100: #f3dfe0;
-  --color-coral-200: #e7c0c2;
-  --color-coral-500: #cf6b6d;
-  --color-coral-600: #b25457;
-  --color-coral-700: #934649;
+  --color-coral-50: #fdecee;
+  --color-coral-100: #fad9dc;
+  --color-coral-200: #f6b3ba;
+  --color-coral-500: #e84052;
+  --color-coral-600: #d13a4a;
+  --color-coral-700: #ba3342;
   /* 紫色评估 iris */
-  --color-iris-50: #f4f2f9;
-  --color-iris-100: #e7e2f1;
-  --color-iris-200: #d0c6e3;
-  --color-iris-500: #8b7bb8;
-  --color-iris-600: #71619d;
-  --color-iris-700: #5d4f83;
+  --color-iris-50: #fbf0f6;
+  --color-iris-100: #f6e0ec;
+  --color-iris-200: #eec1da;
+  --color-iris-500: #d464a2;
+  --color-iris-600: #bf5a92;
+  --color-iris-700: #aa5074;
 
   /* ===== 圆角（现代简洁） ===== */
   --radius-xl: 0.875rem;
@@ -88,9 +76,9 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-smooth: 200ms;
 
-  /* 动画关键帧 */
-  --animate-fade-up: fade-up 0.4s var(--ease-out) both;
-  --animate-fade-in: fade-in 0.3s ease-out both;
+  /* 动画关键帧（用 backwards 而非 both，避免动画结束后残留 transform 影响 fixed 定位） */
+  --animate-fade-up: fade-up 0.4s var(--ease-out) backwards;
+  --animate-fade-in: fade-in 0.3s ease-out backwards;
 
   @keyframes fade-up {
     from { opacity: 0; transform: translateY(10px); }
@@ -113,14 +101,20 @@
     font-family: var(--font-sans);
     background-color: var(--color-frost-50);
     background-image:
-      radial-gradient(1000px 700px at 85% -10%, rgb(91 124 153 / 0.07), transparent 60%),
-      radial-gradient(800px 600px at -5% 25%, rgb(91 124 153 / 0.05), transparent 60%),
-      radial-gradient(900px 700px at 60% 115%, rgb(91 124 153 / 0.04), transparent 60%);
+      radial-gradient(1000px 700px at 85% -10%, rgb(120 130 140 / 0.06), transparent 60%),
+      radial-gradient(800px 600px at -5% 25%, rgb(120 130 140 / 0.05), transparent 60%),
+      radial-gradient(900px 700px at 60% 115%, rgb(120 130 140 / 0.04), transparent 60%);
     background-attachment: fixed;
   }
   ::selection {
-    background: var(--color-mist-100);
+    background: var(--color-frost-200);
     color: var(--color-ink-900);
+  }
+  /* 移动端：iOS 上 fixed 背景与 backdrop-filter 存在兼容问题，会导致毛玻璃发暗，改为 scroll */
+  @media (max-width: 640px) {
+    body {
+      background-attachment: scroll;
+    }
   }
   /* 细滚动条 */
   *::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -131,10 +125,19 @@
 
 /* ===== 毛玻璃原语 ===== */
 @utility glass {
-  background: linear-gradient(160deg, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.35));
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.68));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgb(255 255 255 / 0.6);
+  box-shadow: var(--shadow-soft);
+}
+
+/* 更通透的玻璃态：用于侧边栏 / 顶栏，让背景色晕透出来 */
+@utility glass-nav {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.68), rgb(255 255 255 / 0.55));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgb(255 255 255 / 0.45);
   box-shadow: var(--shadow-soft);
 }
 

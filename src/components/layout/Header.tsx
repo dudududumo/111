@@ -14,7 +14,7 @@ interface HeaderProps {
 
 export default function Header({ profile, isSidebarOpen, onOpenSidebar }: HeaderProps) {
   return (
-    <header className="h-16 flex-shrink-0 flex items-center px-4 lg:px-6 glass border-b border-white/50 relative z-20">
+    <header className="h-12 flex-shrink-0 flex items-center px-4 lg:px-6 glass-nav border-b border-white/50 relative z-20">
       <button
         onClick={onOpenSidebar}
         aria-label="打开侧边栏"

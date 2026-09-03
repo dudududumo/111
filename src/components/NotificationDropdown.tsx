@@ -162,12 +162,12 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
 
   const getNotificationIcon = (type: string, title: string) => {
     if (type === 'warning') {
-      if (title.includes('紧急')) return <AlertTriangle className="text-rose-500" size={18} />;
-      return <AlertTriangle className="text-amber-500" size={18} />;
+      if (title.includes('紧急')) return <AlertTriangle className="text-coral-500" size={18} />;
+      return <AlertTriangle className="text-coral-500" size={18} />;
     }
-    if (type === 'intervention') return <UserPlus className="text-blue-500" size={18} />;
-    if (type === 'appointment' || type === 'appointment_update') return <Calendar className="text-orange-500" size={18} />;
-    return <Sparkles className="text-emerald-500" size={18} />;
+    if (type === 'intervention') return <UserPlus className="text-terra-500" size={18} />;
+    if (type === 'appointment' || type === 'appointment_update') return <Calendar className="text-terra-500" size={18} />;
+    return <Sparkles className="text-ink-400" size={18} />;
   };
 
   const markAllAsRead = async () => {
@@ -191,11 +191,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-full hover:bg-stone-100 transition-colors"
+        className="relative p-2 rounded-full hover:bg-frost-100 transition-colors"
       >
-        <Bell size={20} className="text-stone-600" />
+        <Bell size={20} className="text-ink-600" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-coral-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -208,14 +208,14 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
-            className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-stone-200 z-50"
+            className="absolute right-0 top-12 w-80 glass rounded-2xl shadow-float border-frost-200 z-50"
           >
-            <div className="p-4 border-b border-stone-100 flex justify-between items-center">
-              <h3 className="font-semibold text-stone-900">通知中心</h3>
+            <div className="p-4 border-b border-frost-100 flex justify-between items-center">
+              <h3 className="font-semibold text-ink-900">通知中心</h3>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-sm text-emerald-600 hover:underline"
+                  className="text-sm text-ink-500 hover:text-ink-700 hover:underline"
                 >
                   全部标为已读
                 </button>
@@ -225,10 +225,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
             <div className="max-h-80 overflow-y-auto">
               {loading ? (
                 <div className="p-8 flex justify-center items-center">
-                  <div className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-4 w-4 border-2 border-ink-400 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="p-8 text-center text-stone-500">
+                <div className="p-8 text-center text-ink-400">
                   暂无通知
                 </div>
               ) : (
@@ -236,7 +236,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`p-4 border-b border-stone-100 hover:bg-stone-50 transition-colors cursor-pointer relative ${notification.status === 'unread' ? 'bg-rose-50/50' : ''}`}
+                    className={`p-4 border-b border-frost-100 hover:bg-frost-50 transition-colors cursor-pointer relative ${notification.status === 'unread' ? 'bg-frost-100/60' : ''}`}
                   >
                     <div className="flex gap-3">
                       <div className="mt-1 flex-shrink-0">
@@ -244,14 +244,14 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                          <h4 className={`text-sm font-semibold truncate ${notification.status === 'unread' ? 'text-stone-900' : 'text-stone-600'}`}>
+                          <h4 className={`text-sm font-semibold truncate ${notification.status === 'unread' ? 'text-ink-900' : 'text-ink-600'}`}>
                             {notification.title}
                           </h4>
                             <div className="flex items-center gap-1 ml-2">
                             {notification.status === 'unread' ? (
                               <button
                                 onClick={(e) => markAsRead(notification.id, e)}
-                                className="p-1 rounded-full hover:bg-stone-200 text-stone-400 hover:text-emerald-600 transition-colors"
+                                className="p-1 rounded-full hover:bg-frost-100 text-ink-400 hover:text-ink-700 transition-colors"
                                 title="标为已读"
                               >
                                 <CheckCircle size={14} />
@@ -259,7 +259,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                             ) : (
                               <button
                                 onClick={(e) => deleteNotification(notification.id, e)}
-                                className="p-1 rounded-full hover:bg-stone-200 text-stone-400 hover:text-rose-600 transition-colors"
+                                className="p-1 rounded-full hover:bg-frost-100 text-ink-400 hover:text-coral-500 transition-colors"
                                 title="删除通知"
                               >
                                 <X size={14} />
@@ -267,10 +267,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                             )}
                           </div>
                         </div>
-                        <p className={`text-xs mt-1 line-clamp-2 ${notification.status === 'unread' ? 'text-stone-800' : 'text-stone-500'}`}>
+                        <p className={`text-xs mt-1 line-clamp-2 ${notification.status === 'unread' ? 'text-ink-800' : 'text-ink-500'}`}>
                           {notification.content}
                         </p>
-                        <div className="flex items-center mt-2 text-[10px] text-stone-400">
+                        <div className="flex items-center mt-2 text-[10px] text-ink-400">
                           <Clock size={10} className="mr-1" />
                           <span>
                             {new Date(notification.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -283,10 +283,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
               )}
             </div>
 
-            <div className="p-3 border-t border-stone-100 flex justify-end">
+            <div className="p-3 border-t border-frost-100 flex justify-end">
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-sm text-stone-500 hover:text-stone-700"
+                className="text-sm text-ink-400 hover:text-ink-700"
               >
                 关闭
               </button>
@@ -297,24 +297,24 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
       {/* 详情弹窗 */}
       <AnimatePresence>
         {selectedNotification && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-ink-900/30 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl"
+              className="glass rounded-3xl p-8 max-w-md w-full shadow-2xl"
             >
               <div className="text-center space-y-4">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${
                   selectedNotification.type === 'warning' 
-                    ? (selectedNotification.title.includes('紧急') ? 'bg-rose-100' : 'bg-amber-100') 
-                    : 'bg-emerald-100'
+                    ? (selectedNotification.title.includes('紧急') ? 'bg-coral-50' : 'bg-coral-50') 
+                    : 'bg-frost-100'
                 }`}>
                   {getNotificationIcon(selectedNotification.type, selectedNotification.title)}
                 </div>
-                <h3 className="text-xl font-bold text-stone-900">{selectedNotification.title}</h3>
-                <p className="text-stone-500 leading-relaxed">{selectedNotification.content}</p>
-                <div className="flex items-center justify-center gap-2 mt-2 text-stone-400 text-sm">
+                <h3 className="text-xl font-bold text-ink-900">{selectedNotification.title}</h3>
+                <p className="text-ink-500 leading-relaxed">{selectedNotification.content}</p>
+                <div className="flex items-center justify-center gap-2 mt-2 text-ink-400 text-sm">
                   <Clock size={14} />
                   <span>{new Date(selectedNotification.created_at).toLocaleString('zh-CN', { 
                     month: 'numeric', 
@@ -326,7 +326,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setSelectedNotification(null)}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all"
+                    className="flex-1 py-3 rounded-2xl bg-white/70 text-ink-700 border border-frost-200 font-semibold hover:bg-white transition-all"
                   >
                     稍后处理
                   </button>
@@ -334,8 +334,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ profile }) 
                     onClick={() => handleAction(selectedNotification)}
                     className={`flex-1 py-3 rounded-2xl text-white font-semibold hover:brightness-110 transition-all shadow-md ${
                       selectedNotification.type === 'warning' 
-                        ? (selectedNotification.title.includes('紧急') ? 'bg-rose-600' : 'bg-amber-500') 
-                        : 'bg-emerald-600'
+                        ? (selectedNotification.title.includes('紧急') ? 'bg-coral-500' : 'bg-coral-500') 
+                        : 'bg-ink-900'
                     }`}
                   >
                     立即前往处理

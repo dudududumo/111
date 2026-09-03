@@ -17,7 +17,7 @@ function AuthGate() {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="h-10 w-10 rounded-full border-[3px] border-mist-500 border-t-transparent"
+          className="h-10 w-10 rounded-full border-[3px] border-ink-800 border-t-transparent"
         />
       </div>
     );

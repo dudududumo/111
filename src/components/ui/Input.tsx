@@ -28,12 +28,12 @@ export default function Input({
       <div className="relative group">
         {Icon && (
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <Icon size={16} className="text-ink-400 group-focus-within:text-mist-500 transition-colors" />
+            <Icon size={16} className="text-ink-400 group-focus-within:text-ink-800 transition-colors" />
           </div>
         )}
         <input
           {...props}
-          className={`w-full ${Icon ? "pl-10" : "pl-3.5"} ${trailing ? "pr-10" : "pr-3.5"} py-2.5 rounded-xl bg-white/70 border border-frost-200 text-ink-800 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-mist-500/15 focus:border-mist-500 transition-all duration-200 text-sm ${className}`}
+          className={`w-full ${Icon ? "pl-10" : "pl-3.5"} ${trailing ? "pr-10" : "pr-3.5"} py-2.5 rounded-xl bg-white/70 border border-frost-200 text-ink-800 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-900/10 focus:border-ink-800 transition-all duration-200 text-sm ${className}`}
         />
         {trailing && <div className="absolute inset-y-0 right-0 flex items-center pr-2">{trailing}</div>}
       </div>

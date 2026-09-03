@@ -30,12 +30,12 @@ export function AuthTextField({
       <div className="relative group">
         {Icon && (
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Icon size={17} className="text-ink-400 group-focus-within:text-mist-500 transition-colors" />
+            <Icon size={18} className="text-ink-400 group-focus-within:text-ink-800 transition-colors" />
           </div>
         )}
         <input
           {...props}
-          className={`w-full ${Icon ? "pl-11" : "pl-4"} ${trailing ? "pr-11" : "pr-4"} py-3 rounded-xl bg-white/70 border border-frost-200 text-ink-800 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-mist-500/15 focus:border-mist-500 transition-all duration-200 text-sm ${inputClassName}`}
+          className={`w-full ${Icon ? "pl-11" : "pl-4"} ${trailing ? "pr-12" : "pr-4"} py-3.5 rounded-xl bg-white/70 border border-frost-200 text-ink-800 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-900/10 focus:border-ink-800 transition-all duration-200 text-[15px] ${inputClassName}`}
         />
         {trailing && (
           <div className="absolute inset-y-0 right-0 flex items-center pr-2">{trailing}</div>
@@ -96,10 +96,10 @@ export function CountdownButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+      className={`px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-all duration-200 ${
         disabled
           ? "bg-frost-100 text-ink-400 cursor-not-allowed"
-          : "bg-mist-500 text-white hover:bg-mist-600 shadow-soft active:translate-y-px"
+          : "bg-ink-900 text-white hover:bg-ink-800 shadow-soft active:translate-y-px"
       } ${className}`}
     >
       {disabled ? `${seconds}s` : idleLabel}

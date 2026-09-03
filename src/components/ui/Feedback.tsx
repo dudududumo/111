@@ -10,7 +10,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 }
 
 export function Spinner({ size = 20, className = "" }: { size?: number; className?: string }) {
-  return <Loader2 size={size} className={`animate-spin text-mist-500 ${className}`} />;
+  return <Loader2 size={size} className={`animate-spin text-ink-600 ${className}`} />;
 }
 
 export function LoadingState({ label = "加载中..." }: { label?: string }) {
@@ -45,7 +45,7 @@ export function ErrorState({ message = "加载失败，请稍后重试", onRetry
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-1 rounded-xl bg-mist-600 px-4 py-2 text-sm font-medium text-white hover:bg-mist-700 transition-colors"
+          className="mt-1 rounded-xl bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 transition-colors"
         >
           重试
         </button>

@@ -1,12 +1,9 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  CheckCircle, 
-  XCircle, 
-  AlertTriangle, 
-  Info, 
-  Check, 
-  X 
+import {
+  Check,
+  X
 } from "lucide-react";
 
 type ModalType = "success" | "error" | "warning" | "info" | "confirm";
@@ -25,6 +22,28 @@ interface ModalProps {
   theme?: ModalTheme;
 }
 
+/* ============================================================
+   弹窗：跟随当前板块的五色主题自动适配强调色
+   错误/警告保持红色（coral），其余用板块主题色
+   ============================================================ */
+
+// 路由 → 板块主题色
+const MODULE_ROUTES: Record<string, string> = {
+  "/assessment": "meadow", // 绿色测评
+  "/toolkit": "breeze",    // 蓝色调适
+  "/intervention": "terra",// 橙色干预
+  "/warnings": "coral",    // 红色预警
+  "/cockpit": "iris",      // 紫色评估
+};
+
+const ACCENTS: Record<string, { primary: string; icon: string; soft: string }> = {
+  meadow: { primary: "bg-meadow-500 hover:bg-meadow-600", icon: "text-meadow-600", soft: "bg-meadow-50" },
+  breeze: { primary: "bg-breeze-500 hover:bg-breeze-600", icon: "text-breeze-600", soft: "bg-breeze-50" },
+  terra:  { primary: "bg-terra-500 hover:bg-terra-600", icon: "text-terra-600", soft: "bg-terra-50" },
+  coral:  { primary: "bg-coral-500 hover:bg-coral-600", icon: "text-coral-600", soft: "bg-coral-50" },
+  iris:   { primary: "bg-iris-500 hover:bg-iris-600", icon: "text-iris-600", soft: "bg-iris-50" },
+};
+
 const CustomModal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -37,134 +56,43 @@ const CustomModal: React.FC<ModalProps> = ({
   showCancel = false,
   theme = "green",
 }) => {
-  const getIconColor = () => {
-    if (theme === "stone") {
-      switch (type) {
-        case "success":
-          return "text-stone-600";
-        case "error":
-          return "text-red-600";
-        case "warning":
-          return "text-amber-600";
-        case "confirm":
-          return "text-stone-600";
-        default:
-          return "text-stone-600";
-      }
-    }
-    switch (type) {
-      case "success":
-        return "text-emerald-600";
-      case "error":
-        return "text-red-600";
-      case "warning":
-        return "text-amber-600";
-      case "confirm":
-        return "text-emerald-600";
-      default:
-        return "text-emerald-600";
-    }
-  };
+  const location = useLocation();
 
-  const getIcon = () => {
-    switch (type) {
-      case "success":
-        return <CheckCircle className={`w-10 h-10 ${getIconColor()}`} />;
-      case "error":
-        return <XCircle className={`w-10 h-10 ${getIconColor()}`} />;
-      case "warning":
-        return <AlertTriangle className={`w-10 h-10 ${getIconColor()}`} />;
-      case "confirm":
-        return <AlertTriangle className={`w-10 h-10 ${getIconColor()}`} />;
-      default:
-        return <Info className={`w-10 h-10 ${getIconColor()}`} />;
-    }
-  };
+  // 板块主题色（stone 主题回退为墨色）
+  const moduleAccent = theme === "stone"
+    ? null
+    : (ACCENTS[MODULE_ROUTES[location.pathname] || ""] || null);
 
-  const getIconBg = () => {
-    if (theme === "stone") {
-      switch (type) {
-        case "success":
-          return "bg-stone-100";
-        case "error":
-          return "bg-red-100";
-        case "warning":
-          return "bg-amber-100";
-        case "confirm":
-          return "bg-stone-100";
-        default:
-          return "bg-stone-100";
-      }
-    }
-    switch (type) {
-      case "success":
-        return "bg-emerald-100";
-      case "error":
-        return "bg-red-100";
-      case "warning":
-        return "bg-amber-100";
-      case "confirm":
-        return "bg-emerald-100";
-      default:
-        return "bg-emerald-100";
-    }
-  };
+  const isAlert = type === "error" || type === "warning";
 
   const getConfirmButtonStyle = () => {
-    if (theme === "stone") {
-      switch (type) {
-        case "success":
-          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
-        case "error":
-          return "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-red-200";
-        case "warning":
-          return "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-amber-200";
-        case "confirm":
-          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
-        default:
-          return "bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800 shadow-stone-200";
-      }
-    }
-    switch (type) {
-      case "success":
-        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
-      case "error":
-        return "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-red-200";
-      case "warning":
-        return "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-amber-200";
-      case "confirm":
-        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
-      default:
-        return "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-200";
-    }
+    if (isAlert) return "bg-coral-500 hover:bg-coral-600";
+    if (moduleAccent) return moduleAccent.primary;
+    return "bg-ink-900 hover:bg-ink-800";
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md">
+        <div className="absolute inset-0 z-[300] m-0! bg-ink-900/30 backdrop-blur-sm">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden"
+            className="glass rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh_-_5rem)]"
           >
-            <div className="p-8 space-y-6">
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className={`w-20 h-20 ${getIconBg()} rounded-full flex items-center justify-center`}>
-                  {getIcon()}
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-bold text-stone-900">{title}</h3>
-                  <p className="text-stone-500 leading-relaxed">{message}</p>
-                </div>
+            <div className="p-8 space-y-6 overflow-y-auto flex-1 min-h-0">
+              <div className="flex flex-col items-center text-center space-y-2">
+                <h3 className="text-2xl font-bold text-ink-900">{title}</h3>
+                <p className="text-ink-500 leading-relaxed">{message}</p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 {showCancel && (
                   <button
                     onClick={onClose}
-                    className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-700 font-semibold hover:bg-stone-200 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3 rounded-2xl bg-white/70 text-ink-700 border border-frost-200 font-semibold hover:bg-white transition-all flex items-center justify-center gap-2"
                   >
                     <X size={18} /> {cancelText}
                   </button>
@@ -181,6 +109,7 @@ const CustomModal: React.FC<ModalProps> = ({
               </div>
             </div>
           </motion.div>
+          </div>
         </div>
       )}
     </AnimatePresence>
