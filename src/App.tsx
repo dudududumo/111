@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
-import { getCurrentUser, logout, login, register, forgotPassword } from "./services/auth";
+import { getCurrentUser, logout, login, register, forgotPassword, sendVerificationCode, verifyCodeAndResetPassword, loginPhonePassword, loginCode } from "./services/auth";
 import { userApi, notificationApi, authApi } from "./services/api";
 import { UserProfile, UserRole } from "./types";
 import { 
@@ -19,7 +19,11 @@ import {
   ChevronRight,
   User,
   Mail,
-  CheckCircle
+  CheckCircle,
+  Phone,
+  Key,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import NotificationDropdown from "./components/NotificationDropdown";
 import { motion, AnimatePresence } from "motion/react";
@@ -124,6 +128,36 @@ const App: React.FC = () => {
   const [displayName, setDisplayName] = useState("");
   const [authError, setAuthError] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
+
+  // 忘记密码新状态
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [passwordResetDone, setPasswordResetDone] = useState(false); // 密码是否已重置成功
+  
+  // 密码可见性状态
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // 登录方式
+  const [loginMethod, setLoginMethod] = useState<'email-password' | 'phone-password' | 'phone-code'>('email-password');
+  
+  // 注册验证码相关
+  const [registerPhone, setRegisterPhone] = useState('');
+  const [registerCode, setRegisterCode] = useState('');
+  const [registerCodeSent, setRegisterCodeSent] = useState(false);
+  const [registerCountdown, setRegisterCountdown] = useState(0);
+  
+  // 登录验证码相关
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginVerificationCode, setLoginVerificationCode] = useState('');
+  const [loginCodeSent, setLoginCodeSent] = useState(false);
+  const [loginCountdown, setLoginCountdown] = useState(0);
 
   useEffect(() => {
     // 检查是否已登录
@@ -276,27 +310,139 @@ const App: React.FC = () => {
     }
   };
 
+
+
+  // 倒计时效果
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  // 注册倒计时效果
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (registerCountdown > 0) {
+      timer = setInterval(() => {
+        setRegisterCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [registerCountdown]);
+
+  // 登录倒计时效果
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (loginCountdown > 0) {
+      timer = setInterval(() => {
+        setLoginCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [loginCountdown]);
+
+  // 发送验证码
+  const handleSendCode = async () => {
+    if (!email || !phone) {
+      setAuthError("请输入邮箱和手机号");
+      return;
+    }
+
+    // 简单的手机号格式验证
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      setAuthError("请输入正确的手机号格式");
+      return;
+    }
+
+    setAuthError("");
+    try {
+      await sendVerificationCode(email, phone);
+      setCodeSent(true);
+      setCountdown(60); // 60秒倒计时
+      setResetSuccess(true);
+      // 不自动隐藏提示，一直显示
+    } catch (error: any) {
+      setAuthError(error.message || "发送验证码失败");
+    }
+  };
+
+  // 发送注册验证码
+  const handleSendRegisterCode = async () => {
+    if (!email || !registerPhone) {
+      setAuthError("请输入邮箱和手机号");
+      return;
+    }
+
+    // 简单的手机号格式验证
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(registerPhone)) {
+      setAuthError("请输入正确的手机号格式");
+      return;
+    }
+
+    setAuthError("");
+    try {
+      await sendVerificationCode(email, registerPhone, 'register');
+      setRegisterCodeSent(true);
+      setRegisterCountdown(60); // 60秒倒计时
+    } catch (error: any) {
+      setAuthError(error.message || "发送验证码失败");
+    }
+  };
+
+  // 发送登录验证码
+  const handleSendLoginCode = async () => {
+    if (!loginPhone) {
+      setAuthError("请输入手机号");
+      return;
+    }
+
+    // 简单的手机号格式验证
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(loginPhone)) {
+      setAuthError("请输入正确的手机号格式");
+      return;
+    }
+
+    setAuthError("");
+    try {
+      await sendVerificationCode('', loginPhone, 'login');
+      setLoginCodeSent(true);
+      setLoginCountdown(60); // 60秒倒计时
+    } catch (error: any) {
+      setAuthError(error.message || "发送验证码失败");
+    }
+  };
+
+  // 注册
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
     try {
-      const result = await register({
+      const result = await authApi.register({
         email,
         password,
         displayName,
-        role: UserRole.TEACHER
+        role: UserRole.TEACHER,
+        phone: registerPhone,
+        code: registerCode
       });
-      setUser(result);
+      setUser(result.user);
       setProfile({
-        uid: result.id,
-        displayName: result.displayName,
-        email: result.email,
-        role: result.role as UserRole,
-        school: result.school,
-        department: result.department,
-        deptId: result.deptId,
-        managerId: result.managerId,
-        syncFrequency: result.syncFrequency,
+        uid: result.user.id,
+        displayName: result.user.displayName,
+        email: result.user.email,
+        role: result.user.role as UserRole,
+        school: result.user.school,
+        department: result.user.department,
+        deptId: result.user.deptId,
+        managerId: result.user.managerId,
+        syncFrequency: result.user.syncFrequency,
         createdAt: new Date().toISOString()
       });
     } catch (error: any) {
@@ -304,24 +450,45 @@ const App: React.FC = () => {
     }
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  // 验证验证码并设置新密码
+  const handleVerifyAndReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
-    setResetSuccess(false);
-    try {
-      // 调用后端的密码重置API
-      await forgotPassword(email);
 
-      // 显示成功消息
-      setResetSuccess(true);
-      
-      // 3秒后清空成功消息
-      setTimeout(() => {
-        setResetSuccess(false);
-      }, 3000);
-    } catch (error: any) {
-      setAuthError(error.message || "发送重置链接失败");
+    if (!email || !phone || !code || !newPassword || !confirmPassword) {
+      setAuthError("请填写完整信息");
+      return;
     }
+
+    if (newPassword !== confirmPassword) {
+      setAuthError("两次输入的密码不一致");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setAuthError("密码长度至少6位");
+      return;
+    }
+
+    try {
+      await verifyCodeAndResetPassword(email, phone, code, newPassword, confirmPassword);
+      setPasswordResetDone(true);
+    } catch (error: any) {
+      setAuthError(error.message || "重置密码失败");
+    }
+  };
+
+  // 重置忘记密码状态
+  const resetForgotState = () => {
+    setEmail("");
+    setPhone("");
+    setCode("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setCodeSent(false);
+    setCountdown(0);
+    setAuthError("");
+    setResetSuccess(false);
   };
 
   const handleLogout = () => {
@@ -366,21 +533,21 @@ const App: React.FC = () => {
           initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-lg relative z-10"
+          className="w-full max-w-md relative z-10"
         >
-          <div className="bg-white/80 backdrop-blur-xl rounded-[32px] shadow-2xl shadow-stone-200/50 border border-white/50 overflow-hidden">
-            <div className="relative p-6 sm:p-8 lg:p-10">
-              <div className="text-center mb-8">
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl shadow-stone-200/50 border border-white/50 overflow-hidden">
+            <div className="relative p-5 sm:p-6">
+              <div className="text-center mb-6">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className="mx-auto mb-6"
+                  className="mx-auto mb-4"
                 >
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl blur-xl opacity-30"></div>
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-300/50">
-              <Heart size={40} fill="white" className="text-white" />
+                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-300/50">
+              <Heart size={32} fill="white" className="text-white" />
             </div>
                   </div>
                 </motion.div>
@@ -389,7 +556,7 @@ const App: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-stone-800 via-stone-700 to-stone-800 bg-clip-text text-transparent"
+                  className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-stone-800 via-stone-700 to-stone-800 bg-clip-text text-transparent"
                 >
                   心桥教师关怀
                 </motion.h1>
@@ -398,7 +565,7 @@ const App: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="mt-2 text-sm sm:text-base text-stone-500"
+                  className="mt-1.5 text-xs sm:text-sm text-stone-500"
                 >
                   五色心理健康系统 · 数据驱动关怀，守护教师心灵
                 </motion.p>
@@ -410,144 +577,454 @@ const App: React.FC = () => {
                 transition={{ delay: 0.5 }}
               >
                 {showForgotPassword ? (
-                  <form onSubmit={(e) => handleForgotPassword(e)} className="space-y-4 sm:space-y-5">
-                    <div className="space-y-4">
-                      <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
-                            <User size={18} />
-                          </div>
-                        </div>
-                        <input
-                          type="email"
-                          placeholder="请输入注册时的邮箱"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    {authError && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
-                      >
-                        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
-                        <p className="text-red-600 text-sm">{authError}</p>
-                      </motion.div>
-                    )}
-                    
-                    {resetSuccess && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="flex items-center gap-2 px-4 py-3 bg-green-50 rounded-xl border border-green-100"
-                      >
-                        <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                        <p className="text-green-600 text-sm">密码重置链接已发送到您的邮箱，请查收</p>
-                      </motion.div>
-                    )}
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
+                  passwordResetDone ? (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-center"
                     >
-                      <Mail size={18} />
-                      发送重置链接
-                    </motion.button>
-                    
-                    <div className="text-center">
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotPassword(false)}
-                        className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                      <CheckCircle size={48} className="text-emerald-600 mx-auto mb-4" />
+                      
+                      <h2 className="text-lg font-semibold text-stone-800 mb-2">
+                        密码重置成功
+                      </h2>
+                      
+                      <p className="text-sm text-stone-500 mb-6">
+                        请使用新密码登录
+                      </p>
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          resetForgotState();
+                          setPasswordResetDone(false);
+                          setShowForgotPassword(false);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-white font-medium hover:bg-emerald-700 transition-colors text-sm"
                       >
                         返回登录
-                      </button>
-                    </div>
-                  </form>
-                ) : showLogin ? (
-                  <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
-                    <div className="space-y-4">
-                      <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
-                            <User size={18} />
+                      </motion.button>
+                    </motion.div>
+                  ) : (
+                    <form onSubmit={handleVerifyAndReset} className="space-y-3">
+                      <div className="space-y-3">
+                        {/* 邮箱 */}
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <div className="w-4 h-4 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <User size={16} />
+                            </div>
                           </div>
+                          <input
+                            type="email"
+                            placeholder="请输入注册时的邮箱"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm"
+                            required
+                          />
                         </div>
-                        <input
-                          type="email"
-                          placeholder="请输入邮箱"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
-                          required
-                        />
-                      </div>
-                      
-                      <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
-                            <LogIn size={18} />
+
+                        {/* 手机号 */}
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <div className="w-4 h-4 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <Phone size={16} />
+                            </div>
                           </div>
+                          <input
+                            type="tel"
+                            placeholder="请输入手机号（未绑定则绑定）"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm"
+                            required
+                          />
                         </div>
-                        <input
-                          type="password"
-                          placeholder="请输入密码"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
-                          required
-                        />
+
+                        {/* 验证码 + 发送按钮 */}
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <div className="w-4 h-4 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <Key size={16} />
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="请输入验证码"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            className="w-full pl-10 pr-28 py-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm"
+                            maxLength={6}
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={countdown === 0 ? handleSendCode : undefined}
+                            disabled={countdown > 0}
+                            className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              countdown > 0
+                                ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                                : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                            }`}
+                          >
+                            {countdown > 0 ? `${countdown}s` : '发送验证码'}
+                          </button>
+                        </div>
+
+                        {/* 新密码 */}
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <div className="w-4 h-4 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <LogIn size={16} />
+                            </div>
+                          </div>
+                          <input
+                            type={showNewPassword ? "text" : "password"}
+                            placeholder="请输入新密码（至少6位）"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm"
+                            minLength={6}
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-stone-400 hover:text-stone-600 transition-colors"
+                          >
+                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+
+                        {/* 确认新密码 */}
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <div className="w-4 h-4 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <LogIn size={16} />
+                            </div>
+                          </div>
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="请再次输入新密码"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm"
+                            minLength={6}
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-stone-400 hover:text-stone-600 transition-colors"
+                          >
+                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {authError && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
+                        
+                      {authError && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="flex items-center gap-2 px-3 py-2.5 bg-red-50 rounded-xl border border-red-100"
+                        >
+                          <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+                          <p className="text-red-600 text-xs">{authError}</p>
+                        </motion.div>
+                      )}
+
+                      {resetSuccess && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="flex items-center gap-2 px-3 py-2.5 bg-green-50 rounded-xl border border-green-100"
+                        >
+                          <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          <p className="text-green-600 text-xs">验证码已发送，请查看手机短信</p>
+                        </motion.div>
+                      )}
+                        
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="submit"
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm"
                       >
-                        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
-                        <p className="text-red-600 text-sm">{authError}</p>
-                      </motion.div>
-                    )}
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
-                    >
-                      <LogIn size={18} />
-                      登录
-                    </motion.button>
-                    
-                    <div className="flex flex-col items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotPassword(true)}
-                        className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
-                      >
-                        忘记密码？
-                      </button>
-                      <p className="text-sm text-stone-500">
-                        还没有账号？{" "}
+                        重置密码
+                      </motion.button>
+                        
+                      <div className="text-center">
                         <button
                           type="button"
-                          onClick={() => setShowLogin(false)}
-                          className="text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                          onClick={() => {
+                            resetForgotState();
+                            setShowForgotPassword(false);
+                          }}
+                          className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
                         >
-                          立即注册
+                          返回登录
                         </button>
-                      </p>
+                      </div>
+                    </form>
+                  )
+                ) : showLogin ? (
+                  <div className="space-y-4 sm:space-y-5">
+                    {/* 登录方式切换 */}
+                    <div className="flex gap-2 bg-stone-100 rounded-2xl p-1">
+                      <button
+                        type="button"
+                        onClick={() => setLoginMethod('email-password')}
+                        className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                          loginMethod === 'email-password'
+                            ? 'bg-white shadow-sm text-emerald-600'
+                            : 'text-stone-500 hover:text-stone-600'
+                        }`}
+                      >
+                        邮箱登录
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLoginMethod('phone-password')}
+                        className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                          loginMethod === 'phone-password'
+                            ? 'bg-white shadow-sm text-emerald-600'
+                            : 'text-stone-500 hover:text-stone-600'
+                        }`}
+                      >
+                        手机号密码
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLoginMethod('phone-code')}
+                        className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                          loginMethod === 'phone-code'
+                            ? 'bg-white shadow-sm text-emerald-600'
+                            : 'text-stone-500 hover:text-stone-600'
+                        }`}
+                      >
+                        验证码登录
+                      </button>
                     </div>
-                  </form>
+
+                    <form 
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setAuthError("");
+                        try {
+                          let result;
+                          if (loginMethod === 'email-password') {
+                            result = await login(email, password);
+                          } else if (loginMethod === 'phone-password') {
+                            result = await loginPhonePassword(loginPhone, password);
+                          } else if (loginMethod === 'phone-code') {
+                            result = await loginCode(loginPhone, loginVerificationCode);
+                          }
+                          
+                          setUser(result);
+                          setProfile({
+                            uid: result.id,
+                            displayName: result.displayName,
+                            email: result.email,
+                            role: result.role as UserRole,
+                            school: result.school,
+                            department: result.department,
+                            deptId: result.deptId,
+                            managerId: result.managerId,
+                            syncFrequency: result.syncFrequency,
+                            createdAt: new Date().toISOString()
+                          });
+                        } catch (error: any) {
+                          setAuthError(error.message || "登录失败");
+                        }
+                      }} 
+                      className="space-y-4 sm:space-y-5"
+                    >
+                      <div className="space-y-4">
+                        {/* 邮箱登录 */}
+                        {loginMethod === 'email-password' && (
+                          <>
+                            <div className="relative group">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                  <User size={18} />
+                                </div>
+                              </div>
+                              <input
+                                type="email"
+                                placeholder="请输入邮箱"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                required
+                              />
+                            </div>
+                            
+                            <div className="relative group">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                  <LogIn size={18} />
+                                </div>
+                              </div>
+                              <input
+                                type={showLoginPassword ? "text" : "password"}
+                                placeholder="请输入密码"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowLoginPassword(!showLoginPassword)}
+                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-stone-400 hover:text-stone-600 transition-colors"
+                              >
+                                {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {/* 手机号密码登录 */}
+                        {loginMethod === 'phone-password' && (
+                          <>
+                            <div className="relative group">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                  <Phone size={18} />
+                                </div>
+                              </div>
+                              <input
+                                type="tel"
+                                placeholder="请输入手机号"
+                                value={loginPhone}
+                                onChange={(e) => setLoginPhone(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                required
+                              />
+                            </div>
+                            
+                            <div className="relative group">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                  <LogIn size={18} />
+                                </div>
+                              </div>
+                              <input
+                                type={showLoginPassword ? "text" : "password"}
+                                placeholder="请输入密码"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowLoginPassword(!showLoginPassword)}
+                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-stone-400 hover:text-stone-600 transition-colors"
+                              >
+                                {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {/* 验证码登录 */}
+                        {loginMethod === 'phone-code' && (
+                          <>
+                            <div className="relative group">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                  <Phone size={18} />
+                                </div>
+                              </div>
+                              <input
+                                type="tel"
+                                placeholder="请输入手机号"
+                                value={loginPhone}
+                                onChange={(e) => setLoginPhone(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                required
+                              />
+                            </div>
+                            
+                            <div className="flex gap-3">
+                              <div className="relative group flex-1">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                  <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                                    <Key size={18} />
+                                  </div>
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder="请输入验证码"
+                                  value={loginVerificationCode}
+                                  onChange={(e) => setLoginVerificationCode(e.target.value)}
+                                  className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                                  required
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleSendLoginCode}
+                                disabled={loginCountdown > 0}
+                                className={`px-4 py-3.5 sm:py-4 rounded-2xl text-sm font-medium transition-all duration-300 ${
+                                  loginCountdown > 0
+                                    ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                }`}
+                              >
+                                {loginCountdown > 0 ? `${loginCountdown}s` : '发送验证码'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      
+                      {authError && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-100"
+                        >
+                          <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                          <p className="text-red-600 text-sm">{authError}</p>
+                        </motion.div>
+                      )}
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="submit"
+                        className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-emerald-300/50 hover:shadow-xl hover:shadow-emerald-400/40 transition-all duration-300 text-sm sm:text-base"
+                      >
+                        <LogIn size={18} />
+                        登录
+                      </motion.button>
+                      
+                      <div className="flex flex-col items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowForgotPassword(true)}
+                          className="text-sm text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                        >
+                          忘记密码？
+                        </button>
+                        <p className="text-sm text-stone-500">
+                          还没有账号？{" "}
+                          <button
+                            type="button"
+                            onClick={() => setShowLogin(false)}
+                            className="text-emerald-600 font-medium hover:text-emerald-700 hover:underline transition-colors"
+                          >
+                            立即注册
+                          </button>
+                        </p>
+                      </div>
+                    </form>
+                  </div>
                 ) : (
                   <form onSubmit={handleRegister} className="space-y-4 sm:space-y-5">
                     <div className="space-y-4">
@@ -570,7 +1047,7 @@ const App: React.FC = () => {
                       <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                           <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
-                            <User size={18} />
+                            <Mail size={18} />
                           </div>
                         </div>
                         <input
@@ -586,17 +1063,70 @@ const App: React.FC = () => {
                       <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                           <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                            <Phone size={18} />
+                          </div>
+                        </div>
+                        <input
+                          type="tel"
+                          placeholder="请输入手机号"
+                          value={registerPhone}
+                          onChange={(e) => setRegisterPhone(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <div className="relative group flex-1">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
+                              <Key size={18} />
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="请输入验证码"
+                            value={registerCode}
+                            onChange={(e) => setRegisterCode(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                            required
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendRegisterCode}
+                          disabled={registerCountdown > 0}
+                          className={`px-4 py-3.5 sm:py-4 rounded-2xl text-sm font-medium transition-all duration-300 ${
+                            registerCountdown > 0
+                              ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          }`}
+                        >
+                          {registerCountdown > 0 ? `${registerCountdown}s` : '发送验证码'}
+                        </button>
+                      </div>
+                      
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <div className="w-5 h-5 text-stone-400 group-focus-within:text-emerald-500 transition-colors">
                             <LogIn size={18} />
                           </div>
                         </div>
                         <input
-                          type="password"
+                          type={showRegisterPassword ? "text" : "password"}
                           placeholder="请输入密码"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
+                          className="w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-2xl bg-stone-50/80 border border-stone-200 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-300 text-sm sm:text-base"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                          className="absolute inset-y-0 right-0 pr-4 flex items-center text-stone-400 hover:text-stone-600 transition-colors"
+                        >
+                          {showRegisterPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                       </div>
                     </div>
                     

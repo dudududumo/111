@@ -157,7 +157,9 @@ export const SCL90_SCALE: Scale = {
     if (total < 160 && avg < 1.5 && maxFactorScore < 2) {
       return { score: total, level: "正常", color: "green", advice: "您的整体心理健康状况良好，继续保持积极的生活态度。" };
     } else if (total >= 160 || avg >= 1.5 || maxFactorScore >= 2) {
-      if (maxFactorScore >= 3 || total >= 200) {
+      if (maxFactorScore >= 4 || total >= 250) {
+        return { score: total, level: "重度症状", color: "red", advice: "您的心理症状非常严重，建议立即寻求精神科医生的专业评估与干预。" };
+      } else if (maxFactorScore >= 3 || total >= 200) {
         return { score: total, level: "中度症状", color: "orange", advice: "您存在明显的心理症状，建议寻求心理咨询师的专业帮助，进行深入评估。" };
       } else {
         return { score: total, level: "轻度症状", color: "yellow", advice: "您可能存在一些轻微的心理困扰，建议关注相关因子（如抑郁或焦虑），尝试放松练习。" };

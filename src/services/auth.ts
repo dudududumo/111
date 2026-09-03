@@ -60,6 +60,28 @@ export const forgotPassword = async (email: string) => {
   return await authApi.forgotPassword(email);
 };
 
+// 发送验证码
+export const sendVerificationCode = async (email: string, phone: string, type: string = 'password_reset') => {
+  return await authApi.sendVerificationCode(email, phone, type);
+};
+
+// 验证验证码并重置密码
+export const verifyCodeAndResetPassword = async (email: string, phone: string, code: string, newPassword: string, confirmPassword: string) => {
+  return await authApi.verifyCodeAndResetPassword(email, phone, code, newPassword, confirmPassword);
+};
+
+// 手机号密码登录
+export const loginPhonePassword = async (phone: string, password: string) => {
+  const result = await authApi.loginPhonePassword(phone, password);
+  return result.user;
+};
+
+// 验证码登录
+export const loginCode = async (phone: string, code: string) => {
+  const result = await authApi.loginCode(phone, code);
+  return result.user;
+};
+
 // 监听认证状态变化（模拟 Firebase 的 onAuthStateChanged）
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   // 立即检查一次

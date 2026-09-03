@@ -1812,18 +1812,18 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
                 
                 {/* 头像和用户信息 */}
                 <div className="flex items-start gap-3">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${post.isModerator ? 'bg-blue-100 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
-                    {post.isModerator ? <ShieldCheck size={20} /> : <Users size={20} />}
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${Boolean(post.isModerator) ? 'bg-blue-100 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
+                    {Boolean(post.isModerator) ? <ShieldCheck size={20} /> : <Users size={20} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     {/* 第一排：昵称 */}
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-bold text-stone-900">{post.isModerator ? "社区专家" : "匿名教师"}</p>
-                      {post.isModerator && <span className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
+                      <p className="text-sm font-bold text-stone-900">{Boolean(post.isModerator) ? "社区专家" : "匿名教师"}</p>
+                      {Boolean(post.isModerator) && <span className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
                     </div>
                     
                     {/* 第二排：身份标签 */}
-                    {post.identities && post.identities.length > 0 && (
+                    {Array.isArray(post.identities) && post.identities.length > 0 && (
                       <div className="flex items-center gap-2 flex-wrap mb-2">
                         {post.identities.map(identity => (
                           <span key={identity} className="px-2 py-1 bg-blue-100 text-blue-600 text-[10px] font-bold rounded-md mr-1">{IDENTITY_TAGS.find(tag => tag.id === identity)?.name}</span>

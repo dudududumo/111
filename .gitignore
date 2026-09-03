@@ -10,3 +10,5 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
+# 内部报价文档（仓库为公开仓库，不提交）
+报价表.md

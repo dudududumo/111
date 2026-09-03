@@ -153,6 +153,26 @@ export function initDatabase() {
     }
   }
 
+  // 迁移：创建 verification_codes 表
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS verification_codes (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        code TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'password_reset',
+        expires_at TIMESTAMP NOT NULL,
+        verified_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+    console.log('Successfully created verification_codes table');
+  } catch (migrationError) {
+    console.error('Migration failed:', migrationError);
+  }
+
   // 迁移：为 users 表添加 subject 列
   try {
     db.exec('SELECT subject FROM users LIMIT 1;');
@@ -333,6 +353,9 @@ export function initDatabase() {
   }
 }
 
+// 用户对外安全字段（不包含 password_hash，防止密码哈希泄露）
+const SAFE_USER_COLUMNS = `id, email, display_name, role, school, department, grade, phone, gender, subject, title, bio, teaching_experience, consent_accepted, wearable_brand, sync_frequency, favorite_tools, dept_id, manager_id, created_at, updated_at`;
+
 // 用户相关操作
 export const userDb = {
   // 创建用户
@@ -344,13 +367,14 @@ export const userDb = {
     school?: string;
     department?: string;
     grade?: string;
+    phone?: string;
   }) => {
     const id = uuidv4();
     const stmt = db.prepare(`
-      INSERT INTO users (id, email, display_name, password_hash, role, school, department, grade)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, display_name, password_hash, role, school, department, grade, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, user.email, user.displayName, user.passwordHash || null, user.role, user.school || null, user.department || null, user.grade || null);
+    stmt.run(id, user.email, user.displayName, user.passwordHash || null, user.role, user.school || null, user.department || null, user.grade || null, user.phone || null);
     return id;
   },
 
@@ -358,6 +382,12 @@ export const userDb = {
   findByEmail: (email: string) => {
     const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
     return stmt.get(email);
+  },
+
+  // 根据手机号查找用户
+  findByPhone: (phone: string) => {
+    const stmt = db.prepare('SELECT * FROM users WHERE phone = ?');
+    return stmt.get(phone);
   },
 
   // 根据ID查找用户
@@ -431,26 +461,121 @@ export const userDb = {
 
   // 获取所有教师（用于管理驾驶舱）
   getAllTeachers: () => {
-    const stmt = db.prepare("SELECT * FROM users WHERE role = 'teacher'");
+    const stmt = db.prepare(`SELECT ${SAFE_USER_COLUMNS} FROM users WHERE role = 'teacher'`);
     return stmt.all();
   },
 
   // 获取所有部门负责人（教研组长/年级主任）
   getManagers: () => {
-    const stmt = db.prepare("SELECT * FROM users WHERE role = 'dept_head'");
+    const stmt = db.prepare(`SELECT ${SAFE_USER_COLUMNS} FROM users WHERE role = 'dept_head'`);
     return stmt.all();
   },
 
   // 获取所有心理专家
   getPsychologists: () => {
-    const stmt = db.prepare("SELECT * FROM users WHERE role = 'psychologist'");
+    const stmt = db.prepare(`SELECT ${SAFE_USER_COLUMNS} FROM users WHERE role = 'psychologist'`);
     return stmt.all();
   },
 
-  // 获取所有用户
+  // 获取所有用户（仅安全字段）
   getAll: () => {
-    const stmt = db.prepare("SELECT * FROM users");
+    const stmt = db.prepare(`SELECT ${SAFE_USER_COLUMNS} FROM users`);
     return stmt.all();
+  }
+};
+
+// 验证码相关操作
+export const verificationCodeDb = {
+  // 创建验证码
+  create: (data: {
+    userId?: string;
+    phone: string;
+    code: string;
+    type?: string;
+    expiresInMinutes?: number;
+  }) => {
+    const id = uuidv4();
+    const expiresInMinutes = data.expiresInMinutes || 5; // 默认5分钟过期
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + expiresInMinutes * 60 * 1000);
+    
+    // 将时间转换为本地时间字符串
+    const formatTime = (date: Date) => {
+      return date.getFullYear() + '-' +
+        String(date.getMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getDate()).padStart(2, '0') + ' ' +
+        String(date.getHours()).padStart(2, '0') + ':' +
+        String(date.getMinutes()).padStart(2, '0') + ':' +
+        String(date.getSeconds()).padStart(2, '0');
+    };
+    
+    const stmt = db.prepare(`
+      INSERT INTO verification_codes (id, user_id, phone, code, type, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, data.userId || null, data.phone, data.code, data.type || 'password_reset', formatTime(expiresAt), formatTime(now));
+    return id;
+  },
+
+  // 查找有效的验证码（未过期、未验证）
+  findValidCode: (phone: string, code: string, type: string = 'password_reset') => {
+    const stmt = db.prepare(`
+      SELECT * FROM verification_codes 
+      WHERE phone = ? AND code = ? AND type = ? AND expires_at > datetime('now') AND verified_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    return stmt.get(phone, code, type);
+  },
+
+  // 标记验证码为已验证
+  markAsVerified: (id: string) => {
+    const stmt = db.prepare(`
+      UPDATE verification_codes 
+      SET verified_at = datetime('now')
+      WHERE id = ?
+    `);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  },
+
+  // 查找最新的未过期验证码
+  findLatest: (userId: string, phone: string, type: string = 'password_reset') => {
+    const stmt = db.prepare(`
+      SELECT * FROM verification_codes 
+      WHERE user_id = ? AND phone = ? AND type = ? AND expires_at > datetime('now')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    return stmt.get(userId, phone, type);
+  },
+
+  // 验证验证码
+  verify: (userId: string, phone: string, code: string, type: string = 'password_reset') => {
+    const stmt = db.prepare(`
+      UPDATE verification_codes 
+      SET verified_at = datetime('now')
+      WHERE user_id = ? AND phone = ? AND code = ? AND type = ? AND expires_at > datetime('now') AND verified_at IS NULL
+    `);
+    const result = stmt.run(userId, phone, code, type);
+    return result.changes > 0;
+  },
+
+  // 查找已验证的验证码
+  findVerified: (userId: string, phone: string, type: string = 'password_reset') => {
+    const stmt = db.prepare(`
+      SELECT * FROM verification_codes 
+      WHERE user_id = ? AND phone = ? AND type = ? AND verified_at IS NOT NULL
+      ORDER BY verified_at DESC
+      LIMIT 1
+    `);
+    return stmt.get(userId, phone, type);
+  },
+
+  // 删除用户的所有验证码
+  deleteByUser: (userId: string) => {
+    const stmt = db.prepare('DELETE FROM verification_codes WHERE user_id = ?');
+    stmt.run(userId);
   }
 };
 

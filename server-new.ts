@@ -6,9 +6,32 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, toolRatingDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb } from "./database/db.js";
+import { initDatabase, db, userDb, assessmentDb, warningDb, warningConfigDb, diaryDb, toolUsageDb, toolRatingDb, taskDb, communityDb, physiologicalDb, workloadDb, activityDb, interventionTaskDb, notificationDb, resourceDb, teamResourceDb, appointmentDb, verificationCodeDb } from "./database/db.js";
+
+// 阿里云短信服务 - 在函数内动态 require（避免 ESM 导入问题）
 
 dotenv.config();
+
+// 阿里云短信服务配置
+const ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID;
+const ALIYUN_ACCESS_KEY_SECRET = process.env.ALIYUN_ACCESS_KEY_SECRET;
+const ALIYUN_SMS_SIGN_NAME = process.env.ALIYUN_SMS_SIGN_NAME;
+const ALIYUN_SMS_TEMPLATE_CODE = process.env.ALIYUN_SMS_TEMPLATE_CODE;
+
+// 创建阿里云短信客户端 - 使用动态 import
+const createAliyunClient = async () => {
+  const DysmsapiModule = await import('@alicloud/dysmsapi20170525');
+  const Dysmsapi20170525 = DysmsapiModule.default;
+  const $OpenApi = await import('@alicloud/openapi-client');
+  
+  // 显式使用 AccessKey 配置
+  let config = new $OpenApi.Config({
+    accessKeyId: ALIYUN_ACCESS_KEY_ID,
+    accessKeySecret: ALIYUN_ACCESS_KEY_SECRET,
+    endpoint: `dysmsapi.aliyuncs.com`
+  });
+  return new Dysmsapi20170525(config);
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,18 +53,14 @@ const decryptData = (encryptedData: string): any => {
 // 认证中间件
 const authMiddleware = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.split(" ")[1];
-  console.log("authMiddleware - token:", token ? "present" : "missing");
   if (!token) {
-    console.log("authMiddleware - No token provided");
     return res.status(401).json({ error: "未提供认证令牌" });
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log("authMiddleware - decoded:", decoded);
     req.user = decoded;
     next();
   } catch (error) {
-    console.log("authMiddleware - Invalid token:", error);
     return res.status(401).json({ error: "无效的认证令牌" });
   }
 };
@@ -67,16 +86,36 @@ async function startServer() {
 
   // ==================== 认证相关 API ====================
 
-  // 注册
+  // 注册 - 需要手机号验证码
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, displayName, role, school, department } = req.body;
+      const { email, password, displayName, role, school, department, phone, code } = req.body;
+      
+      // 验证验证码
+      if (!email || !password || !displayName || !phone || !code) {
+        return res.status(400).json({ error: "请填写完整信息" });
+      }
       
       // 检查邮箱是否已存在
-      const existingUser = userDb.findByEmail(email);
-      if (existingUser) {
+      const existingEmailUser = userDb.findByEmail(email);
+      if (existingEmailUser) {
         return res.status(400).json({ error: "邮箱已被注册" });
       }
+      
+      // 检查手机号是否已存在
+      const existingPhoneUser = userDb.findByPhone(phone);
+      if (existingPhoneUser) {
+        return res.status(400).json({ error: "手机号已被注册" });
+      }
+      
+      // 查找并验证验证码
+      const verificationCode = verificationCodeDb.findValidCode(phone, code, 'register');
+      if (!verificationCode) {
+        return res.status(400).json({ error: "验证码无效或已过期" });
+      }
+      
+      // 标记验证码为已验证
+      verificationCodeDb.markAsVerified(verificationCode.id);
 
       // 加密密码
       const passwordHash = await bcrypt.hash(password, 10);
@@ -88,7 +127,8 @@ async function startServer() {
         displayName,
         role: role || "teacher",
         school: school || "南部县第二小学",
-        department
+        department,
+        phone: phone
       });
 
       // 生成 JWT
@@ -100,6 +140,7 @@ async function startServer() {
         user: {
           id: userId,
           email,
+          phone,
           displayName,
           role: role || "teacher"
         }
@@ -114,31 +155,25 @@ async function startServer() {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      console.log("登录请求:", { email, password });
       
       // 查找用户
       const user = userDb.findByEmail(email);
-      console.log("查找结果:", user);
       
       if (!user) {
-        console.error("用户不存在:", email);
         return res.status(401).json({ error: "邮箱或密码错误" });
       }
 
       // 验证密码 - 支持明文密码（仅用于测试）
       let isValidPassword = false;
-      console.log("密码验证开始:", { storedPassword: user.password_hash, inputPassword: password });
       
       // 首先尝试明文匹配
       if (user.password_hash === password) {
         // 明文密码匹配
         isValidPassword = true;
-        console.log("明文密码匹配成功");
       } else {
         // 尝试bcrypt验证
         try {
           isValidPassword = await bcrypt.compare(password, user.password_hash);
-          console.log("bcrypt验证结果:", isValidPassword);
         } catch (error) {
           console.error("密码验证错误:", error);
           isValidPassword = false;
@@ -146,7 +181,6 @@ async function startServer() {
       }
       
       if (!isValidPassword) {
-        console.error("密码验证失败:", email);
         return res.status(401).json({ error: "邮箱或密码错误" });
       }
 
@@ -161,7 +195,6 @@ async function startServer() {
         JWT_SECRET,
         { expiresIn: "7d" }
       );
-      console.log("生成token:", token);
 
       res.json({
         token,
@@ -201,12 +234,276 @@ async function startServer() {
       );
 
       // 模拟发送邮件（实际应用中应该使用邮件服务）
-      console.log(`发送密码重置链接到 ${email}，令牌：${resetToken}`);
+      console.log(`发送密码重置链接到 ${email}`);
 
       res.json({ success: true, message: "密码重置链接已发送到您的邮箱，请查收" });
     } catch (error) {
       console.error("发送密码重置链接错误:", error);
       res.status(500).json({ error: "发送重置链接失败" });
+    }
+  });
+
+  // 发送短信验证码
+  app.post("/api/auth/send-verification-code", async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      
+      const { email, phone, type } = req.body;
+      const verificationType = type || 'password_reset';
+      
+      if (!phone) {
+        return res.status(400).json({ error: "手机号不能为空" });
+      }
+      
+      // 注册类型验证码
+      if (verificationType === 'register') {
+        // 检查手机号是否已被注册
+        const existingPhoneUser = userDb.findByPhone(phone);
+        if (existingPhoneUser) {
+          return res.status(400).json({ error: "手机号已被注册" });
+        }
+        
+        // 检查邮箱是否已被注册（如果提供了邮箱）
+        if (email) {
+          const existingEmailUser = userDb.findByEmail(email);
+          if (existingEmailUser) {
+            return res.status(400).json({ error: "邮箱已被注册" });
+          }
+        }
+      }
+      // 密码重置类型验证码
+      else if (verificationType === 'password_reset') {
+        if (!email) {
+          return res.status(400).json({ error: "邮箱不能为空" });
+        }
+        // 查找用户
+        const user = userDb.findByEmail(email);
+        if (!user) {
+          return res.status(404).json({ error: "用户不存在" });
+        }
+        // 如果用户已经绑定手机号，检查输入的手机号是否匹配
+        if (user.phone && user.phone !== phone) {
+          return res.status(400).json({ error: "该邮箱已绑定其他手机号，请输入已绑定的手机号" });
+        }
+      }
+      // 登录类型验证码
+      else if (verificationType === 'login') {
+        // 检查手机号是否存在
+        const user = userDb.findByPhone(phone);
+        if (!user) {
+          return res.status(404).json({ error: "该手机号未注册，请使用邮箱密码登录" });
+        }
+      }
+      
+      // 生成6位随机验证码
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // 创建验证码记录（5分钟过期）
+      verificationCodeDb.create({
+        userId: verificationType === 'register' ? undefined : (verificationType === 'login' ? userDb.findByPhone(phone)?.id : userDb.findByEmail(email)?.id),
+        phone,
+        code,
+        type: verificationType,
+        expiresInMinutes: 5
+      });
+      
+      // 密码重置类型：如果用户没有手机号，更新手机号
+      if (verificationType === 'password_reset') {
+        const user = userDb.findByEmail(email);
+        if (user && !user.phone) {
+          userDb.update(user.id, { phone });
+        }
+      }
+      
+      // 检查是否配置了阿里云短信服务
+      if (ALIYUN_ACCESS_KEY_ID && ALIYUN_ACCESS_KEY_SECRET && ALIYUN_SMS_SIGN_NAME && ALIYUN_SMS_TEMPLATE_CODE) {
+        try {
+          // 动态 import 避免 ESM 导入问题
+          const DysmsapiModule = await import('@alicloud/dysmsapi20170525');
+          const $Dysmsapi20170525 = DysmsapiModule; // * as $Dysmsapi20170525
+          const $UtilModule = await import('@alicloud/tea-util');
+          const $Util = $UtilModule; // * as $Util
+          
+          // 使用阿里云短信服务发送
+          const client = await createAliyunClient();
+          const sendSmsRequest = new $Dysmsapi20170525.SendSmsRequest({
+            phoneNumbers: phone,
+            signName: ALIYUN_SMS_SIGN_NAME,
+            templateCode: ALIYUN_SMS_TEMPLATE_CODE,
+            templateParam: JSON.stringify({ code })
+          });
+          const runtime = new $Util.RuntimeOptions({ });
+          await client.sendSmsWithOptions(sendSmsRequest, runtime);
+        } catch (smsError) {
+          console.error("阿里云短信发送失败:", smsError);
+          // 如果短信发送失败，仍然返回成功，但记录错误
+        }
+      } else {
+        // 开发模式：输出到控制台
+        console.log(`发送验证码到 ${phone}，验证码：${code}`);
+      }
+      
+      res.json({ success: true, message: "验证码已发送" });
+    } catch (error) {
+      console.error("发送验证码错误:", error);
+      res.status(500).json({ error: "发送验证码失败" });
+    }
+  });
+
+  // 验证验证码并重置密码
+  app.post("/api/auth/verify-code-and-reset-password", async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      
+      const { email, phone, code, newPassword, confirmPassword } = req.body;
+      
+      if (!email || !phone || !code || !newPassword || !confirmPassword) {
+        return res.status(400).json({ error: "所有字段都不能为空" });
+      }
+      
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({ error: "两次输入的密码不一致" });
+      }
+      
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "密码长度至少6位" });
+      }
+      
+      // 查找用户
+      const user = userDb.findByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+      
+      // 验证验证码
+      const isValid = verificationCodeDb.verify(user.id, phone, code, 'password_reset');
+      if (!isValid) {
+        return res.status(400).json({ error: "验证码无效或已过期" });
+      }
+      
+      // 加密新密码
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      
+      // 更新密码
+      userDb.update(user.id, { passwordHash });
+      
+      // 删除用户的所有验证码
+      verificationCodeDb.deleteByUser(user.id);
+      
+      res.json({ success: true, message: "密码重置成功" });
+    } catch (error) {
+      console.error("重置密码错误:", error);
+      res.status(500).json({ error: "重置密码失败" });
+    }
+  });
+
+  // 手机号密码登录
+  app.post("/api/auth/login-phone-password", async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      
+      // 查找用户
+      const user = userDb.findByPhone(phone);
+      if (!user) {
+        return res.status(401).json({ error: "手机号未注册，请使用邮箱密码登录" });
+      }
+
+      // 验证密码 - 支持明文密码（仅用于测试）
+      let isValidPassword = false;
+      
+      // 首先尝试明文匹配
+      if (user.password_hash === password) {
+        // 明文密码匹配
+        isValidPassword = true;
+      } else {
+        // 尝试bcrypt验证
+        try {
+          isValidPassword = await bcrypt.compare(password, user.password_hash);
+        } catch (error) {
+          console.error("密码验证错误:", error);
+          isValidPassword = false;
+        }
+      }
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "手机号或密码错误" });
+      }
+
+      // 生成 JWT
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          email: user.email, 
+          role: user.role,
+          managerId: user.manager_id
+        },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.display_name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("手机号密码登录错误:", error);
+      res.status(500).json({ error: "登录失败" });
+    }
+  });
+
+  // 验证码登录
+  app.post("/api/auth/login-code", async (req, res) => {
+    try {
+      const { phone, code } = req.body;
+      
+      if (!phone || !code) {
+        return res.status(400).json({ error: "手机号和验证码不能为空" });
+      }
+      
+      // 查找并验证验证码
+      const verificationCode = verificationCodeDb.findValidCode(phone, code, 'login');
+      if (!verificationCode) {
+        return res.status(400).json({ error: "验证码无效或已过期" });
+      }
+      
+      // 标记验证码为已验证
+      verificationCodeDb.markAsVerified(verificationCode.id);
+      
+      // 查找用户
+      const user = userDb.findByPhone(phone);
+      if (!user) {
+        return res.status(404).json({ error: "用户不存在" });
+      }
+
+      // 生成 JWT
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          email: user.email, 
+          role: user.role,
+          managerId: user.manager_id
+        },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.display_name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("验证码登录错误:", error);
+      res.status(500).json({ error: "登录失败" });
     }
   });
 
@@ -274,19 +571,13 @@ async function startServer() {
   app.patch("/api/users/:id", authMiddleware, (req: any, res) => {
     try {
       const id = req.params.id;
-      console.log('PATCH /api/users/:id called');
-      console.log('User ID:', id);
-      console.log('Request body:', req.body);
-      console.log('Auth user:', req.user);
       
       // 只能修改自己的信息，除非是管理员
       if (req.user.userId !== id && req.user.role !== "admin") {
-        console.log('Permission error:', req.user.userId, '!=', id);
         return res.status(403).json({ error: "无权修改此用户信息" });
       }
 
       const updates = req.body;
-      console.log('Updates:', updates);
       
       // 角色修改限制：只有管理员可以修改角色，且不能把自己改回普通用户（可选）
       if (updates.role && req.user.role !== "admin") {
@@ -297,7 +588,6 @@ async function startServer() {
         if (updates.role) {
           // 更新用户角色
           userDb.update(id, updates);
-          console.log('Update successful');
           
           // 生成新的token
           const user = userDb.findById(id);
@@ -310,7 +600,6 @@ async function startServer() {
           res.json({ success: true, token: newToken });
         } else {
           userDb.update(id, updates);
-          console.log('Update successful');
           res.json({ success: true });
         }
     } catch (error) {
@@ -520,10 +809,8 @@ async function startServer() {
 
   // 获取团队氛围统计（本组 vs 全校）
   app.get("/api/atmosphere/stats", authMiddleware, (req: any, res) => {
-    console.log('=== /api/atmosphere/stats 被调用 ===');
     try {
       const currentUser = userDb.findById(req.user.userId);
-      console.log('当前用户:', currentUser);
       if (!currentUser) {
         return res.status(404).json({ error: "用户不存在" });
       }
@@ -694,9 +981,6 @@ async function startServer() {
   // 创建预警
   app.post("/api/warnings", authMiddleware, (req: any, res) => {
     try {
-      console.log("收到预警创建请求:", req.body);
-      console.log("当前用户:", req.user);
-      
       // 只有管理员、心理医生和部门主任可以创建预警
       if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
         console.error("权限不足: 用户ID", req.user.userId, "角色", req.user.role);
@@ -1285,10 +1569,7 @@ async function startServer() {
       }
       
       if (date) {
-        // 正确处理YYYY-MM-DD格式的日期，确保使用本地时间
-        const dateStr = date as string;
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const targetDate = new Date(year, month - 1, day).toDateString();
+        const targetDate = new Date(date as string).toDateString();
         let foundData = {
           hrv: null,
           restingHR: null,
@@ -1375,8 +1656,6 @@ async function startServer() {
       const { hrv, restingHR, sleepDuration, deepSleepRatio, date } = data;
       const userId = req.user.userId;
       
-      console.log('保存生理数据:', { userId, hrv, restingHR, sleepDuration, deepSleepRatio, date, reqBody: req.body, decryptedData: data });
-      
       const existingData = physiologicalDb.getByUserId(userId);
       
       let newHrv = existingData?.hrv ? JSON.parse(existingData.hrv) : [];
@@ -1385,19 +1664,8 @@ async function startServer() {
       let newDeepSleepRatio = existingData?.deep_sleep_ratio ? JSON.parse(existingData.deep_sleep_ratio) : [];
       let newTimestamps = existingData?.timestamps ? JSON.parse(existingData.timestamps) : [];
       
-      let targetDate: string;
-      let timestamp: string;
-      
-      if (date) {
-        // 正确处理YYYY-MM-DD格式的日期
-        const [year, month, day] = date.split('-').map(Number);
-        const d = new Date(year, month - 1, day);
-        targetDate = d.toDateString();
-        timestamp = d.toISOString();
-      } else {
-        targetDate = new Date().toDateString();
-        timestamp = new Date().toISOString();
-      }
+      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
+      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
       
       let foundIndex = -1;
       for (let i = 0; i < newTimestamps.length; i++) {
@@ -1508,10 +1776,7 @@ async function startServer() {
       console.log('解析后的工作负载数据:', { classHours, meetingHours, nonTeachingTasks, totalWorkloadIndex, timestamps });
       
       if (date) {
-        // 正确处理YYYY-MM-DD格式的日期，确保使用本地时间
-        const dateStr = date as string;
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const targetDate = new Date(year, month - 1, day).toDateString();
+        const targetDate = new Date(date as string).toDateString();
         console.log('日期匹配调试:', {
           dateParam: date,
           targetDate: targetDate,
@@ -1651,19 +1916,8 @@ async function startServer() {
         newTimestamps = existingData?.timestamps !== null ? [existingData.timestamps] : [];
       }
       
-      let targetDate: string;
-      let timestamp: string;
-      
-      if (date) {
-        // 正确处理YYYY-MM-DD格式的日期
-        const [year, month, day] = date.split('-').map(Number);
-        const d = new Date(year, month - 1, day);
-        targetDate = d.toDateString();
-        timestamp = d.toISOString();
-      } else {
-        targetDate = new Date().toDateString();
-        timestamp = new Date().toISOString();
-      }
+      const targetDate = date ? new Date(date).toDateString() : new Date().toDateString();
+      const timestamp = date ? new Date(date).toISOString() : new Date().toISOString();
       
       const totalWorkloadIndex = Math.min(100, (classHours || 0) * 3 + (meetingHours || 0) * 2 + (nonTeachingTasks || 0) * 2);
       

@@ -37,12 +37,12 @@ const CommunityPost: React.FC<CommunityPostProps> = ({ post, profile, handleLike
           <div className="flex-1 min-w-0">
             {/* 第一排：昵称 */}
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-stone-900">{post.isModerator ? "社区专家" : "匿名教师"}</p>
-                      {post.isModerator && <span className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
+                      <p className="text-sm font-bold text-stone-900">{Boolean(post.isModerator) ? "社区专家" : "匿名教师"}</p>
+                      {Boolean(post.isModerator) && <span className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md uppercase">Mod</span>}
                     </div>
                     
                     {/* 第二排：身份标签 */}
-                    {post.identities && post.identities.length > 0 && (
+                    {Array.isArray(post.identities) && post.identities.length > 0 && (
                       <div className="flex items-center gap-1 flex-wrap mb-1">
                         {post.identities.map((identity: string) => (
                           <span key={identity} className="px-2 py-1 bg-blue-100 text-blue-600 text-[10px] font-bold rounded-md mr-1">{identity}</span>

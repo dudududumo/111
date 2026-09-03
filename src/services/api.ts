@@ -108,6 +108,8 @@ export const authApi = {
     role?: string;
     school?: string;
     department?: string;
+    phone?: string;
+    code?: string;
   }) => {
     const result = await fetchApi("/auth/register", {
       method: "POST",
@@ -150,6 +152,46 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email }),
     });
+  },
+
+  // 发送验证码
+  sendVerificationCode: async (email: string, phone: string, type: string = 'password_reset') => {
+    return fetchApi("/auth/send-verification-code", {
+      method: "POST",
+      body: JSON.stringify({ email, phone, type }),
+    });
+  },
+
+  // 验证验证码并重置密码
+  verifyCodeAndResetPassword: async (email: string, phone: string, code: string, newPassword: string, confirmPassword: string) => {
+    return fetchApi("/auth/verify-code-and-reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, phone, code, newPassword, confirmPassword }),
+    });
+  },
+
+  // 手机号密码登录
+  loginPhonePassword: async (phone: string, password: string) => {
+    const result = await fetchApi("/auth/login-phone-password", {
+      method: "POST",
+      body: JSON.stringify({ phone, password }),
+    });
+    if (result.token) {
+      localStorage.setItem("token", result.token);
+    }
+    return result;
+  },
+
+  // 验证码登录
+  loginCode: async (phone: string, code: string) => {
+    const result = await fetchApi("/auth/login-code", {
+      method: "POST",
+      body: JSON.stringify({ phone, code }),
+    });
+    if (result.token) {
+      localStorage.setItem("token", result.token);
+    }
+    return result;
   },
 };
 
