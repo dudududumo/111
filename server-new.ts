@@ -340,7 +340,7 @@ async function startServer() {
         }
       } else {
         // 开发模式：输出到控制台
-        console.log(`发送验证码到 ${phone}，验证码：${code}`);
+        console.log(`发送验证码到 ${phone}`);
       }
       
       res.json({ success: true, message: "验证码已发送" });
@@ -679,8 +679,6 @@ async function startServer() {
   // 创建评估
   app.post("/api/assessments", authMiddleware, (req: any, res) => {
     try {
-      console.log('收到评估提交请求:', req.body);
-      
       let { type, scores, rawAnswers, riskLevel, depressionScore } = req.body;
       
       // 处理加密数据
@@ -1023,8 +1021,6 @@ async function startServer() {
   // 创建或更新预警（避免重复）
   app.post("/api/warnings/upsert", authMiddleware, (req: any, res) => {
     try {
-      console.log("收到预警创建或更新请求:", req.body);
-      
       // 允许所有角色创建/更新预警，因为教师自己也可以进行测评
       // if (!["admin", "psychologist", "dept_head"].includes(req.user.role)) {
       //   console.error("权限不足: 用户ID", req.user.userId, "角色", req.user.role);
@@ -1529,8 +1525,6 @@ async function startServer() {
     const { date } = req.query;
     const data = physiologicalDb.getByUserId(userId);
     
-    console.log('获取生理数据:', { userId, date, data });
-    
     if (data) {
       let hrv: any[] = [];
       let restingHR: any[] = [];
@@ -1729,8 +1723,6 @@ async function startServer() {
     const { date } = req.query;
     const data = workloadDb.getByUserId(userId);
     
-    console.log('获取工作负载数据:', { userId, date, data });
-    
     if (data) {
       let classHours: any[] = [];
       let meetingHours: any[] = [];
@@ -1871,7 +1863,6 @@ async function startServer() {
       const { classHours, meetingHours, nonTeachingTasks, date } = data;
       const userId = req.user.userId;
       
-      console.log('保存工作负载数据:', { userId, classHours, meetingHours, nonTeachingTasks, date, reqBody: req.body, decryptedData: data });
       
       const existingData = workloadDb.getByUserId(userId);
       
@@ -1995,7 +1986,6 @@ async function startServer() {
       }
       
       const { toolId, duration, feeling } = data;
-      console.log('收到工具使用记录请求:', { userId: req.user?.userId, toolId, duration, feeling });
       
       if (!toolId) {
         return res.status(400).json({ error: "缺少 toolId 参数" });
@@ -2201,8 +2191,6 @@ async function startServer() {
 
   app.post("/api/community/posts", authMiddleware, (req: any, res) => {
     try {
-      console.log("POST /api/community/posts - body:", req.body);
-      console.log("POST /api/community/posts - user:", req.user);
       const { content, topic, identity, identities } = req.body;
       const newPost = communityDb.createPost({
         authorId: req.user.userId,
@@ -2607,9 +2595,6 @@ async function startServer() {
       });
       console.log("任务创建成功，ID:", taskId);
       
-      // 验证任务是否创建成功
-      const createdTask = interventionTaskDb.getById(taskId);
-      console.log("验证创建的任务:", createdTask);
       
       res.json({ success: true, id: taskId });
     } catch (error) {
