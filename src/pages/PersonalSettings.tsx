@@ -1192,7 +1192,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
       {showInfoForm && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <div className="glass rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden relative flex flex-col max-h-[calc(100vh_-_5rem)]">
             <button
               onClick={() => setShowInfoForm(false)}
@@ -1341,7 +1341,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
       {showDataForm && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <div className="glass rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden relative flex flex-col max-h-[calc(100vh_-_5rem)]">
             <button
               onClick={() => setShowDataForm(false)}
@@ -1552,7 +1552,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
       {showAddMemberModal && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <div className="glass rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden relative flex flex-col max-h-[calc(100vh_-_5rem)]">
             <button
               onClick={() => setShowAddMemberModal(false)}
@@ -1626,7 +1626,7 @@ const PersonalSettings: React.FC<PersonalSettingsProps> = ({ profile }) => {
 
       {showEditUserModal && editingUser && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <div className="glass rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden relative flex flex-col max-h-[calc(100vh_-_5rem)]">
             <button
               onClick={() => setShowEditUserModal(false)}

@@ -95,7 +95,9 @@ export default function AppShell() {
       <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header profile={profile} isSidebarOpen={isSidebarOpen} onOpenSidebar={openSidebar} />
 
-        <main className="relative flex-1 overflow-y-auto">
+        <main className="relative flex-1 overflow-hidden">
+          {/* 内容区内部滚动：弹窗 absolute 相对 main（不滚动）居中，避免随内容滚出视口 */}
+          <div className="h-full overflow-y-auto">
           <Routes>
             <Route path="/" element={<PersonalSettings profile={profile} />} />
             <Route
@@ -116,6 +118,7 @@ export default function AppShell() {
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          </div>
         </main>
       </div>
     </div>

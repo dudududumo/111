@@ -1919,7 +1919,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
       {/* Modals */}
       {showNewPost && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2032,7 +2032,7 @@ const Toolkit: React.FC<ToolkitProps> = ({ profile }) => {
 
       {replyingTo && (
         <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-          <div className="sticky top-0 h-screen flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
