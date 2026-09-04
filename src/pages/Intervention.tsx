@@ -1713,7 +1713,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
         <AnimatePresence>
           {showAddActivity && (
             <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -1796,7 +1796,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
           {showAddCareRecord && (
             <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -1890,7 +1890,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
 
           {showCancelConfirm && (
             <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -1936,7 +1936,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
           {/* 预约模态框 */}
           {showAppointmentModal && selectedResource && (
             <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -2041,7 +2041,7 @@ const Intervention: React.FC<InterventionProps> = ({ profile }) => {
           {/* 预约管理模态框（心理医生/管理员用） */}
           {showAppointmentManager && (
             <div className="absolute inset-0 z-[100] m-0! bg-ink-900/30 backdrop-blur-sm">
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

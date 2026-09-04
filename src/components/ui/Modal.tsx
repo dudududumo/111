@@ -27,7 +27,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = "max-
             onClick={onClose}
             className="absolute inset-0 cursor-pointer"
           />
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+          <div className="pointer-events-none sticky top-0 h-screen flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

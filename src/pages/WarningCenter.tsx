@@ -949,7 +949,7 @@ const WarningCenter: React.FC<WarningCenterProps> = ({ profile }) => {
                 onClick={() => setShowConfig(false)}
                 className="absolute inset-0 cursor-pointer"
               />
-              <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="sticky top-0 h-screen flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
